@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
     "numpy>=2.2.3",
+    "skrub",
     "pandas>=2.3.1",
     "scikit-learn>=1.7.1",
     # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu 
