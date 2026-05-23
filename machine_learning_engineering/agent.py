@@ -1,71 +1,149 @@
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Demonstration of Machine Learning Engineering Agent using Agent Development Kit."""
-
-import json
-import os
-
-from google.adk import agents
-from google.adk.agents import callback_context as callback_context_module
-from google.genai import types
-
+from machine_learning_engineering import client, MODEL_NAME
 from machine_learning_engineering import prompt
-from machine_learning_engineering.sub_agents.ensemble import (
-    agent as ensemble_agent_module,
-)
-from machine_learning_engineering.sub_agents.initialization import (
-    agent as initialization_agent_module,
-)
-from machine_learning_engineering.sub_agents.refinement import (
-    agent as refinement_agent_module,
-)
-from machine_learning_engineering.sub_agents.submission import (
-    agent as submission_agent_module,
-)
 
-
-def save_state(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Prints the current state of the callback context."""
-    workspace_dir = callback_context.state.get("workspace_dir", "")
-    task_name = callback_context.state.get("task_name", "")
-    run_cwd = os.path.join(workspace_dir, task_name)
-    with open(os.path.join(run_cwd, "final_state.json"), "w") as f:
-        json.dump(callback_context.state.to_dict(), f, indent=2)
-    return None
-
-
-mle_pipeline_agent = agents.SequentialAgent(
-    name="mle_pipeline_agent",
-    sub_agents=[
-        initialization_agent_module.initialization_agent,
-        refinement_agent_module.refinement_agent,
-        ensemble_agent_module.ensemble_agent,
-        submission_agent_module.submission_agent,
-    ],
-    description="Executes a sequence of sub-agents for solving the MLE task.",
-    after_agent_callback=save_state,
-)
-
-# For ADK tools compatibility, the root agent must be named `root_agent`
-root_agent = agents.Agent(
-    model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
-    name="mle_frontdoor_agent",
-    instruction=prompt.FRONTDOOR_INSTRUCTION,
-    global_instruction=prompt.SYSTEM_INSTRUCTION,
-    sub_agents=[mle_pipeline_agent],
-    generate_content_config=types.GenerateContentConfig(temperature=0.01),
-)
+class ManagerAgent:
+    def __init__(self):
+        """This function is executed automatically when the agent is born."""
+        self.nombre = "MLE_Frontdoor_Manager"
+        self.total_tokens_spent = 0
+        self.token_limit = 5000
+        
+       
+        complete_instructions = prompt.SYSTEM_INSTRUCTION + "\n\n" + prompt.FRONTDOOR_INSTRUCTION
+        
+        self.history = [{"role": "system", "content": complete_instructions}]
+        
+    def solve_task(self, user_task):
+        
+        if self.total_tokens_spent >= self.token_limit:
+            
+            return "Limit tokens reached"
+        
+        self.history.append({"role" : "user", "content" : user_task})
+        
+        try:
+            
+            response = client.chat.completions.create(model = MODEL_NAME, messages = self.history, temperature = .02)
+            
+            agent_response = response.choices[0].message.content
+            
+            self.history.append({"role" : "assistant", "content" : agent_response})
+            
+            self.total_tokens_spent += response.usage.total_tokens
+            
+            return agent_response
+        
+        except Exception as e:
+            
+            return f"Connection error {e}"
+        
+    def delegate_task(self, employee):
+        
+        if self.total_tokens_spent >= self.token_limit:
+            
+            return "Limit tokens reached"
+        
+        agent_response, cost = employee.work(self.history)
+        
+        self.total_tokens_spent += cost
+        
+        self.history.append({"role" : "assistant", "content" : agent_response})
+        
+        return agent_response
+        
+        
+        
+class SubAgent:
+    
+    def __init__(self, Agent_name, instructions):
+        
+        self.Agent_name = Agent_name
+        
+        self.instructions = instructions
+    
+    def work(self, Manager_history):
+        
+        temp_history = [{"role" : "system", "content" : self.instructions}]
+        
+        history = temp_history + Manager_history 
+        
+        try:
+            
+            response = client.chat.completions.create(model = MODEL_NAME, messages = history, temperature = .02)
+            
+            agent_response = response.choices[0].message.content
+            
+            token_cost = response.usage.total_tokens
+            
+            return agent_response, token_cost
+            
+        except Exception as e:
+            
+            
+            
+            return f"There was a problem {e} with the execution of the subagent", 0
+    
+        
+        
+        
+    
+     
+        
+if __name__ == "__main__":
+    print("🚀 Starting the SAIA Engine - Multi-Agent Factory...")
+    
+    # 1. Nace el Gerente
+    Manager = ManagerAgent() 
+    
+    # 2. Definimos el problema base y se lo pasamos al gerente
+    trial_task = "We have the Titanic dataset. We want to build a machine learning pipeline to predict who survived."
+    Manager.history.append({"role": "user", "content": trial_task})
+    
+    # 3. Redactamos las reglas secretas en inglés para cada fase
+    init_prompt = (
+        "You are the Initialization Agent. Your task is to read the user's problem "
+        "and outline a clear, short 3-step plan to analyze the dataset."
+    )
+    
+    refine_prompt = (
+        "You are the Refinement Agent. Based strictly on the Initialization Agent's plan, "
+        "suggest 3 concrete data cleaning steps (e.g., handling missing values, encoding features)."
+    )
+    
+    ensemble_prompt = (
+        "You are the Ensemble Agent. Based on the cleaned data strategy from the previous steps, "
+        "suggest 2 specific Machine Learning models that are well-suited for this classification task and briefly explain why."
+    )
+    
+    submit_prompt = (
+        "You are the Submission Agent. Your job is to output the final result. "
+        "Write a 1-paragraph executive summary of the entire pipeline designed by your peers, "
+        "and provide a professional sign-off."
+    )
+    
+    # 4. Instanciamos a los 4 empleados
+    agent_init = SubAgent("Initialization Expert", init_prompt)
+    agent_refine = SubAgent("Refinement Expert", refine_prompt)
+    agent_ensemble = SubAgent("Ensemble Expert", ensemble_prompt)
+    agent_submit = SubAgent("Submission Expert", submit_prompt)
+    
+    # 5. El Gerente delega el trabajo en cadena (Pipeline Secuencial)
+    print("\n--- PHASE 1: Initialization ---")
+    out_1 = Manager.delegate_task(agent_init)
+    print(out_1)
+    
+    print("\n--- PHASE 2: Refinement ---")
+    out_2 = Manager.delegate_task(agent_refine)
+    print(out_2)
+    
+    print("\n--- PHASE 3: Ensemble ---")
+    out_3 = Manager.delegate_task(agent_ensemble)
+    print(out_3)
+    
+    print("\n--- PHASE 4: Submission ---")
+    out_4 = Manager.delegate_task(agent_submit)
+    print(out_4)
+    
+    # 6. Auditoría Final
+    print("=" * 60)
+    print(f"💰 Final session balance: {Manager.total_tokens_spent} tokens spent.")
