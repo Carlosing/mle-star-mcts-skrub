@@ -90,19 +90,60 @@ class SubAgent:
      
         
 if __name__ == "__main__":
+    print("🚀 Starting the SAIA Engine - Multi-Agent Factory...")
     
-    Manager = ManagerAgent()
+    # 1. Nace el Gerente
+    Manager = ManagerAgent() 
     
-    trial_task = (
-        "Make an exploratory analysis of the titanic data set"
+    # 2. Definimos el problema base y se lo pasamos al gerente
+    trial_task = "We have the Titanic dataset. We want to build a machine learning pipeline to predict who survived."
+    Manager.history.append({"role": "user", "content": trial_task})
+    
+    # 3. Redactamos las reglas secretas en inglés para cada fase
+    init_prompt = (
+        "You are the Initialization Agent. Your task is to read the user's problem "
+        "and outline a clear, short 3-step plan to analyze the dataset."
     )
-        
-    Manager.history.append({"role" : "user", "content": trial_task})
     
-    kaggle_agent = SubAgent("Kaggle Grandmaster", prompt.TASK_AGENT_INSTR)
+    refine_prompt = (
+        "You are the Refinement Agent. Based strictly on the Initialization Agent's plan, "
+        "suggest 3 concrete data cleaning steps (e.g., handling missing values, encoding features)."
+    )
     
-    output = Manager.delegate_task(kaggle_agent)
+    ensemble_prompt = (
+        "You are the Ensemble Agent. Based on the cleaned data strategy from the previous steps, "
+        "suggest 2 specific Machine Learning models that are well-suited for this classification task and briefly explain why."
+    )
     
-    print("Expert output: ", output)
+    submit_prompt = (
+        "You are the Submission Agent. Your job is to output the final result. "
+        "Write a 1-paragraph executive summary of the entire pipeline designed by your peers, "
+        "and provide a professional sign-off."
+    )
     
-    print("Tokens consumed: ", Manager.total_tokens_spent)
+    # 4. Instanciamos a los 4 empleados
+    agent_init = SubAgent("Initialization Expert", init_prompt)
+    agent_refine = SubAgent("Refinement Expert", refine_prompt)
+    agent_ensemble = SubAgent("Ensemble Expert", ensemble_prompt)
+    agent_submit = SubAgent("Submission Expert", submit_prompt)
+    
+    # 5. El Gerente delega el trabajo en cadena (Pipeline Secuencial)
+    print("\n--- PHASE 1: Initialization ---")
+    out_1 = Manager.delegate_task(agent_init)
+    print(out_1)
+    
+    print("\n--- PHASE 2: Refinement ---")
+    out_2 = Manager.delegate_task(agent_refine)
+    print(out_2)
+    
+    print("\n--- PHASE 3: Ensemble ---")
+    out_3 = Manager.delegate_task(agent_ensemble)
+    print(out_3)
+    
+    print("\n--- PHASE 4: Submission ---")
+    out_4 = Manager.delegate_task(agent_submit)
+    print(out_4)
+    
+    # 6. Auditoría Final
+    print("=" * 60)
+    print(f"💰 Final session balance: {Manager.total_tokens_spent} tokens spent.")
