@@ -1,7 +1,7 @@
 from machine_learning_engineering import client, MODEL_NAME
 from machine_learning_engineering import prompt
 
-class GerenteAgent:
+class ManagerAgent:
     def __init__(self):
         """This function is executed automatically when the agent is born."""
         self.nombre = "MLE_Frontdoor_Manager"
@@ -37,14 +37,72 @@ class GerenteAgent:
             
             return f"Connection error {e}"
         
+    def delegate_task(self, employee):
+        
+        if self.total_tokens_spent >= self.token_limit:
+            
+            return "Limit tokens reached"
+        
+        agent_response, cost = employee.work(self.history)
+        
+        self.total_tokens_spent += cost
+        
+        self.history.append({"role" : "assistant", "content" : agent_response})
+        
+        return agent_response
+        
+        
+        
+class SubAgent:
+    
+    def __init__(self, Agent_name, instructions):
+        
+        self.Agent_name = Agent_name
+        
+        self.instructions = instructions
+    
+    def work(self, Manager_history):
+        
+        temp_history = [{"role" : "system", "content" : self.instructions}]
+        
+        history = temp_history + Manager_history 
+        
+        try:
+            
+            response = client.chat.completions.create(model = MODEL_NAME, messages = history, temperature = .02)
+            
+            agent_response = response.choices[0].message.content
+            
+            token_cost = response.usage.total_tokens
+            
+            return agent_response, token_cost
+            
+        except Exception as e:
+            
+            
+            
+            return f"There was a problem {e} with the execution of the subagent", 0
+    
+        
+        
+        
+    
+     
+        
 if __name__ == "__main__":
     
-    Manager = GerenteAgent()
+    Manager = ManagerAgent()
     
-    trial_task = "Write a simple code in python that prints the message 'Hello World!'"
+    trial_task = (
+        "Make an exploratory analysis of the titanic data set"
+    )
+        
+    Manager.history.append({"role" : "user", "content": trial_task})
     
-    output = Manager.solve_task(trial_task)
+    kaggle_agent = SubAgent("Kaggle Grandmaster", prompt.TASK_AGENT_INSTR)
     
-    print("Agents output: ", output)
+    output = Manager.delegate_task(kaggle_agent)
     
-    print(f"{Manager.total_tokens_spent} spent tokens")
+    print("Expert output: ", output)
+    
+    print("Tokens consumed: ", Manager.total_tokens_spent)
