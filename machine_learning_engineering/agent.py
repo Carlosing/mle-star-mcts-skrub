@@ -1,71 +1,50 @@
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Demonstration of Machine Learning Engineering Agent using Agent Development Kit."""
-
-import json
-import os
-
-from google.adk import agents
-from google.adk.agents import callback_context as callback_context_module
-from google.genai import types
-
+from machine_learning_engineering import client, MODEL_NAME
 from machine_learning_engineering import prompt
-from machine_learning_engineering.sub_agents.ensemble import (
-    agent as ensemble_agent_module,
-)
-from machine_learning_engineering.sub_agents.initialization import (
-    agent as initialization_agent_module,
-)
-from machine_learning_engineering.sub_agents.refinement import (
-    agent as refinement_agent_module,
-)
-from machine_learning_engineering.sub_agents.submission import (
-    agent as submission_agent_module,
-)
 
-
-def save_state(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Prints the current state of the callback context."""
-    workspace_dir = callback_context.state.get("workspace_dir", "")
-    task_name = callback_context.state.get("task_name", "")
-    run_cwd = os.path.join(workspace_dir, task_name)
-    with open(os.path.join(run_cwd, "final_state.json"), "w") as f:
-        json.dump(callback_context.state.to_dict(), f, indent=2)
-    return None
-
-
-mle_pipeline_agent = agents.SequentialAgent(
-    name="mle_pipeline_agent",
-    sub_agents=[
-        initialization_agent_module.initialization_agent,
-        refinement_agent_module.refinement_agent,
-        ensemble_agent_module.ensemble_agent,
-        submission_agent_module.submission_agent,
-    ],
-    description="Executes a sequence of sub-agents for solving the MLE task.",
-    after_agent_callback=save_state,
-)
-
-# For ADK tools compatibility, the root agent must be named `root_agent`
-root_agent = agents.Agent(
-    model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
-    name="mle_frontdoor_agent",
-    instruction=prompt.FRONTDOOR_INSTRUCTION,
-    global_instruction=prompt.SYSTEM_INSTRUCTION,
-    sub_agents=[mle_pipeline_agent],
-    generate_content_config=types.GenerateContentConfig(temperature=0.01),
-)
+class GerenteAgent:
+    def __init__(self):
+        """This function is executed automatically when the agent is born."""
+        self.nombre = "MLE_Frontdoor_Manager"
+        self.total_tokens_spent = 0
+        self.token_limit = 5000
+        
+       
+        complete_instructions = prompt.SYSTEM_INSTRUCTION + "\n\n" + prompt.FRONTDOOR_INSTRUCTION
+        
+        self.history = [{"role": "system", "content": complete_instructions}]
+        
+    def solve_task(self, user_task):
+        
+        if self.total_tokens_spent >= self.token_limit:
+            
+            return "Limit tokens reached"
+        
+        self.history.append({"role" : "user", "content" : user_task})
+        
+        try:
+            
+            response = client.chat.completions.create(model = MODEL_NAME, messages = self.history, temperature = .02)
+            
+            agent_response = response.choices[0].message.content
+            
+            self.history.append({"role" : "assistant", "content" : agent_response})
+            
+            self.total_tokens_spent += response.usage.total_tokens
+            
+            return agent_response
+        
+        except Exception as e:
+            
+            return f"Connection error {e}"
+        
+if __name__ == "__main__":
+    
+    Manager = GerenteAgent()
+    
+    trial_task = "Write a simple code in python that prints the message 'Hello World!'"
+    
+    output = Manager.solve_task(trial_task)
+    
+    print("Agents output: ", output)
+    
+    print(f"{Manager.total_tokens_spent} spent tokens")
