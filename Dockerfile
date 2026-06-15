@@ -21,7 +21,11 @@ COPY pyproject.toml uv.lock* README.md ./
 RUN mkdir machine_learning_engineering && touch machine_learning_engineering/__init__.py
 
 # 6. Instalar dependencias pesadas aisladas del sistema
-RUN uv pip install --system -e .
+# --torch-backend=cpu asegura la rueda de torch solo-CPU en vez del build CUDA (~2 GB)
+RUN uv pip install --system --torch-backend=cpu -e .
+
+# 6.5 Herramientas de test (los tests de skrub corren dentro del contenedor)
+RUN uv pip install --system pytest pytest-asyncio
 
 # 7. Copiar el código real (esto sobrescribe la carpeta falsa)
 COPY . .

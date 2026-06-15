@@ -2,3 +2,8 @@
 
 __pycache__/
 *.pyc
+
+# Personal testing (Bolkar)
+notebooks/
+.vscode/
+uv.lock

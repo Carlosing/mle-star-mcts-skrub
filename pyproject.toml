@@ -17,16 +17,16 @@ dependencies = [
     "google-genai>=1.9.0",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
-    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
     "numpy>=2.2.3",
     "skrub",
     "pandas>=2.3.1",
     "scikit-learn>=1.7.1",
-    # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu 
+    # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu
     # to ensure the CPU version of torch is prioritized.
     "torch>=2.7.1",
     "openai>=1.14.0",
-    "python-dotenv>=1.0.1"
+    "python-dotenv>=1.0.1",
+    "ruff>=0.15.17",
 ]
 
 [dependency-groups]
@@ -36,6 +36,9 @@ dev = [
     "google-adk[eval]>=1.5.0",
     "google-cloud-aiplatform[evaluation]>=1.93.0",
     "agent-starter-pack>=0.32.0",
+    "jupyterlab>=4.5.8",
+    "ipykernel>=7.3.0",
+    "pydot>=4.0.1",
 ]
 deployment = [
     "absl-py>=2.2.1",
@@ -44,6 +47,10 @@ deployment = [
 [project.optional-dependencies]
 lint = [
     "ruff>=0.4.6",
+]
+# Solo para despliegue en Vertex AI (deployment/deploy.py) — no necesario en local
+gcp = [
+    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
 ]
 
 [tool.ruff]
