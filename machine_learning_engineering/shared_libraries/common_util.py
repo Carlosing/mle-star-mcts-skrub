@@ -1,36 +1,12 @@
 """Common utility functions."""
 
 import os
-import random
 import shutil
 
-import numpy as np
-import torch
-from google.adk.models import llm_response
 
-
-def get_text_from_response(
-    response: llm_response.LlmResponse,
-) -> str:
-    """Extracts text from response."""
-    final_text = ""
-    if response.content and response.content.parts:
-        num_parts = len(response.content.parts)
-        for i in range(num_parts):
-            if hasattr(response.content.parts[i], "text"):
-                final_text += response.content.parts[i].text
-    return final_text
-
-
-def set_random_seed(seed: int) -> None:
-    """Sets the random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+def get_text_from_response(response) -> str:
+    """Extracts text from an OpenAI-compatible chat completion response."""
+    return response.choices[0].message.content
 
 
 def copy_file(source_file_path: str, destination_dir: str) -> None:

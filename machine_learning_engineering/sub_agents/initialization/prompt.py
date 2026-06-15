@@ -15,15 +15,18 @@ MODEL_RETRIEVAL_INSTR = """# Competition
 {task_summary}
 
 # Your task
-- List {num_model_candidates} recent effective models and their example codes to win the above competition.
+- Propose {num_model_candidates} simple and effective machine learning model for the above competition.
+- For California housing prices (a tabular regression task), prefer scikit-learn models such as RandomForestRegressor, GradientBoostingRegressor, or a simple neural network with scikit-learn's MLPRegressor.
+- Avoid PyTorch unless strictly necessary; scikit-learn is preferred for this task.
 
 # Requirement
+- Provide the model name and a short, self-contained Python code snippet showing how to train it on a train/validation split.
 - The example code should be concise and simple.
-- You must provide an example code, i.e., do not just mention GitHubs or papers.
 
-Use this JSON schema:
-Model = {{'model_name': str, 'example_code': str}}
-Return: list[Model]"""
+Use this exact JSON format (and nothing else):
+[
+  {{"model_name": "Name of the model", "example_code": "import pandas as pd\\n..."}}
+]"""
 
 
 MODEL_EVAL_INSTR = """# Introduction
@@ -41,12 +44,14 @@ MODEL_EVAL_INSTR = """# Introduction
 - Implement the solution in Python.
 - You must use the model as described in the model description.
 - This first solution design should be relatively simple, without ensembling or hyper-parameter optimization.
-- Propose an evaluation metric that is reasonable for this task.
+- Propose an evaluation metric that is reasonable for this task (e.g., RMSE for regression).
 - All the provided data is already prepared and available in the `./input` directory. There is no need to unzip any files.
 - Do not include other models that are not directly related to the model described.
-- Use PyTorch rather than TensorFlow. Use CUDA if you need. All the necessary libraries are installed.
+- Prefer scikit-learn for this tabular task. PyTorch is allowed only if the model description explicitly requires it.
+- If you use scikit-learn >= 1.7, use `sklearn.metrics.root_mean_squared_error` to compute RMSE. Do NOT pass `squared=False` to `mean_squared_error`.
 - The code should implement the proposed solution and print the value of the evaluation metric computed on a hold-out validation set.
-- Only use the provided train data in the `./input` directory.
+- Only use the provided train data in the `./input` directory for training and validation. Do NOT use test.csv for computing the validation score.
+- For California Housing: the train.csv has an ID column first, then 8 feature columns, then the target column `median_house_value`. Use `train_test_split` from sklearn on train.csv to create train and validation sets.
 
 # Required
 - There should be no additional headings or text in your response.

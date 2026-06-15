@@ -13,14 +13,13 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "google-adk>=1.5.0",
-    "google-genai>=1.9.0",
-    "pydantic>=2.10.6",
+    "openai>=1.14.0",
     "python-dotenv>=1.0.1",
-    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
+    "pydantic>=2.10.6",
     "numpy>=2.2.3",
     "pandas>=2.3.1",
     "scikit-learn>=1.7.1",
+    "skrub",
     # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu 
     # to ensure the CPU version of torch is prioritized.
     "torch>=2.7.1",
@@ -30,21 +29,12 @@ dependencies = [
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=0.26.0",
-    "google-adk[eval]>=1.5.0",
-    "google-cloud-aiplatform[evaluation]>=1.93.0",
-    "agent-starter-pack>=0.32.0",
-]
-deployment = [
-    "absl-py>=2.2.1",
 ]
 
 [project.optional-dependencies]
 lint = [
     "ruff>=0.4.6",
 ]
-
-[tool.ruff]
-extend = "../../../pyproject.toml"
 
 [tool.ruff.lint]
 ignore = ["C901", "PLR0911", "PLR0912", "PLR0915"]
@@ -57,12 +47,6 @@ known-first-party = ["machine_learning_engineering"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-[tool.agent-starter-pack]
-example_question = "Execute the California housing prices task."
-
-[tool.agent-starter-pack.settings]
-agent_directory = "machine_learning_engineering"
 
 [build-system]
 requires = ["hatchling"]

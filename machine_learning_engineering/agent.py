@@ -1,71 +1,62 @@
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Demonstration of Machine Learning Engineering Agent using Agent Development Kit."""
+"""Entry point for the OpenAI-compatible MLE-STAR MVP."""
 
 import json
 import os
 
-from google.adk import agents
-from google.adk.agents import callback_context as callback_context_module
-from google.genai import types
-
-from machine_learning_engineering import prompt
-from machine_learning_engineering.sub_agents.ensemble import (
-    agent as ensemble_agent_module,
-)
+from machine_learning_engineering.runner import AgentState
+from machine_learning_engineering.shared_libraries import config
 from machine_learning_engineering.sub_agents.initialization import (
     agent as initialization_agent_module,
-)
-from machine_learning_engineering.sub_agents.refinement import (
-    agent as refinement_agent_module,
 )
 from machine_learning_engineering.sub_agents.submission import (
     agent as submission_agent_module,
 )
 
 
-def save_state(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Prints the current state of the callback context."""
-    workspace_dir = callback_context.state.get("workspace_dir", "")
-    task_name = callback_context.state.get("task_name", "")
+def save_state(state: AgentState) -> None:
+    """Saves the final state to a JSON file in the task workspace."""
+    workspace_dir = state.get("workspace_dir", "")
+    task_name = state.get("task_name", "")
     run_cwd = os.path.join(workspace_dir, task_name)
-    with open(os.path.join(run_cwd, "final_state.json"), "w") as f:
-        json.dump(callback_context.state.to_dict(), f, indent=2)
-    return None
+    os.makedirs(run_cwd, exist_ok=True)
+    with open(os.path.join(run_cwd, "final_state.json"), "w", encoding="utf-8") as f:
+        json.dump(state.to_dict(), f, indent=2, default=str)
 
 
-mle_pipeline_agent = agents.SequentialAgent(
-    name="mle_pipeline_agent",
-    sub_agents=[
-        initialization_agent_module.initialization_agent,
-        refinement_agent_module.refinement_agent,
-        ensemble_agent_module.ensemble_agent,
-        submission_agent_module.submission_agent,
-    ],
-    description="Executes a sequence of sub-agents for solving the MLE task.",
-    after_agent_callback=save_state,
-)
+def run_pipeline(
+    task_name: str | None = None,
+    data_dir: str | None = None,
+    workspace_dir: str | None = None,
+) -> AgentState:
+    """Runs the MLE-STAR MVP pipeline.
 
-# For ADK tools compatibility, the root agent must be named `root_agent`
-root_agent = agents.Agent(
-    model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
-    name="mle_frontdoor_agent",
-    instruction=prompt.FRONTDOOR_INSTRUCTION,
-    global_instruction=prompt.SYSTEM_INSTRUCTION,
-    sub_agents=[mle_pipeline_agent],
-    generate_content_config=types.GenerateContentConfig(temperature=0.01),
-)
+    Args:
+        task_name: Optional override for the task name.
+        data_dir: Optional override for the data directory.
+        workspace_dir: Optional override for the workspace directory.
+
+    Returns:
+        AgentState containing the full pipeline state.
+    """
+    state = AgentState()
+    cfg = config.CONFIG
+
+    state["task_name"] = task_name or cfg.task_name
+    state["data_dir"] = data_dir or cfg.data_dir
+    state["workspace_dir"] = workspace_dir or cfg.workspace_dir
+    state["total_tokens_spent"] = 0
+
+    initialization_agent_module.run_initialization_pipeline(state)
+    submission_agent_module.run_submission_pipeline(state)
+    save_state(state)
+
+    return state
+
+
+if __name__ == "__main__":
+    final_state = run_pipeline()
+    print("\n=== Pipeline finished ===")
+    print(f"Best score: {final_state.get('best_score_1')}")
+    submission_result = final_state.get("submission_code_exec_result", {})
+    print(f"Submission return code: {submission_result.get('returncode')}")
+    print(f"Total tokens spent: {final_state.get('total_tokens_spent', 0)}")

@@ -1,0 +1,15 @@
+.env
+.env.local
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+workspace/
+*.egg-info/
+.eggs/
+*.log
+.DS_Store
+.vscode/
+.idea/
