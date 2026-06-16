@@ -6,8 +6,12 @@ Runnable anywhere:  python3 -m pytest tests/test_mcts.py
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+# Tree artifacts are written here (a gitignored scratch dir at the repo root).
+ARTIFACT_DIR = Path(__file__).resolve().parent.parent / "temp"
 
 # Import the module file directly so the test does not trigger
 # machine_learning_engineering/__init__.py (which requires API credentials).
@@ -139,3 +143,27 @@ def test_print_tree_is_readable_text():
     assert lines[0].startswith("ROOT")
     assert any("UCT=" in ln for ln in lines)
     assert any("->" in ln for ln in lines)  # at least one edge change shown
+
+
+def test_write_tree_to_dot_and_text_files():
+    """Persist the search tree to <repo>/temp/ (gitignored) for inspection, and
+    verify the written content round-trips the generators exactly.
+
+    View it with `dot -Tpng temp/tree.dot -o tree.png` or, in a notebook,
+    `graphviz.Source(open("temp/tree.dot").read())`.
+    """
+    start = {"encoder": "GapEncoder", "model": "GBM", "n_trees": 50}
+    _, _, root = mcts.mcts_search(start, ACTION_SPACE, fake_reward, budget=20)
+
+    ARTIFACT_DIR.mkdir(exist_ok=True)
+    dot_path = ARTIFACT_DIR / "tree.dot"
+    txt_path = ARTIFACT_DIR / "tree.txt"
+    dot_path.write_text(mcts.to_dot(root))
+    txt_path.write_text(mcts.print_tree(root))
+
+    assert dot_path.exists() and txt_path.exists()
+    dot = dot_path.read_text()
+    assert dot == mcts.to_dot(root)  # deterministic write
+    assert dot.startswith("digraph mcts {") and dot.rstrip().endswith("}")
+    assert "UCT=" in dot and "->" in dot
+    assert txt_path.read_text().splitlines()[0].startswith("ROOT")

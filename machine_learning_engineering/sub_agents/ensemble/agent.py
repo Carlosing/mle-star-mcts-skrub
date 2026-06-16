@@ -159,9 +159,7 @@ def create_workspace(
     if os.path.exists(run_cwd):
         shutil.rmtree(run_cwd)
     # make required directories
-    os.makedirs(
-        os.path.join(workspace_dir, task_name, "ensemble"), exist_ok=True
-    )
+    os.makedirs(os.path.join(workspace_dir, task_name, "ensemble"), exist_ok=True)
     os.makedirs(
         os.path.join(workspace_dir, task_name, "ensemble", "input"),
         exist_ok=True,
@@ -176,9 +174,7 @@ def create_workspace(
         if os.path.isdir(os.path.join(data_dir, task_name, file)):
             shutil.copytree(
                 os.path.join(data_dir, task_name, file),
-                os.path.join(
-                    workspace_dir, task_name, "ensemble", "input", file
-                ),
+                os.path.join(workspace_dir, task_name, "ensemble", "input", file),
             )
         elif "answer" not in file:
             common_util.copy_file(

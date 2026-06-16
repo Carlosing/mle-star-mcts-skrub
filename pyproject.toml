@@ -13,7 +13,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "google-adk>=1.5.0",
+    # Pinned below 2.0: the 2.x line changes the agents/models API this code targets.
+    "google-adk>=1.31,<2.0",
     "google-genai>=1.9.0",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
@@ -31,14 +32,15 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-asyncio>=0.26.0",
-    "google-adk[eval]>=1.5.0",
+    "google-adk[eval]>=1.31,<2.0",
     "google-cloud-aiplatform[evaluation]>=1.93.0",
     "agent-starter-pack>=0.32.0",
     "jupyterlab>=4.5.8",
     "ipykernel>=7.3.0",
     "pydot>=4.0.1",
+    "graphviz>=0.21",
 ]
 deployment = [
     "absl-py>=2.2.1",
@@ -54,7 +56,6 @@ gcp = [
 ]
 
 [tool.ruff]
-extend = "../../../pyproject.toml"
 
 [tool.ruff.lint]
 ignore = ["C901", "PLR0911", "PLR0912", "PLR0915"]

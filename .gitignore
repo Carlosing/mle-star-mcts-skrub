@@ -3,7 +3,11 @@
 __pycache__/
 *.pyc
 
-# Personal testing (Bolkar)
+# DataOps visulizations and experiments
 notebooks/
+data/
+temp/
+
+# Mac and VSCode specific files
 .vscode/
-uv.lock
+*.DS_Store

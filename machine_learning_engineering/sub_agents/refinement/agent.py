@@ -39,9 +39,7 @@ def update_outer_loop_states(
     lower = callback_context.state.get("lower", True)
     inner_loop_round = callback_context.state.get("inner_loop_round", 2)
     run_cwd = os.path.join(workspace_dir, task_name, task_id)
-    prev_solution = callback_context.state.get(
-        f"train_code_{step}_{task_id}", ""
-    )
+    prev_solution = callback_context.state.get(f"train_code_{step}_{task_id}", "")
     prev_exec_result = callback_context.state.get(
         f"train_code_exec_result_{step}_{task_id}", {}
     )
@@ -59,12 +57,10 @@ def update_outer_loop_states(
     best_idx = improvements.index(best_improvement)
     output_filepath = os.path.join(run_cwd, f"train{step + 1}.py")
     if best_improvement <= 0.0:
-        callback_context.state[f"train_code_{step + 1}_{task_id}"] = (
-            prev_solution
+        callback_context.state[f"train_code_{step + 1}_{task_id}"] = prev_solution
+        callback_context.state[f"train_code_exec_result_{step + 1}_{task_id}"] = (
+            prev_exec_result
         )
-        callback_context.state[
-            f"train_code_exec_result_{step + 1}_{task_id}"
-        ] = prev_exec_result
         with open(output_filepath, "w", encoding="utf-8") as f:
             f.write(prev_solution)
     else:
@@ -74,20 +70,16 @@ def update_outer_loop_states(
         best_exec_result = callback_context.state.get(
             f"train_code_improve_exec_result_{best_idx}_{step}_{task_id}", {}
         )
-        callback_context.state[f"train_code_{step + 1}_{task_id}"] = (
-            best_solution
+        callback_context.state[f"train_code_{step + 1}_{task_id}"] = best_solution
+        callback_context.state[f"train_code_exec_result_{step + 1}_{task_id}"] = (
+            best_exec_result
         )
-        callback_context.state[
-            f"train_code_exec_result_{step + 1}_{task_id}"
-        ] = best_exec_result
         with open(output_filepath, "w", encoding="utf-8") as f:
             f.write(best_solution)
     ablation_results = callback_context.state.get(
         f"ablation_summary_{step}_{task_id}", ""
     )
-    code_block = callback_context.state.get(
-        f"refine_code_block_{step}_{task_id}", ""
-    )
+    code_block = callback_context.state.get(f"refine_code_block_{step}_{task_id}", "")
     callback_context.state[f"prev_ablations_{task_id}"].append(ablation_results)
     callback_context.state[f"prev_code_blocks_{task_id}"].append(code_block)
     callback_context.state[f"refine_step_{task_id}"] += 1
@@ -145,9 +137,7 @@ def get_ablation_summary_agent_instruction(
     task_id = context.agent_name.split("_")[-1]
     step = context.state.get(f"refine_step_{task_id}", 0)
     code = context.state.get(f"ablation_code_{step}_{task_id}", "")
-    result_dict = context.state.get(
-        f"ablation_code_exec_result_{step}_{task_id}", {}
-    )
+    result_dict = context.state.get(f"ablation_code_exec_result_{step}_{task_id}", {})
     return prompt.SUMMARIZE_ABLATION_INSTR.format(
         code=code,
         result=result_dict["ablation_result"],
@@ -161,9 +151,7 @@ def get_init_plan_agent_instruction(
     task_id = context.agent_name.split("_")[-1]
     step = context.state.get(f"refine_step_{task_id}", 0)
     code = context.state.get(f"train_code_{step}_{task_id}", "")
-    ablation_results = context.state.get(
-        f"ablation_summary_{step}_{task_id}", ""
-    )
+    ablation_results = context.state.get(f"ablation_summary_{step}_{task_id}", "")
     prev_code_blocks = context.state.get(f"prev_code_blocks_{task_id}", [])
     if not prev_code_blocks:
         instruction = prompt.EXTRACT_BLOCK_AND_PLAN_INSTR.format(
@@ -188,9 +176,7 @@ def get_plan_refinement_instruction(
     step = context.state.get(f"refine_step_{task_id}", 0)
     code_block = context.state.get(f"refine_code_block_{step}_{task_id}", "")
     prev_plans = context.state.get(f"refine_plans_{step}_{task_id}", [])
-    prev_exec_result = context.state.get(
-        f"train_code_exec_result_{step}_{task_id}", {}
-    )
+    prev_exec_result = context.state.get(f"train_code_exec_result_{step}_{task_id}", {})
     score_plan_time_list = []
     for inner_iter, curr_plan in enumerate(prev_plans):
         exec_result = context.state.get(
@@ -209,9 +195,7 @@ def get_plan_refinement_instruction(
     selected_score_plan_time_list = score_plan_time_list[:num_top_plans]
     for score, curr_plan, execution_time in selected_score_plan_time_list:
         prev_plan_summary += f"## Plan: {curr_plan}\n"
-        prev_plan_summary += (
-            f"## Execution time after implement: {execution_time}s\n"
-        )
+        prev_plan_summary += f"## Execution time after implement: {execution_time}s\n"
         prev_plan_summary += f"## Score: {score:.5f}\n\n"
     return prompt.PLAN_REFINEMENT_INSTR.format(
         code_block=code_block,
@@ -246,9 +230,7 @@ def check_ablation_finish(
     )
     if result_dict.get("returncode", 1) == 0:
         return llm_response_module.LlmResponse()
-    callback_context.state[f"ablation_skip_data_leakage_check_{task_id}"] = (
-        False
-    )
+    callback_context.state[f"ablation_skip_data_leakage_check_{task_id}"] = False
     return None
 
 
@@ -260,9 +242,7 @@ def check_init_plan_finish(
     task_id = callback_context.agent_name.split("_")[-1]
     step = callback_context.state.get(f"refine_step_{task_id}", 0)
     code = callback_context.state.get(f"train_code_{step}_{task_id}", "")
-    code_block = callback_context.state.get(
-        f"refine_code_block_{step}_{task_id}", ""
-    )
+    code_block = callback_context.state.get(f"refine_code_block_{step}_{task_id}", "")
     status = code and code_block and (code_block in code)
     if status:
         return llm_response_module.LlmResponse()
@@ -281,14 +261,10 @@ def check_plan_implement_finish(
     result_dict = callback_context.state.get(
         f"train_code_improve_exec_result_{suffix}", {}
     )
-    callback_context.state[
-        f"plan_implement_skip_data_leakage_check_{suffix}"
-    ] = True
+    callback_context.state[f"plan_implement_skip_data_leakage_check_{suffix}"] = True
     if result_dict:
         return llm_response_module.LlmResponse()
-    callback_context.state[
-        f"plan_implement_skip_data_leakage_check_{suffix}"
-    ] = False
+    callback_context.state[f"plan_implement_skip_data_leakage_check_{suffix}"] = False
     return None
 
 
@@ -317,9 +293,7 @@ def get_plan_and_code_block(
     try:
         result = json.loads(response_text[start_idx:end_idx])[0]
         plan = result["plan"]
-        code_block = (
-            result["code_block"].replace("```python", "").replace("```", "")
-        )
+        code_block = result["code_block"].replace("```python", "").replace("```", "")
     except Exception:
         plan = ""
         code_block = ""
@@ -336,9 +310,7 @@ def get_refined_plan(
     response_text = common_util.get_text_from_response(llm_response)
     task_id = callback_context.agent_name.split("_")[-1]
     step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    callback_context.state[f"refine_plans_{step}_{task_id}"].append(
-        response_text
-    )
+    callback_context.state[f"refine_plans_{step}_{task_id}"].append(response_text)
     return None
 
 
@@ -362,16 +334,12 @@ for k in range(config.CONFIG.num_solutions):
     )
     ablation_sequential_sub_agents = [ablation_agent]
     if use_data_leakage_checker:
-        data_leakage_checker_agent = (
-            check_leakage_util.get_data_leakage_checker_agent(
-                prefix="ablation",
-                suffix=f"{k + 1}",
-            )
+        data_leakage_checker_agent = check_leakage_util.get_data_leakage_checker_agent(
+            prefix="ablation",
+            suffix=f"{k + 1}",
         )
         ablation_sequential_sub_agents.append(data_leakage_checker_agent)
-        additional_agent_description = (
-            " and check if there are data leakage issues"
-        )
+        additional_agent_description = " and check if there are data leakage issues"
     else:
         additional_agent_description = ""
     ablation_sequential_agent = agents.SequentialAgent(
