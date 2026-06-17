@@ -15,7 +15,7 @@ MODEL_RETRIEVAL_INSTR = """# Competition
 {task_summary}
 
 # Your task
-- Propose {num_model_candidates} simple and effective machine learning model for the above competition.
+- Propose {num_model_candidates} simple and effective machine learning models for the above competition.
 - For California housing prices (a tabular regression task), prefer scikit-learn models such as RandomForestRegressor, GradientBoostingRegressor, or a simple neural network with scikit-learn's MLPRegressor.
 - Avoid PyTorch unless strictly necessary; scikit-learn is preferred for this task.
 
@@ -25,8 +25,9 @@ MODEL_RETRIEVAL_INSTR = """# Competition
 
 Use this exact JSON format (and nothing else):
 [
-  {{"model_name": "Name of the model", "example_code": "import pandas as pd\\n..."}}
-]"""
+  {{"model_name": "Name of the model", "example_code": "from sklearn...\nmodel = ..."}}
+]
+"""
 
 
 MODEL_EVAL_INSTR = """# Introduction
@@ -113,7 +114,7 @@ CODE_INTEGRATION_INSTR = """# Introduction
 - When integrating, ensemble the models.
 - The solution design should be relatively simple.
 - The code should implement the proposed solution and print the value of the evaluation metric computed on a hold-out validation set.
-- Only use the provided train data in the `./input` directory.
+- Only use the provided train data in the `./input` directory. Do NOT load test.csv.
 
 # Required
 - There should be no additional headings or text in your response.
@@ -133,10 +134,11 @@ CHECK_DATA_USE_INSTR = """I have provided Python code for a machine learning tas
 {task_description}
 
 # Your task
-If the above solution code does not use the information provided, try to incorporate all. Do not bypass using try-except.
+If the above solution code does not use the information provided, try to incorporate all PROVIDED information. Do not bypass using try-except.
 DO NOT USE TRY and EXCEPT; just occur error so we can debug it!
 See the task description carefully, to know how to extract unused information effectively.
 When improving the solution code by incorporating unused information, DO NOT FORGET to print out 'Final Validation Performance: {{final_validation_score}}' as in original solution code.
+- Only use columns that actually exist in the provided train.csv and test.csv files. Do NOT invent columns such as 'ocean_proximity' if they are not present.
 
 Response format:
 Option 1: If the code did not use all the provided information, your response should be a single markdown code block (wrapped in ```) which is the improved code block. There should be no additional headings or text in your response.

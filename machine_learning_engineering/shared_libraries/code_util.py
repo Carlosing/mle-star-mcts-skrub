@@ -1,6 +1,7 @@
 """Code related utility functions."""
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -63,12 +64,13 @@ def extract_performance_from_text(text: str) -> float | None:
     performance_value = None
     for line in lines:
         if "Final Validation Performance" in line:
-            try:
-                parts = line.split(":")
-                score_str = parts[-1].strip()
-                performance_value = float(score_str)
-            except ValueError:
-                pass
+            # Extract the last numeric token from the line.
+            matches = re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", line)
+            if matches:
+                try:
+                    performance_value = float(matches[-1])
+                except ValueError:
+                    pass
     return performance_value
 
 

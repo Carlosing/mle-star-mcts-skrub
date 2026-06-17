@@ -5,8 +5,14 @@ import os
 
 from machine_learning_engineering.runner import AgentState
 from machine_learning_engineering.shared_libraries import config
+from machine_learning_engineering.sub_agents.ensemble import (
+    agent as ensemble_agent_module,
+)
 from machine_learning_engineering.sub_agents.initialization import (
     agent as initialization_agent_module,
+)
+from machine_learning_engineering.sub_agents.refinement import (
+    agent as refinement_agent_module,
 )
 from machine_learning_engineering.sub_agents.submission import (
     agent as submission_agent_module,
@@ -47,6 +53,8 @@ def run_pipeline(
     state["total_tokens_spent"] = 0
 
     initialization_agent_module.run_initialization_pipeline(state)
+    refinement_agent_module.run_refinement_pipeline(state)
+    ensemble_agent_module.run_ensemble_pipeline(state)
     submission_agent_module.run_submission_pipeline(state)
     save_state(state)
 

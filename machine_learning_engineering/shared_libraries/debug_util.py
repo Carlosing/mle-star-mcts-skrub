@@ -1,7 +1,12 @@
 """Simplified debug utilities for the OpenAI-compatible runner."""
 
 from machine_learning_engineering.runner import run_agent
-from machine_learning_engineering.shared_libraries import code_util, common_util, debug_prompt
+from machine_learning_engineering.shared_libraries import (
+    check_leakage_util,
+    code_util,
+    common_util,
+    debug_prompt,
+)
 
 
 def _filename_from_agent_name(state, agent_name: str) -> str:
@@ -56,14 +61,15 @@ def get_code_from_response(state, agent_name, response, do_eval: bool = True) ->
             return
         new_code = code
     elif agent_name.startswith("plan_implement"):
+        # The LLM returns the complete improved solution for the plan.
+        new_code = code
         if "debug" not in agent_name:
             task_id = agent_name.split("_")[-1]
             step = state.get(f"refine_step_{task_id}", 0)
-            code_block = state.get(f"refine_code_block_{step}_{task_id}", "")
-            prev_code = state.get(f"train_code_{step}_{task_id}", "")
-            new_code = prev_code.replace(code_block, code)
-        else:
-            new_code = code
+            inner_iter = state.get(f"inner_iter_{task_id}", 0)
+            # Keep the current working solution in sync with the latest improvement.
+            state[f"train_code_{step}_{task_id}"] = new_code
+            state[f"train_code_improve_{inner_iter}_{step}_{task_id}"] = new_code
     else:
         new_code = code
 
@@ -117,6 +123,11 @@ def run_and_debug(
 
         result = _get_result(state, agent_name)
         if _is_successful(result):
+            check_leakage_util.check_and_fix_leakage(
+                state,
+                agent_name,
+                max_iterations=state.get("max_retry", 1),
+            )
             return
 
         # Debug loop: summarize error and ask LLM to fix it.
