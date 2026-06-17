@@ -29,7 +29,7 @@ with **skip as its default outcome**, so an undecided stage means
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
 | 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
-| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_bool` | ⚠️ partial | Declared inside each model option; conditional on the model (CASH structure). Nesting under the model in the tree is the (2) MCTS-expansion work |
+| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims; conditional (model-gated) nesting is the remaining refinement |
 | 8 | **Post-process / ensemble** | `concat` (stacking), `if_else`, `match`, `apply_func` | ❌ future | Combine feature sets / predictions; conditional branches |
 
 Not pipeline stages, but relevant: `TableReport` and `column_associations` are
@@ -83,9 +83,11 @@ table). Every other optional stage uses `None` = skip as its default.
 
 ## Status
 
-Built and tested today (see [test_staged.py](../tests/test_staged.py)):
-assemble (`AggJoiner`), clean, encode, scale, feature-eng, model. The relational
-assemble stage is demonstrated to lift a near-chance score when the target
-depends on an auxiliary-table aggregate. Future: the `scope` (selector) and
-`post-process` (stacking) stages, and nesting hyperparameters under the model in
-the MCTS expansion (the open (2) design question).
+Built and tested (see [test_staged.py](../tests/test_staged.py),
+[test_spec_resolver.py](../tests/test_spec_resolver.py)): assemble
+(`AggJoiner`), clean, encode, scale, feature-eng, model, **and hyperparameter
+search** (per-operator `choose_*` from the JSON plan). The relational assemble
+stage is demonstrated to lift a near-chance score when the target depends on an
+auxiliary-table aggregate. Future: the `scope` (selector) and `post-process`
+(stacking) stages, and **conditional** (model-gated) HP nesting so a model's HPs
+are only active when that model is selected.

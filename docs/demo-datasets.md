@@ -1,33 +1,35 @@
-# Friday demo — project state & dataset guide
+# Demo & dataset guide
 
-A quick orientation for the team: where the code is right now, what we want to
-show, and which (small, tabular) datasets best showcase it. Deadline is tight —
-favor datasets that load in one call and run in seconds.
+A quick orientation for the team: where the code is, what the demo shows, and
+which (small, tabular) datasets best showcase it. Favor datasets that load in
+one call and run in seconds. For the full status + roadmap see
+[PROJECT_STATE.md](PROJECT_STATE.md).
 
 ## Where the project is right now
 
-**Working & tested** (run `python -m pytest tests/ -q`, or open
-[notebooks/dataops_playground.ipynb](../notebooks/dataops_playground.ipynb)):
+**Working & tested** (`uv run --no-sync python -m pytest tests/ -q`):
 
 - **MCTS engine** ([mcts.py](../machine_learning_engineering/mcts.py)) — UCT
   select / expand / backprop, persistent tree, optional LLM-prior hook. Pure
   Python, no skrub/LLM needed.
 - **skrub layer** ([skrub_ops.py](../machine_learning_engineering/skrub_ops.py))
-  — action space, apply-config, seeded rollouts, ablation.
+  — action space, apply-config, seeded rollouts (configurable scoring), ablation.
 - **Constructive staged pipeline** (`build_staged_plan`) — searches the
   *construction* of a pipeline across stages:
   **assemble (relational join) → clean → encode → scale → feature-eng → model**.
   See [docs/pipeline-stages.md](pipeline-stages.md).
+- **Agent layer (ADK + native Gemini)** — `data_analyst` → `plan_author`
+  ([adk_agent.py](../machine_learning_engineering/adk_agent.py)) author a rich
+  JSON plan; `spec_resolver` resolves it to seeded estimators **with
+  hyperparameter choices** (allowed-list only, no `eval`).
+- **End-to-end driver** ([pipeline.py](../machine_learning_engineering/pipeline.py))
+  — `run_pipeline`: task → data digest → agents → resolve → MCTS search → report.
+  The LLM now authors plans; the hand-written menu is no longer required.
 
-**Deferred until after Friday** (don't build the demo around these):
-- The MCTS *staged expansion* (hyperparameters nested under the model) — the
-  search currently works on a flat/whole config; the staged builder is ready
-  but the stage-by-stage tree descent is the next task.
-- LLM `A_retriever` auto-generating plans — for Friday we hand-write the
-  staged spec (the menu of operators per stage).
-- Version parity between local venv and Docker (final-deliverable concern).
+See [PROJECT_STATE.md](PROJECT_STATE.md) for what's left (conditional HP nesting,
+LLM prior, ablation loop, relational/ensemble).
 
-## What we want to show Friday
+## What the demo shows
 
 1. **It's not just a tuner** — MCTS searches *structure* (which preprocessing /
    feature-engineering steps to add), not only hyperparameters.
@@ -67,7 +69,7 @@ from skrub.datasets import fetch_employee_salaries, fetch_credit_fraud  # etc.
 | `fetch_bike_sharing` | regression | ~17k (subsample) | Datetime features → DatetimeEncoder |
 | `fetch_country_happiness` | regression | tiny | Fast smoke tests |
 
-**Suggested split for Friday:** `fetch_employee_salaries` (encoder choice) +
+**Suggested split:** `fetch_employee_salaries` (encoder choice) +
 `fetch_credit_fraud` (relational assemble) cover our two headline capabilities;
 add `fetch_california_housing` for a clean numeric enrichment-climbing curve.
 

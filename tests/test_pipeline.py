@@ -1,0 +1,87 @@
+"""End-to-end pipeline tests — agents mocked, skrub+MCTS real, fully offline."""
+
+from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
+from pydantic import PrivateAttr
+
+from machine_learning_engineering import pipeline
+from fixtures.california_agent_io import DATASET_ANALYSIS, SKRUB_SPEC_RAW
+
+ANALYSIS = DATASET_ANALYSIS
+SPEC_JSON = SKRUB_SPEC_RAW
+
+
+class FakeLlm(BaseLlm):
+    """Yields scripted responses — no network, no quota."""
+
+    model: str = "gemini-2.5-flash"
+    _responses: list = PrivateAttr(default_factory=list)
+    _idx: int = PrivateAttr(default=0)
+
+    def set_responses(self, responses):
+        self._responses = list(responses)
+        self._idx = 0
+        return self
+
+    async def generate_content_async(self, llm_request, stream: bool = False):
+        text = (
+            self._responses[min(self._idx, len(self._responses) - 1)]
+            if self._responses
+            else ""
+        )
+        self._idx += 1
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text=text)])
+        )
+
+
+def test_load_task_california():
+    df, target, task_type, metric = pipeline.load_task("california-housing-prices")
+    assert target == "median_house_value"
+    assert task_type == "regression"
+    assert metric == "root_mean_squared_error"
+    assert target in df.columns
+
+
+def test_run_pipeline_end_to_end_offline():
+    model = FakeLlm().set_responses([ANALYSIS, SPEC_JSON])
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices",
+        budget=40,
+        model=model,
+        with_search=False,  # FakeLlm -> skip the Gemini-only google_search tool
+    )
+
+    assert result["target"] == "median_house_value"
+    assert result["task_type"] == "regression"
+    assert result["search_scorer"] == "r2"
+    assert not result["used_fallback_spec"]
+
+    # MCTS searched a real action space and returned a config + score.
+    assert "model" in result["action_space"]
+    assert set(result["action_space"]["model"]) == {
+        "HistGradientBoosting",
+        "RandomForest",
+        "Linear",
+    }
+    # the richer spec also searches hyperparameters (nested HP dimensions)
+    assert any("__" in k for k in result["action_space"])
+    print(result["best_state"])
+    print(result["best_search_score"])
+    assert isinstance(result["best_state"], dict)
+    assert isinstance(result["best_search_score"], float)
+
+    # The report metric (RMSE) is computed on the incumbent for reporting only.
+    assert result["report"] is not None
+    assert result["report"]["scorer"] == "neg_root_mean_squared_error"
+
+
+def test_run_pipeline_falls_back_on_bad_spec():
+    # plan_author returns unparseable JSON -> resolver falls back, run still completes.
+    model = FakeLlm().set_responses([ANALYSIS, "sorry, I could not produce JSON"])
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices", budget=4, model=model, with_search=False
+    )
+    assert result["used_fallback_spec"] is True
+    assert isinstance(result["best_search_score"], float)

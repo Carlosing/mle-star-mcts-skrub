@@ -19,13 +19,14 @@ Construction goes through ``build_root_agent`` so tests can inject a fake model
 and a prompt/output log directory without hitting the live API. The module-level
 ``root_agent`` is the default (real Gemini, web search on) for ``adk run``.
 
-DEFERRED (step #4, not in this skeleton):
-- an after-model callback on ``plan_author`` that parses its JSON output into a
-  validated skrub *spec dict* and resolves operator names to real estimator
-  instances (no ``eval`` of model output);
-- the driver that calls ``build_staged_plan`` / ``make_rollout_fn`` /
-  ``mcts_search`` on that spec.
-For now each agent just writes its text output to shared state via ``output_key``.
+Hand-off (now implemented): each agent writes its text output to shared state
+via ``output_key`` (``dataset_analysis``, ``skrub_spec_raw``). The driver in
+``pipeline.py`` reads ``skrub_spec_raw``, resolves it to seeded estimator
+instances (with hyperparameter choices) via ``spec_resolver.resolve_spec``
+— allowed-list only, no ``eval`` — then runs ``build_staged_plan`` ->
+``make_rollout_fn`` -> ``mcts_search``. The allowed operator/HP vocabulary is
+injected into the plan_author instruction from the registry, so the model stays
+in-bounds.
 """
 
 from google.adk import agents
@@ -69,16 +70,24 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "Pipeline stages, in order: assemble (relational, optional) -> clean "
     "(optional) -> encode (required) -> scale/feature-eng (optional) -> model "
     "(required). For optional stages, include a 'skip' option.\n\n"
-    "Emit ONLY JSON of this shape (use operator *names*, not Python code — name "
-    "resolution to estimator instances happens downstream):\n"
+    "An operator is a bare name (defaults) OR an object "
+    '{"name": X, "params": {...}} to ALSO search its hyperparameters — prefer '
+    "tuning the model's key hyperparameters. Emit ONLY JSON of this shape "
+    "(operator names + HP ranges; resolution to estimators is downstream):\n"
     "{\n"
     '  "clean_options": ["skip", "Cleaner"],\n'
     '  "encoder_options": ["GapEncoder", "MinHashEncoder"],\n'
     '  "stages": [\n'
     '    {"name": "scale", "options": ["skip", "StandardScaler"]},\n'
-    '    {"name": "feature_eng", "options": ["skip", "PolynomialFeatures"]}\n'
+    '    {"name": "feature_eng", "options": ["skip",\n'
+    '      {"name": "PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}\n'
     "  ],\n"
-    '  "model": ["HistGradientBoosting", "RandomForest"]\n'
+    '  "model": [\n'
+    '    {"name": "HistGradientBoosting", "params": {\n'
+    '       "learning_rate": {"float": [0.01, 0.3], "log": true},\n'
+    '       "max_iter": {"int": [100, 600]}, "max_depth": {"int": [2, 16]}}},\n'
+    '    {"name": "RandomForest", "params": {"n_estimators": {"int": [100, 500]}}}\n'
+    "  ]\n"
     "}\n\n" + format_allowed_for_prompt()
 )
 

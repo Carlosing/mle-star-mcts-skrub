@@ -46,9 +46,9 @@ The loop in `mcts_search` repeats `budget` times:
 1. **Select** — from the root, repeatedly descend into the child with the
    highest UCT until reaching a leaf (`select`).
 2. **Expand** — grow new children from that leaf by swapping **one** choice
-   value at a time. The action space comes from skrub
-   (`describe_param_grid` → `skrub_ops.get_action_space`), **never from an LLM**.
-   Already-seen states are skipped via `tried_states` (`expand`).
+   value at a time. The action space comes from the skrub plan's choice nodes
+   (`skrub_ops.get_action_space`, built on `_evaluation.choices`), **never from
+   an LLM**. Already-seen states are skipped via `tried_states` (`expand`).
 3. **Rollout** — evaluate the chosen configuration: cross-validate it on a
    seeded subsample, producing a reward in `[0, 1]`
    (`skrub_ops.make_rollout_fn`). Failed configs score `0.0` rather than

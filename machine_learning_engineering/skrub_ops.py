@@ -197,10 +197,12 @@ def build_staged_plan(
 ):
     """Build a skrub plan from an ordered, per-stage menu of operators.
 
-    This is the target shape of `A_retriever`'s output: instead of one fixed
-    pipeline, the LLM proposes, *for each stage*, a list of candidate
-    operators. Each stage becomes a named `choose_from`, so the whole menu
-    flows through `get_action_space` / `apply_state` unchanged and MCTS can
+    This is the shape produced by the LLM plan author (adk_agent.plan_author)
+    after `spec_resolver.resolve_spec`: instead of one fixed pipeline, the LLM
+    proposes, *for each stage*, a list of candidate operators (optionally with
+    hyperparameter ranges). Each stage becomes a named `choose_from`, so the
+    whole menu flows through `get_action_space` / `apply_state` unchanged and
+    MCTS can
     search the *construction* of the pipeline, not just hyperparameters.
 
     Stages are applied in canonical pipeline order:
@@ -355,6 +357,7 @@ def make_rollout_fn(
     seed: int = 42,
     aux: dict | None = None,
     main_var: str | None = None,
+    scoring: str | None = None,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -370,7 +373,12 @@ def make_rollout_fn(
     are joined whole, not subsampled) and `main_var` to name the main table's
     var (defaults to the plan's single var).
 
-    Input:  plan + training df; returns a closure rollout(state) -> float in [0, 1].
+    `scoring` is an sklearn scorer name forwarded to cross_validate. It must be
+    **higher-is-better** (MCTS maximizes) — use a bounded one like "r2" or
+    "accuracy" so rewards stay on the same scale as the UCT exploration term.
+    None keeps the estimator's default .score() (R2 for regressors).
+
+    Input:  plan + training df; returns a closure rollout(state) -> float.
 
     Example:
         rollout = make_rollout_fn(plan, df)
@@ -387,7 +395,10 @@ def make_rollout_fn(
         try:
             apply_state(plan, state)
             environment = {var_name: small, **(aux or {})}
-            result = plan.skb.cross_validate(environment=environment)
+            cv_kwargs = {"environment": environment}
+            if scoring is not None:
+                cv_kwargs["scoring"] = scoring
+            result = plan.skb.cross_validate(**cv_kwargs)
             return float(result["test_score"].mean())
         except Exception:
             return 0.0
@@ -396,23 +407,32 @@ def make_rollout_fn(
 
 
 def evaluate_full(
-    plan, state: dict, df=None, aux: dict | None = None, main_var: str | None = None
+    plan,
+    state: dict,
+    df=None,
+    aux: dict | None = None,
+    main_var: str | None = None,
+    scoring: str | None = None,
 ) -> float:
     """Score a configuration on the FULL data — the final h(s), not a proxy.
 
     Unlike rollouts this propagates exceptions: by the time we evaluate a
     winner we want to know about failures, not paper over them. Pass `aux`
-    (and `main_var`) for relational plans, as in `make_rollout_fn`.
+    (and `main_var`) for relational plans, as in `make_rollout_fn`. `scoring`
+    is an sklearn scorer name (e.g. the task/report metric like
+    "neg_root_mean_squared_error"); None keeps the estimator default.
 
     Example:
         evaluate_full(plan, {"model": "GBM"}, df)  # -> 0.88  (full-data mean CV score)
     """
     apply_state(plan, state)
+    cv_kwargs: dict = {}
     if df is not None:
         var_name = main_var or _single_var_name(plan)
-        result = plan.skb.cross_validate(environment={var_name: df, **(aux or {})})
-    else:
-        result = plan.skb.cross_validate()
+        cv_kwargs["environment"] = {var_name: df, **(aux or {})}
+    if scoring is not None:
+        cv_kwargs["scoring"] = scoring
+    result = plan.skb.cross_validate(**cv_kwargs)
     return float(result["test_score"].mean())
 
 

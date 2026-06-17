@@ -103,3 +103,58 @@ def test_resolved_spec_builds_a_plan_on_california():
     space = skrub_ops.get_action_space(plan)
     assert "model" in space
     assert set(space["model"]) == {"HistGradientBoosting", "RandomForest"}
+
+
+# --- hyperparameter search ---------------------------------------------------
+
+HP_RAW = {
+    "model": [
+        {"name": "RandomForest", "params": {"n_estimators": {"int": [100, 500]}}},
+        {"name": "HistGradientBoosting", "params": {
+            "learning_rate": {"float": [0.01, 0.3], "log": True}}},
+    ]
+}
+
+
+def test_tuned_hps_surface_in_action_space():
+    df = _california()
+    plan = skrub_ops.build_staged_plan(
+        resolve_spec(HP_RAW, task_type="regression"), df, target="median_house_value"
+    )
+    space = skrub_ops.get_action_space(plan)
+    assert "model" in space
+    # each tuned HP becomes its own searchable, discretized dimension
+    assert "model__RandomForest__n_estimators" in space
+    assert space["model__RandomForest__n_estimators"][0] == 100
+    assert space["model__RandomForest__n_estimators"][-1] == 500
+    assert "model__HistGradientBoosting__learning_rate" in space
+
+
+def test_hp_range_is_clipped_to_allowed_envelope():
+    # LLM asks for an out-of-bounds learning rate; resolver clips to [0.01, 0.3].
+    raw = {"model": [{"name": "HistGradientBoosting",
+                      "params": {"learning_rate": {"float": [1e-6, 5.0], "log": True}}}]}
+    df = _california()
+    plan = skrub_ops.build_staged_plan(
+        resolve_spec(raw, task_type="regression"), df, target="median_house_value"
+    )
+    vals = skrub_ops.get_action_space(plan)["model__HistGradientBoosting__learning_rate"]
+    assert min(vals) >= 0.01 - 1e-9
+    assert max(vals) <= 0.3 + 1e-9
+
+
+def test_unknown_param_is_dropped_not_tuned():
+    # not_a_real_param is not in the allowed tunable set -> ignored, no crash.
+    raw = {"model": [{"name": "RandomForest", "params": {"not_a_real_param": {"int": [1, 9]}}}]}
+    df = _california()
+    plan = skrub_ops.build_staged_plan(
+        resolve_spec(raw, task_type="regression"), df, target="median_house_value"
+    )
+    space = skrub_ops.get_action_space(plan)
+    assert not any("not_a_real_param" in k for k in space)
+
+
+def test_bare_names_still_work_without_params():
+    spec = resolve_spec({"model": ["RandomForest"]}, task_type="regression")
+    # bare name -> plain seeded estimator, no choose_* params
+    assert spec["model"]["RandomForest"].get_params()["random_state"] == 42

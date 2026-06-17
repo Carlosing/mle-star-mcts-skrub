@@ -57,8 +57,9 @@ def expand(
 ) -> list[MCTSNode]:
     """Generate children by swapping one choice value at a time.
 
-    `action_space` maps choice name -> list of options. It comes from
-    skrub's describe_param_grid() — never from an LLM (anti-pattern #1).
+    `action_space` maps choice name -> list of options. It comes from the
+    skrub plan's choice nodes (skrub_ops.get_action_space) — never from an LLM
+    (anti-pattern #1).
     """
     children = []
     for choice_name, options in action_space.items():
