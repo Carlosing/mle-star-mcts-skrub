@@ -10,7 +10,7 @@ authors = [
 ]
 license = {text = "Apache License 2.0"}
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 
 dependencies = [
     # Pinned below 2.0: the 2.x line changes the agents/models API this code targets.

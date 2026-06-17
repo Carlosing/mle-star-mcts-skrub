@@ -53,13 +53,24 @@ class ManagerAgent:
 
 
 class SubAgent:
-    def __init__(self, Agent_name, instructions):
+    def __init__(self, Agent_name, instructions, use_web_search=False):
 
         self.Agent_name = Agent_name
 
         self.instructions = instructions
 
+        # Opt-in provider-native web search. This is the OpenAI stack's
+        # counterpart to the Gemini stack's google_search tool (adk_agent.py).
+        # It uses the OpenAI Responses API's built-in web_search tool, which
+        # requires a REAL OpenAI endpoint (api.openai.com) + key + model — it is
+        # NOT available through AI Studio's OpenAI-compatible endpoint. See
+        # docs/agent-architecture.md. Default False keeps the original flow.
+        self.use_web_search = use_web_search
+
     def work(self, Manager_history):
+
+        if self.use_web_search:
+            return self._work_with_search(Manager_history)
 
         temp_history = [{"role": "system", "content": self.instructions}]
 
@@ -78,6 +89,35 @@ class SubAgent:
 
         except Exception as e:
             return f"There was a problem {e} with the execution of the subagent", 0
+
+    def _work_with_search(self, Manager_history):
+        """Answer with native OpenAI web search (Responses API).
+
+        Mirrors the Gemini stack's google_search analyst. Returns the same
+        (text, token_cost) contract as work(). Fails with a clear message if the
+        configured endpoint/model does not expose the built-in web_search tool
+        (e.g. an OpenAI-compatible proxy rather than real OpenAI).
+        """
+        try:
+            response = client.responses.create(
+                model=MODEL_NAME,
+                instructions=self.instructions,
+                tools=[{"type": "web_search"}],
+                input=Manager_history,
+            )
+
+            agent_response = response.output_text
+
+            token_cost = response.usage.total_tokens
+
+            return agent_response, token_cost
+
+        except Exception as e:
+            return (
+                f"There was a problem {e} with the web-search subagent "
+                "(native web_search needs a real OpenAI endpoint/key/model)",
+                0,
+            )
 
 
 if __name__ == "__main__":
