@@ -55,8 +55,8 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 - ✅ Offline tests for every layer (agents mocked via `FakeLlm`); 1 gated live smoke test
 - ✅ Python pinned to 3.13; `gemini-2.5-flash` as the default model
 
-Run all: `uv run --no-sync python -m pytest tests/ -q`
-Run live pipeline: `uv run --no-sync python -m machine_learning_engineering.pipeline --budget 30`
+Run all: `uv run python -m pytest tests/ -q`
+Run live pipeline: `uv run python -m machine_learning_engineering.pipeline --budget 15`
 
 ## What's left to add (roadmap)
 

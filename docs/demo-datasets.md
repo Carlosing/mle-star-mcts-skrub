@@ -7,7 +7,7 @@ one call and run in seconds. For the full status + roadmap see
 
 ## Where the project is right now
 
-**Working & tested** (`uv run --no-sync python -m pytest tests/ -q`):
+**Working & tested** (`uv run python -m pytest tests/ -q`):
 
 - **MCTS engine** ([mcts.py](../machine_learning_engineering/mcts.py)) — UCT
   select / expand / backprop, persistent tree, optional LLM-prior hook. Pure

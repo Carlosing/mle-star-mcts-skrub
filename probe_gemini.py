@@ -9,19 +9,28 @@ AI Studio / Cloud console. A 429 with "limit: 0" means the free tier grants this
 model/project zero quota (not "you used it up").
 
 Run:
-    uv run --no-sync python probe_gemini.py
+    uv run python probe_gemini.py
 
 Reads GOOGLE_API_KEY (and GOOGLE_GENAI_USE_VERTEXAI=FALSE) from .env.
 """
 
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import errors
 
 # Cheap 1-token pings; edit freely to probe whichever models you care about.
-CANDIDATES = ["gemini-3-flash-preview"]
+CANDIDATES = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
+]
+
+# Seconds to wait between pings so the per-minute rate limit (RPM) doesn't make
+# a model with real quota look rate-limited. Free tier is ~5-15 RPM.
+PING_DELAY_S = 3.0
 
 
 def main() -> None:
@@ -46,7 +55,9 @@ def main() -> None:
         print(f"  {name:36} in={in_lim!s:>9}  out={out_lim!s:>7}")
 
     print("\n== Quota ping (does this key have live quota right now?) ==")
-    for model in CANDIDATES:
+    for i, model in enumerate(CANDIDATES):
+        if i:
+            time.sleep(PING_DELAY_S)  # space out pings to respect RPM limits
         print(f"  {model:36} {ping(client, model)}")
 
 

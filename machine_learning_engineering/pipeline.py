@@ -10,13 +10,15 @@ The only live-LLM cost is the two agent turns; the MCTS rollouts are pure skrub
 (no quota). Spec parsing/resolution is wrapped so a malformed or truncated LLM
 response falls back to a minimal default rather than crashing the run.
 
-Run:  uv run --no-sync python -m machine_learning_engineering.pipeline --budget 30
+Run:  uv run python -m machine_learning_engineering.pipeline --budget 15
 """
 
 import argparse
 import asyncio
+import json
 import os
 import re
+from datetime import datetime
 
 import pandas as pd
 from google.adk.runners import InMemoryRunner
@@ -117,17 +119,23 @@ def _safe_resolve(raw, task_type: str) -> tuple[dict, bool]:
 def run_pipeline(
     task_name: str | None = None,
     target: str | None = None,
-    budget: int = 50,
+    budget: int = 15,
     model=None,
     with_search: bool = True,
     log_dir: str | None = None,
+    out_dir: str | None = None,
     seed: int = 42,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
     ``model``/``with_search`` are forwarded to ``build_root_agent`` (tests pass a
-    fake model + with_search=False to run fully offline).
+    fake model + with_search=False to run fully offline). If ``out_dir`` is set,
+    the run is persisted there (result.json + a presentation-ready summary.md,
+    and the agent prompt/output log), and ``log_dir`` defaults to it.
     """
+    if out_dir is not None and log_dir is None:
+        log_dir = out_dir
+
     df, target, task_type, metric = load_task(task_name, target=target)
     summary = make_data_summary(df, target)
 
@@ -148,20 +156,82 @@ def run_pipeline(
         start_state, action_space, rollout, budget=budget
     )
 
-    return {
+    result = {
         "task": task_name or config.CONFIG.task_name,
         "target": target,
         "task_type": task_type,
         "metric": metric,
+        "model": config.CONFIG.agent_model,
+        "budget": budget,
         "search_scorer": metrics.search_scorer(task_type),
         "best_state": best_state,
         "best_search_score": best_score,
         "report": _report(plan, best_state, df, metric),
         "action_space": action_space,
         "used_fallback_spec": used_fallback,
-        "analysis": session.state.get("dataset_analysis", ""),
-        "spec_raw": raw,
+        "data_summary": summary,  # the data report fed to the analyst
+        "analysis": session.state.get("dataset_analysis", ""),  # report -> planner
+        "spec_raw": raw,  # the plan the planner generated
     }
+    if out_dir is not None:
+        save_run_artifacts(result, out_dir)
+    return result
+
+
+# --- result persistence (for the team's presentation) ------------------------
+
+
+def default_out_dir(task: str) -> str:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return os.path.join("runs", f"{task}_{stamp}")
+
+
+def save_run_artifacts(result: dict, out_dir: str) -> str:
+    """Write result.json (full) + summary.md (readable) into out_dir."""
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+    with open(os.path.join(out_dir, "summary.md"), "w", encoding="utf-8") as f:
+        f.write(_result_markdown(result))
+    return out_dir
+
+
+def _result_markdown(r: dict) -> str:
+    rep = r.get("report") or {}
+    lines = [
+        f"# Run: {r['task']}  ({r['task_type']}, metric={r['metric']})",
+        f"model: {r.get('model')}  |  budget: {r.get('budget')}  |  "
+        f"fallback spec: {r.get('used_fallback_spec')}",
+        "",
+        "## 1. Data report (analyst output, sent to the planner agent)",
+        (r.get("analysis") or "").strip() or "(empty)",
+        "",
+        "## 2. Generated plan (planner output)",
+        "```json",
+        (r.get("spec_raw") or "").strip() or "(empty)",
+        "```",
+        "",
+        "## 3. Best configuration + score (MCTS incumbent)",
+        "```json",
+        json.dumps(r.get("best_state", {}), indent=2, default=str),
+        "```",
+        f"- search reward ({r.get('search_scorer')}): {r.get('best_search_score')}",
+    ]
+    if rep:
+        lines.append(f"- report metric ({rep.get('scorer')}): {rep.get('score')}")
+    lines += [
+        "",
+        "## Appendix — MCTS search space",
+        "```json",
+        json.dumps(r.get("action_space", {}), indent=2, default=str),
+        "```",
+        "",
+        "## Appendix — data digest (sent to the analyst)",
+        "```",
+        (r.get("data_summary") or "").strip(),
+        "```",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _report(plan, state: dict, df, metric: str):
@@ -182,10 +252,17 @@ def _main() -> None:
     parser = argparse.ArgumentParser(description="Run the agent->MCTS pipeline.")
     parser.add_argument("--task", default=None, help="task name under data_dir")
     parser.add_argument("--target", default=None, help="override target column")
-    parser.add_argument("--budget", type=int, default=30, help="MCTS evaluations")
+    parser.add_argument("--budget", type=int, default=15, help="MCTS evaluations")
+    parser.add_argument(
+        "--out", default=None, help="artifact dir (default: runs/<task>_<timestamp>)"
+    )
     args = parser.parse_args()
 
-    result = run_pipeline(task_name=args.task, target=args.target, budget=args.budget)
+    task = args.task or config.CONFIG.task_name
+    out_dir = args.out or default_out_dir(task)
+    result = run_pipeline(
+        task_name=args.task, target=args.target, budget=args.budget, out_dir=out_dir
+    )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"
     )
@@ -198,6 +275,9 @@ def _main() -> None:
     )
     if result["report"]:
         print(f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}")
+    print(
+        f"\nArtifacts written to: {out_dir}/ (summary.md, result.json, agent_io.jsonl)"
+    )
 
 
 if __name__ == "__main__":

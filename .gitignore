@@ -11,3 +11,5 @@ temp/
 # Mac and VSCode specific files
 .vscode/
 *.DS_Store
+# Pipeline run artifacts (presentation outputs)
+runs/
