@@ -70,23 +70,23 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "Pipeline stages, in order: assemble (relational, optional) -> clean "
     "(optional) -> encode (required) -> scale/feature-eng (optional) -> model "
     "(required). For optional stages, include a 'skip' option.\n\n"
-    "An operator is a bare name (defaults) OR an object "
-    '{"name": X, "params": {...}} to ALSO search its hyperparameters — prefer '
-    "tuning the model's key hyperparameters. Emit ONLY JSON of this shape "
-    "(operator names + HP ranges; resolution to estimators is downstream):\n"
+    "An operator is a FULL DOTTED IMPORT PATH (bare, for defaults) OR an object "
+    '{"name": <path>, "params": {...}} to ALSO search its hyperparameters — '
+    "prefer tuning the model's key hyperparameters. Emit ONLY JSON of this "
+    "shape (dotted paths + HP ranges; lazy import/resolution is downstream):\n"
     "{\n"
-    '  "clean_options": ["skip", "Cleaner"],\n'
-    '  "encoder_options": ["GapEncoder", "MinHashEncoder"],\n'
+    '  "clean_options": ["skip", "skrub.Cleaner"],\n'
+    '  "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],\n'
     '  "stages": [\n'
-    '    {"name": "scale", "options": ["skip", "StandardScaler"]},\n'
+    '    {"name": "scale", "options": ["skip", "sklearn.preprocessing.StandardScaler"]},\n'
     '    {"name": "feature_eng", "options": ["skip",\n'
-    '      {"name": "PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}\n'
+    '      {"name": "sklearn.preprocessing.PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}\n'
     "  ],\n"
     '  "model": [\n'
-    '    {"name": "HistGradientBoosting", "params": {\n'
+    '    {"name": "sklearn.ensemble.HistGradientBoostingRegressor", "params": {\n'
     '       "learning_rate": {"float": [0.01, 0.3], "log": true},\n'
     '       "max_iter": {"int": [100, 600]}, "max_depth": {"int": [2, 16]}}},\n'
-    '    {"name": "RandomForest", "params": {"n_estimators": {"int": [100, 500]}}}\n'
+    '    {"name": "sklearn.ensemble.RandomForestRegressor", "params": {"n_estimators": {"int": [100, 500]}}}\n'
     "  ]\n"
     "}\n\n" + format_allowed_for_prompt()
 )
@@ -99,7 +99,7 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
       model: model string or ``BaseLlm`` instance. Defaults to native Gemini
         (``config.CONFIG.agent_model``). Tests pass a fake model here.
       log_dir: if given, prompts + outputs of every LLM turn are appended to
-        ``<log_dir>/agent_io.jsonl`` for sanity inspection (see run_logging).
+        ``<log_dir>/<agent>_<phase>.json`` for sanity inspection (see run_logging).
       with_search: attach the Gemini-only ``google_search`` tool to the analyst.
         Set False for offline/mocked runs with a non-Gemini fake model.
 

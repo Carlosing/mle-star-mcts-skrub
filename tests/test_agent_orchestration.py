@@ -14,7 +14,6 @@ Run mocked only:   uv run python -m pytest tests/test_agent_orchestration.py -q
 Run incl. live:    RUN_LIVE_TESTS=1 uv run python -m pytest tests/test_agent_orchestration.py -q
 """
 
-import json
 import os
 
 import pytest
@@ -25,7 +24,7 @@ from google.genai import types
 from pydantic import PrivateAttr
 
 from machine_learning_engineering.adk_agent import build_root_agent
-from machine_learning_engineering.run_logging import LOG_FILENAME
+from machine_learning_engineering.run_logging import read_records
 
 APP_NAME = "mle-mcts-skrub-test"
 
@@ -138,10 +137,9 @@ async def test_sanity_log_is_legible(tmp_path):
 
 
 def _read_log(tmp_path) -> list[dict]:
-    path = os.path.join(str(tmp_path), LOG_FILENAME)
-    assert os.path.exists(path), "sanity log file was not written"
-    with open(path, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+    records = read_records(str(tmp_path))
+    assert records, "sanity log files were not written"
+    return records
 
 
 # ---------------------------------------------------------------------------
@@ -170,4 +168,4 @@ async def test_live_smoke_real_gemini(tmp_path):
     spec = session.state.get("skrub_spec_raw", "")
     assert analysis.strip(), "analyst produced no output"
     assert "{" in spec, "plan_author did not return JSON-ish output"
-    print(f"\n[live] inspect prompts/outputs at: {tmp_path / LOG_FILENAME}")
+    print(f"\n[live] inspect prompts/outputs in: {tmp_path}")

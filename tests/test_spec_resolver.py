@@ -1,4 +1,4 @@
-"""Tests for spec_resolver: LLM name-spec -> seeded instance-spec (allowed list)."""
+"""Tests for spec_resolver: LLM dotted-path spec -> seeded instance-spec (lazy)."""
 
 import os
 
@@ -19,10 +19,15 @@ from machine_learning_engineering.spec_resolver import (
 )
 
 RAW = {
-    "clean_options": ["skip", "Cleaner"],
-    "encoder_options": ["GapEncoder", "MinHashEncoder"],
-    "stages": [{"name": "scale", "options": ["skip", "StandardScaler"]}],
-    "model": ["HistGradientBoosting", "RandomForest"],
+    "clean_options": ["skip", "skrub.Cleaner"],
+    "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+    "stages": [
+        {"name": "scale", "options": ["skip", "sklearn.preprocessing.StandardScaler"]}
+    ],
+    "model": [
+        "sklearn.ensemble.HistGradientBoostingRegressor",
+        "sklearn.ensemble.RandomForestRegressor",
+    ],
 }
 
 
@@ -39,13 +44,13 @@ def _california() -> pd.DataFrame:
 
 
 def test_parse_json_fenced_and_prose():
-    fenced = '```json\n{"model": ["RandomForest"]}\n```'
-    assert parse_spec_json(fenced) == {"model": ["RandomForest"]}
-    prose = 'Here you go:\n{"model": ["RandomForest"]}\nHope that helps.'
-    assert parse_spec_json(prose) == {"model": ["RandomForest"]}
+    fenced = '```json\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\n```'
+    assert parse_spec_json(fenced) == {"model": ["sklearn.ensemble.RandomForestRegressor"]}
+    prose = 'Here you go:\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\nThanks.'
+    assert parse_spec_json(prose) == {"model": ["sklearn.ensemble.RandomForestRegressor"]}
 
 
-def test_resolve_maps_names_to_instances():
+def test_resolve_paths_to_instances():
     spec = resolve_spec(RAW, task_type="regression")
 
     assert None in spec["clean_options"]
@@ -58,42 +63,77 @@ def test_resolve_maps_names_to_instances():
     assert None in spec["stages"][0]["options"]
     assert any(isinstance(o, StandardScaler) for o in spec["stages"][0]["options"])
 
-    # model name-list -> {label: instance} dict, regression variant
-    assert set(spec["model"]) == {"HistGradientBoosting", "RandomForest"}
-    assert isinstance(spec["model"]["HistGradientBoosting"], HistGradientBoostingRegressor)
+    # model path-list -> {class_name: instance} dict
+    assert set(spec["model"]) == {"HistGradientBoostingRegressor", "RandomForestRegressor"}
+    assert isinstance(
+        spec["model"]["HistGradientBoostingRegressor"], HistGradientBoostingRegressor
+    )
 
 
-def test_model_variant_switches_with_task_type():
-    spec = resolve_spec({"model": ["HistGradientBoosting"]}, task_type="classification")
-    assert isinstance(spec["model"]["HistGradientBoosting"], HistGradientBoostingClassifier)
+def test_classifier_path_imports_classifier():
+    spec = resolve_spec(
+        {"model": ["sklearn.ensemble.HistGradientBoostingClassifier"]},
+        task_type="classification",
+    )
+    assert isinstance(
+        spec["model"]["HistGradientBoostingClassifier"], HistGradientBoostingClassifier
+    )
 
 
-def test_unknown_operators_are_dropped_and_reported():
+def test_open_vocab_path_not_in_registry_uses_defaults():
+    # MinMaxScaler is importable + allowlisted but NOT in the curated REGISTRY.
+    from sklearn.preprocessing import MinMaxScaler
+
+    spec = resolve_spec(
+        {
+            "stages": [
+                {"name": "scale", "options": ["sklearn.preprocessing.MinMaxScaler"]}
+            ],
+            "model": ["sklearn.ensemble.RandomForestRegressor"],
+        }
+    )
+    assert any(isinstance(o, MinMaxScaler) for o in spec["stages"][0]["options"])
+
+
+def test_non_allowlisted_root_is_rejected():
+    assert unknown_operators({"model": ["os.system"]}) == ["os.system"]
+    with pytest.raises(ValueError):
+        resolve_spec({"model": ["os.system"]})
+
+
+def test_unimportable_paths_dropped_and_reported():
     raw = {
-        "encoder_options": ["GapEncoder", "NotARealEncoder"],
-        "model": ["RandomForest", "Bogus"],
+        "encoder_options": ["skrub.GapEncoder", "sklearn.preprocessing.NotARealThing"],
+        "model": ["sklearn.ensemble.RandomForestRegressor", "sklearn.bogus.Nope"],
     }
     reported = unknown_operators(raw)
-    assert "NotARealEncoder" in reported and "Bogus" in reported
+    assert "sklearn.preprocessing.NotARealThing" in reported
+    assert "sklearn.bogus.Nope" in reported
 
     spec = resolve_spec(raw)
-    assert len(spec["encoder_options"]) == 1  # unknown encoder dropped
-    assert set(spec["model"]) == {"RandomForest"}  # unknown model dropped
+    assert len(spec["encoder_options"]) == 1  # bad encoder dropped
+    assert set(spec["model"]) == {"RandomForestRegressor"}  # bad model dropped
 
 
 def test_strict_raises_on_unknown():
     with pytest.raises(ValueError):
-        resolve_spec({"model": ["RandomForest"], "encoder_options": ["Bogus"]}, strict=True)
+        resolve_spec(
+            {
+                "model": ["sklearn.ensemble.RandomForestRegressor"],
+                "encoder_options": ["sklearn.bogus.Nope"],
+            },
+            strict=True,
+        )
 
 
-def test_no_known_model_raises():
+def test_no_usable_model_raises():
     with pytest.raises(ValueError):
-        resolve_spec({"model": ["Bogus"]})
+        resolve_spec({"model": ["sklearn.bogus.Nope"]})
 
 
 def test_seeding_is_applied():
-    spec = resolve_spec({"model": ["RandomForest"]})
-    assert spec["model"]["RandomForest"].get_params()["random_state"] == 42
+    spec = resolve_spec({"model": ["sklearn.ensemble.RandomForestRegressor"]})
+    assert spec["model"]["RandomForestRegressor"].get_params()["random_state"] == 42
 
 
 def test_resolved_spec_builds_a_plan_on_california():
@@ -102,16 +142,24 @@ def test_resolved_spec_builds_a_plan_on_california():
     plan = skrub_ops.build_staged_plan(spec, df, target="median_house_value")
     space = skrub_ops.get_action_space(plan)
     assert "model" in space
-    assert set(space["model"]) == {"HistGradientBoosting", "RandomForest"}
+    assert set(space["model"]) == {
+        "HistGradientBoostingRegressor",
+        "RandomForestRegressor",
+    }
 
 
 # --- hyperparameter search ---------------------------------------------------
 
 HP_RAW = {
     "model": [
-        {"name": "RandomForest", "params": {"n_estimators": {"int": [100, 500]}}},
-        {"name": "HistGradientBoosting", "params": {
-            "learning_rate": {"float": [0.01, 0.3], "log": True}}},
+        {
+            "name": "sklearn.ensemble.RandomForestRegressor",
+            "params": {"n_estimators": {"int": [100, 500]}},
+        },
+        {
+            "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+            "params": {"learning_rate": {"float": [0.01, 0.3], "log": True}},
+        },
     ]
 }
 
@@ -123,29 +171,41 @@ def test_tuned_hps_surface_in_action_space():
     )
     space = skrub_ops.get_action_space(plan)
     assert "model" in space
-    # each tuned HP becomes its own searchable, discretized dimension
-    assert "model__RandomForest__n_estimators" in space
-    assert space["model__RandomForest__n_estimators"][0] == 100
-    assert space["model__RandomForest__n_estimators"][-1] == 500
-    assert "model__HistGradientBoosting__learning_rate" in space
+    assert "model__RandomForestRegressor__n_estimators" in space
+    assert space["model__RandomForestRegressor__n_estimators"][0] == 100
+    assert space["model__RandomForestRegressor__n_estimators"][-1] == 500
+    assert "model__HistGradientBoostingRegressor__learning_rate" in space
 
 
 def test_hp_range_is_clipped_to_allowed_envelope():
-    # LLM asks for an out-of-bounds learning rate; resolver clips to [0.01, 0.3].
-    raw = {"model": [{"name": "HistGradientBoosting",
-                      "params": {"learning_rate": {"float": [1e-6, 5.0], "log": True}}}]}
+    raw = {
+        "model": [
+            {
+                "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+                "params": {"learning_rate": {"float": [1e-6, 5.0], "log": True}},
+            }
+        ]
+    }
     df = _california()
     plan = skrub_ops.build_staged_plan(
         resolve_spec(raw, task_type="regression"), df, target="median_house_value"
     )
-    vals = skrub_ops.get_action_space(plan)["model__HistGradientBoosting__learning_rate"]
+    vals = skrub_ops.get_action_space(plan)[
+        "model__HistGradientBoostingRegressor__learning_rate"
+    ]
     assert min(vals) >= 0.01 - 1e-9
     assert max(vals) <= 0.3 + 1e-9
 
 
 def test_unknown_param_is_dropped_not_tuned():
-    # not_a_real_param is not in the allowed tunable set -> ignored, no crash.
-    raw = {"model": [{"name": "RandomForest", "params": {"not_a_real_param": {"int": [1, 9]}}}]}
+    raw = {
+        "model": [
+            {
+                "name": "sklearn.ensemble.RandomForestRegressor",
+                "params": {"not_a_real_param": {"int": [1, 9]}},
+            }
+        ]
+    }
     df = _california()
     plan = skrub_ops.build_staged_plan(
         resolve_spec(raw, task_type="regression"), df, target="median_house_value"
@@ -154,7 +214,6 @@ def test_unknown_param_is_dropped_not_tuned():
     assert not any("not_a_real_param" in k for k in space)
 
 
-def test_bare_names_still_work_without_params():
-    spec = resolve_spec({"model": ["RandomForest"]}, task_type="regression")
-    # bare name -> plain seeded estimator, no choose_* params
-    assert spec["model"]["RandomForest"].get_params()["random_state"] == 42
+def test_bare_path_works_without_params():
+    spec = resolve_spec({"model": ["sklearn.ensemble.RandomForestRegressor"]})
+    assert spec["model"]["RandomForestRegressor"].get_params()["random_state"] == 42

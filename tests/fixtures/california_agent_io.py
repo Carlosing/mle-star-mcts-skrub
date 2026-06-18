@@ -30,24 +30,24 @@ Options worth searching per stage:
   RandomForest (robust baseline), Linear/Ridge (scaled-features comparator).
 """
 
-# plan_author -> state["skrub_spec_raw"]  (allowed operators + tuned HPs; valid JSON)
+# plan_author -> state["skrub_spec_raw"]  (dotted paths + tuned HPs; valid JSON)
 SKRUB_SPEC_RAW = """\
 {
-  "clean_options": ["skip", "Cleaner"],
+  "clean_options": ["skip", "skrub.Cleaner"],
   "stages": [
-    {"name": "scale", "options": ["skip", "StandardScaler", "RobustScaler"]},
+    {"name": "scale", "options": ["skip", "sklearn.preprocessing.StandardScaler", "sklearn.preprocessing.RobustScaler"]},
     {"name": "feature_eng", "options": ["skip",
-      {"name": "PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}
+      {"name": "sklearn.preprocessing.PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}
   ],
   "model": [
-    {"name": "HistGradientBoosting", "params": {
+    {"name": "sklearn.ensemble.HistGradientBoostingRegressor", "params": {
        "learning_rate": {"float": [0.01, 0.3], "log": true},
        "max_iter": {"int": [100, 600]},
        "max_depth": {"int": [2, 16]}}},
-    {"name": "RandomForest", "params": {
+    {"name": "sklearn.ensemble.RandomForestRegressor", "params": {
        "n_estimators": {"int": [100, 500]},
        "max_depth": {"int": [3, 30]}}},
-    "Linear"
+    "sklearn.linear_model.Ridge"
   ]
 }
 """

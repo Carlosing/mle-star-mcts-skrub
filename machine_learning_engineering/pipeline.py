@@ -55,7 +55,7 @@ def load_task(
     target = target or _parse_target(desc, df)
     if target not in df.columns:
         raise ValueError(f"target {target!r} not in columns {list(df.columns)}")
-    return df, target, infer_task_type(df, target), _parse_metric(desc)
+    return df, target, infer_task_type(df, target), _parse_metric(desc), desc
 
 
 def _read_description(task_dir: str) -> str:
@@ -96,11 +96,15 @@ async def _run_agents(root_agent, user_text: str):
     )
 
 
-def _fallback_spec() -> dict:
+def _fallback_spec(task_type: str) -> dict:
     """Minimal, always-resolvable spec when the LLM output can't be used."""
+    suffix = "Classifier" if task_type == "classification" else "Regressor"
     return {
-        "encoder_options": ["GapEncoder"],
-        "model": ["HistGradientBoosting", "RandomForest"],
+        "encoder_options": ["skrub.GapEncoder"],
+        "model": [
+            f"sklearn.ensemble.HistGradientBoosting{suffix}",
+            f"sklearn.ensemble.RandomForest{suffix}",
+        ],
     }
 
 
@@ -110,7 +114,7 @@ def _safe_resolve(raw, task_type: str) -> tuple[dict, bool]:
         spec = resolve_spec(raw, task_type=task_type)
         return spec, False
     except Exception:
-        return resolve_spec(_fallback_spec(), task_type=task_type), True
+        return resolve_spec(_fallback_spec(task_type), task_type=task_type), True
 
 
 # --- the pipeline ------------------------------------------------------------
@@ -136,7 +140,7 @@ def run_pipeline(
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
 
-    df, target, task_type, metric = load_task(task_name, target=target)
+    df, target, task_type, metric, description = load_task(task_name, target=target)
     summary = make_data_summary(df, target)
 
     root = build_root_agent(model=model, with_search=with_search, log_dir=log_dir)
@@ -158,6 +162,7 @@ def run_pipeline(
 
     result = {
         "task": task_name or config.CONFIG.task_name,
+        "task_description": description,
         "target": target,
         "task_type": task_type,
         "metric": metric,
@@ -182,7 +187,7 @@ def run_pipeline(
 
 
 def default_out_dir(task: str) -> str:
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
     return os.path.join("runs", f"{task}_{stamp}")
 
 
@@ -202,6 +207,9 @@ def _result_markdown(r: dict) -> str:
         f"# Run: {r['task']}  ({r['task_type']}, metric={r['metric']})",
         f"model: {r.get('model')}  |  budget: {r.get('budget')}  |  "
         f"fallback spec: {r.get('used_fallback_spec')}",
+        "",
+        "## Task",
+        (r.get("task_description") or "").strip() or "(no description)",
         "",
         "## 1. Data report (analyst output, sent to the planner agent)",
         (r.get("analysis") or "").strip() or "(empty)",
@@ -276,7 +284,8 @@ def _main() -> None:
     if result["report"]:
         print(f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}")
     print(
-        f"\nArtifacts written to: {out_dir}/ (summary.md, result.json, agent_io.jsonl)"
+        f"\nArtifacts written to: {out_dir}/ "
+        "(summary.md, result.json, <agent>_<phase>.json)"
     )
 
 

@@ -37,18 +37,21 @@ class FakeLlm(BaseLlm):
 
 
 def test_load_task_california():
-    df, target, task_type, metric = pipeline.load_task("california-housing-prices")
+    df, target, task_type, metric, desc = pipeline.load_task(
+        "california-housing-prices"
+    )
     assert target == "median_house_value"
     assert task_type == "regression"
     assert metric == "root_mean_squared_error"
     assert target in df.columns
+    assert "median_house_value" in desc  # full task description is returned
 
 
 def test_run_pipeline_end_to_end_offline():
     model = FakeLlm().set_responses([ANALYSIS, SPEC_JSON])
     result = pipeline.run_pipeline(
         task_name="california-housing-prices",
-        budget=40,
+        budget=15,
         model=model,
         with_search=False,  # FakeLlm -> skip the Gemini-only google_search tool
     )
@@ -61,9 +64,9 @@ def test_run_pipeline_end_to_end_offline():
     # MCTS searched a real action space and returned a config + score.
     assert "model" in result["action_space"]
     assert set(result["action_space"]["model"]) == {
-        "HistGradientBoosting",
-        "RandomForest",
-        "Linear",
+        "HistGradientBoostingRegressor",
+        "RandomForestRegressor",
+        "Ridge",
     }
     # the richer spec also searches hyperparameters (nested HP dimensions)
     assert any("__" in k for k in result["action_space"])

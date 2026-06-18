@@ -1,43 +1,38 @@
 """Resolve an LLM-authored plan spec into a ``build_staged_plan`` spec — with
-hyperparameter search — allowed-list only.
+hyperparameter search — via lazy, allowlisted imports.
 
-The ``plan_author`` agent emits JSON. Each operator is either a bare name
-(defaults) or an object ``{"name": X, "params": {...}}`` that tunes its
-hyperparameters. Names AND hyperparameters are restricted to a curated registry:
-no ``eval``, no dynamic import, and HP ranges are clipped into vetted bounds. A
-tuned param becomes a ``skrub.choose_int`` / ``choose_float`` / ``choose_from``
-node, so it surfaces in ``get_action_space`` and MCTS searches it alongside the
-operator choice (the CASH structure — HPs nested under each model).
+The ``plan_author`` agent names operators by their FULL DOTTED IMPORT PATH, e.g.
+``"sklearn.preprocessing.RobustScaler"`` or
+``"sklearn.ensemble.RandomForestRegressor"``. Each operator is either a bare
+path string or ``{"name": <path>, "params": {...}}`` to tune hyperparameters.
 
-Param rule shapes the LLM may emit (type is authoritative from the registry):
-    {"int":   [low, high]}            -> choose_int(low, high)
-    {"float": [low, high], "log": true} -> choose_float(low, high, log=True)
-    {"choice": ["a", "b"]}            -> choose_from(["a", "b"])
-Ranges are clipped to the registry's allowed envelope; unknown params/operators
-are dropped (or raise with strict=True).
+Imports are **lazy**: a class is imported (via ``importlib``) only when its path
+is actually named, so this module loads without pulling sklearn — only ``skrub``
+is needed eagerly (for the ``choose_*`` nodes). Safety: only paths under
+``ALLOWLIST_ROOTS`` (sklearn, skrub) are importable, so a hallucinated path can
+never import an arbitrary module. A path that can't be imported is simply
+dropped (no special handling, by design).
 
-Flow: parse_spec_json(text) -> resolve_spec(dict, task_type) -> dict ready for
-skrub_ops.build_staged_plan. Note (CASH): HPs of a non-selected model still
-appear as (inactive) search dimensions — correct but slightly wider; proper
-conditional nesting is the deferred staged-expansion work (docs/pipeline-stages).
+Hyperparameters are still curated: ``REGISTRY`` holds vetted tunable bounds per
+path. A tuned param becomes a ``skrub.choose_int`` / ``choose_float`` /
+``choose_from`` node so it surfaces in ``get_action_space`` and MCTS searches it
+(the CASH structure — HPs nested under each model). An operator that is
+importable but not in ``REGISTRY`` is usable at its defaults (no HP search).
+
+Flow: parse_spec_json(text) -> resolve_spec(dict) -> dict for build_staged_plan.
 """
 
+import importlib
 import json
 import re
 
-import skrub
-from sklearn.decomposition import PCA
-from sklearn.ensemble import (
-    HistGradientBoostingClassifier,
-    HistGradientBoostingRegressor,
-    RandomForestClassifier,
-    RandomForestRegressor,
-)
-from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.preprocessing import PolynomialFeatures, RobustScaler, StandardScaler
+import skrub  # eager: needed for choose_* nodes (sklearn stays lazy)
 
 SEED = 42
 _SKIP_TOKENS = {"skip", "none", "null", ""}
+
+# Only paths under these roots may be imported (blocks `import os`, etc.).
+ALLOWLIST_ROOTS = ("sklearn", "skrub")
 
 
 # --- tunable rule constructors (the allowed HP envelope) ---------------------
@@ -55,81 +50,117 @@ def _choice(options):
     return {"type": "choice", "options": list(options)}
 
 
-def _skrub_attr(name):
-    return getattr(skrub, name, None)
+# Shared model tunables (same param names across Regressor/Classifier variants).
+_HGB_TUNABLE = {
+    "learning_rate": _float(0.01, 0.3, log=True),
+    "max_iter": _int(100, 600),
+    "max_depth": _int(2, 16),
+    "l2_regularization": _float(0.0, 1.0),
+}
+_RF_TUNABLE = {
+    "n_estimators": _int(100, 500),
+    "max_depth": _int(3, 30),
+    "min_samples_leaf": _int(1, 10),
+    "max_features": _choice(["sqrt", "log2", 1.0]),
+}
 
-
-# Transformers: name -> {factory, defaults, tunable}. skrub classes guarded.
-_TRANSFORMERS = {
-    "Cleaner": {"factory": _skrub_attr("Cleaner"), "defaults": {}, "tunable": {}},
-    "GapEncoder": {
-        "factory": _skrub_attr("GapEncoder"),
+# Curated registry keyed by dotted path: {kind, defaults, tunable}. `kind` only
+# groups the prompt vocabulary. Classes are imported lazily, not referenced here.
+REGISTRY = {
+    # skrub transformers
+    "skrub.Cleaner": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    "skrub.GapEncoder": {
+        "kind": "transformer",
         "defaults": {},
         "tunable": {"n_components": _int(10, 50)},
     },
-    "MinHashEncoder": {
-        "factory": _skrub_attr("MinHashEncoder"),
+    "skrub.MinHashEncoder": {
+        "kind": "transformer",
         "defaults": {},
         "tunable": {"n_components": _int(20, 80)},
     },
-    "StringEncoder": {"factory": _skrub_attr("StringEncoder"), "defaults": {}, "tunable": {}},
-    "StandardScaler": {"factory": StandardScaler, "defaults": {}, "tunable": {}},
-    "RobustScaler": {"factory": RobustScaler, "defaults": {}, "tunable": {}},
-    "PolynomialFeatures": {
-        "factory": PolynomialFeatures,
+    "skrub.StringEncoder": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    # sklearn transformers
+    "sklearn.preprocessing.StandardScaler": {
+        "kind": "transformer",
+        "defaults": {},
+        "tunable": {},
+    },
+    "sklearn.preprocessing.RobustScaler": {
+        "kind": "transformer",
+        "defaults": {},
+        "tunable": {},
+    },
+    "sklearn.preprocessing.PolynomialFeatures": {
+        "kind": "transformer",
         "defaults": {"include_bias": False, "degree": 2},
         "tunable": {"degree": _int(2, 3)},
     },
-    "PCA": {"factory": PCA, "defaults": {}, "tunable": {}},
+    "sklearn.decomposition.PCA": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    # sklearn models — regression + classification variants
+    "sklearn.ensemble.HistGradientBoostingRegressor": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": _HGB_TUNABLE,
+    },
+    "sklearn.ensemble.HistGradientBoostingClassifier": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": _HGB_TUNABLE,
+    },
+    "sklearn.ensemble.RandomForestRegressor": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": _RF_TUNABLE,
+    },
+    "sklearn.ensemble.RandomForestClassifier": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": _RF_TUNABLE,
+    },
+    "sklearn.linear_model.Ridge": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": {"alpha": _float(1e-3, 1e3, log=True)},
+    },
+    "sklearn.linear_model.LinearRegression": {
+        "kind": "model",
+        "defaults": {},
+        "tunable": {},
+    },
+    "sklearn.linear_model.LogisticRegression": {
+        "kind": "model",
+        "defaults": {"max_iter": 1000},
+        "tunable": {"C": _float(1e-3, 1e3, log=True)},
+    },
 }
-TRANSFORMER_REGISTRY = {k: v for k, v in _TRANSFORMERS.items() if v["factory"] is not None}
 
-# Models: name -> {regression, classification, defaults, tunable}. `tunable` is
-# flat when params are shared across tasks, or task-keyed when names differ.
-MODEL_REGISTRY = {
-    "HistGradientBoosting": {
-        "regression": HistGradientBoostingRegressor,
-        "classification": HistGradientBoostingClassifier,
-        "defaults": {},
-        "tunable": {
-            "learning_rate": _float(0.01, 0.3, log=True),
-            "max_iter": _int(100, 600),
-            "max_depth": _int(2, 16),
-            "l2_regularization": _float(0.0, 1.0),
-        },
-    },
-    "RandomForest": {
-        "regression": RandomForestRegressor,
-        "classification": RandomForestClassifier,
-        "defaults": {},
-        "tunable": {
-            "n_estimators": _int(100, 500),
-            "max_depth": _int(3, 30),
-            "min_samples_leaf": _int(1, 10),
-            "max_features": _choice(["sqrt", "log2", 1.0]),
-        },
-    },
-    "Linear": {
-        "regression": Ridge,
-        "classification": lambda **kw: LogisticRegression(max_iter=1000, **kw),
-        "defaults": {},
-        "tunable": {
-            "regression": {"alpha": _float(1e-3, 1e3, log=True)},
-            "classification": {"C": _float(1e-3, 1e3, log=True)},
-        },
-    },
-}
+
+# --- lazy, allowlisted class loading -----------------------------------------
+
+
+def _load_class(path):
+    """Import and return the class at a dotted path, or None.
+
+    Returns None for non-strings, paths outside ALLOWLIST_ROOTS, or any import /
+    attribute failure (the operator is then dropped — by design).
+    """
+    if not isinstance(path, str) or "." not in path:
+        return None
+    if path.split(".", 1)[0] not in ALLOWLIST_ROOTS:
+        return None
+    module_path, _, cls_name = path.rpartition(".")
+    try:
+        return getattr(importlib.import_module(module_path), cls_name)
+    except (ImportError, AttributeError, ValueError):
+        return None
 
 
 # --- parsing -----------------------------------------------------------------
 
 
 def parse_spec_json(raw):
-    """Parse LLM output into a dict, tolerating ```json fences and prose.
-
-    Raises json.JSONDecodeError if no valid JSON object can be recovered (e.g. a
-    MAX_TOKENS-truncated response) — the caller decides how to handle that.
-    """
+    """Parse LLM output into a dict, tolerating ```json fences and prose."""
     if isinstance(raw, dict):
         return raw
     s = str(raw).strip()
@@ -165,14 +196,13 @@ def _is_skip(name) -> bool:
 
 
 def _entry_name_params(item):
-    """An option is a bare name or {"name": X, "params": {...}}."""
+    """An option is a bare path, or {"name": <path>, "params": {...}}."""
     if isinstance(item, dict):
         return item.get("name"), item.get("params") or {}
     return item, {}
 
 
 def _clip(rng, rule):
-    """Clip an LLM [low, high] into the registry envelope; fall back to it."""
     if not isinstance(rng, (list, tuple)) or len(rng) != 2:
         return rule["low"], rule["high"]
     try:
@@ -191,7 +221,7 @@ def _build_choice(choice_name, llm_rule, rule):
     if typ in ("int", "float"):
         low, high = _clip(llm_rule.get(typ) or llm_rule.get("range"), rule)
         if low is None or low >= high:
-            return None  # collapsed/invalid range -> leave at default
+            return None
         log = bool(llm_rule.get("log", rule.get("log", False)))
         if typ == "int":
             return skrub.choose_int(int(low), int(high), log=log, name=choice_name)
@@ -204,72 +234,78 @@ def _build_choice(choice_name, llm_rule, rule):
     return None
 
 
-def _make(factory, defaults, tunable, op_name, params, seed, context):
-    """Instantiate an operator, wrapping tuned params in skrub choose_* nodes."""
-    kwargs = dict(defaults)
+def _make(path, params, seed, context):
+    """Lazily import `path` and instantiate it, wrapping tuned params in
+    skrub choose_* nodes. Returns None if the class can't be imported/built."""
+    cls = _load_class(path)
+    if cls is None:
+        return None
+    entry = REGISTRY.get(path, {})
+    tunable = entry.get("tunable", {})
+    kwargs = dict(entry.get("defaults", {}))
     for pname, llm_rule in (params or {}).items():
         rule = tunable.get(pname)
         if rule is None:
-            continue  # param not tunable / not allowed -> dropped
-        choice = _build_choice(f"{context}__{op_name}__{pname}", llm_rule, rule)
+            continue  # not a curated tunable for this operator -> ignored
+        choice = _build_choice(f"{context}__{cls.__name__}__{pname}", llm_rule, rule)
         if choice is not None:
             kwargs[pname] = choice
-    return _ensure_seeded(factory(**kwargs), seed)
-
-
-def _model_tunable(entry, task_type):
-    t = entry.get("tunable", {})
-    if t and all(k in ("regression", "classification") for k in t):
-        return t.get(task_type, {})
-    return t
+    try:
+        return _ensure_seeded(cls(**kwargs), seed)
+    except Exception:
+        return None
 
 
 def _resolve_options(items, seed, allow_skip, context):
     out = []
     skip_added = False
     for item in items or []:
-        name, params = _entry_name_params(item)
-        if _is_skip(name):
+        path, params = _entry_name_params(item)
+        if _is_skip(path):
             if allow_skip and not skip_added:
                 out.append(None)
                 skip_added = True
             continue
-        entry = TRANSFORMER_REGISTRY.get(name)
-        if entry is not None:
-            out.append(
-                _make(entry["factory"], entry["defaults"], entry["tunable"], name, params, seed, context)
-            )
+        inst = _make(path, params, seed, context)
+        if inst is not None:
+            out.append(inst)
     return out
 
 
 def _iter_model_items(model):
     if model is None:
         return []
-    if isinstance(model, dict):
-        return list(model.keys())
     if isinstance(model, (str, dict)):
         return [model]
     return list(model)
 
 
-def resolve_spec(raw, task_type: str = "regression", seed: int = SEED, strict: bool = False) -> dict:
-    """Turn an LLM spec (names + HP ranges) into a build_staged_plan spec.
+def resolve_spec(
+    raw, task_type: str = "regression", seed: int = SEED, strict: bool = False
+) -> dict:
+    """Turn an LLM spec (dotted paths + HP ranges) into a build_staged_plan spec.
 
     Returns instance-valued clean_options / encoder_options / stages and a
-    {label: instance} ``model`` dict, where tuned params are skrub choose_*
-    nodes. ``assemble`` is passed through. Raises if no known model survives.
+    ``{class_name: instance}`` ``model`` dict, where tuned params are skrub
+    choose_* nodes. ``assemble`` is passed through. ``task_type`` is advisory now
+    (the LLM names the task-appropriate class). Raises if no model could be
+    imported.
     """
     spec = parse_spec_json(raw)
     if task_type not in ("regression", "classification"):
-        raise ValueError(f"task_type must be regression|classification, got {task_type!r}")
+        raise ValueError(
+            f"task_type must be regression|classification, got {task_type!r}"
+        )
     if strict:
-        unknown = unknown_operators(spec, task_type)
+        unknown = unknown_operators(spec)
         if unknown:
-            raise ValueError(f"unknown operators (not in allowed list): {unknown}")
+            raise ValueError(
+                f"unknown operators (not importable / not allowed): {unknown}"
+            )
 
     out: dict = {}
     if spec.get("assemble"):
-        out["assemble"] = spec["assemble"]  # config passthrough, not registry ops
+        out["assemble"] = spec["assemble"]  # config passthrough
 
     clean = _resolve_options(spec.get("clean_options"), seed, True, "clean")
     if clean:
@@ -280,7 +316,9 @@ def resolve_spec(raw, task_type: str = "regression", seed: int = SEED, strict: b
 
     stages = []
     for stage in spec.get("stages", []) or []:
-        opts = _resolve_options(stage.get("options"), seed, True, stage.get("name", "stage"))
+        opts = _resolve_options(
+            stage.get("options"), seed, True, stage.get("name", "stage")
+        )
         if opts:
             stages.append({"name": stage["name"], "options": opts})
     if stages:
@@ -288,15 +326,12 @@ def resolve_spec(raw, task_type: str = "regression", seed: int = SEED, strict: b
 
     models = {}
     for item in _iter_model_items(spec.get("model")):
-        name, params = _entry_name_params(item)
-        entry = MODEL_REGISTRY.get(name)
-        if entry and task_type in entry:
-            models[name] = _make(
-                entry[task_type], entry.get("defaults", {}),
-                _model_tunable(entry, task_type), name, params, seed, "model",
-            )
+        path, params = _entry_name_params(item)
+        inst = _make(path, params, seed, "model")
+        if inst is not None:
+            models[type(inst).__name__] = inst
     if not models:
-        raise ValueError(f"spec has no known model for task_type={task_type!r}")
+        raise ValueError("spec has no usable model (none could be imported)")
     out["model"] = models
     return out
 
@@ -304,33 +339,34 @@ def resolve_spec(raw, task_type: str = "regression", seed: int = SEED, strict: b
 # --- introspection (prompt vocabulary + driver-side validation) --------------
 
 
-def unknown_operators(raw, task_type: str = "regression") -> list[str]:
-    """Operator names in the spec that are NOT in the allowed list."""
+def unknown_operators(raw, task_type=None) -> list[str]:
+    """Operator paths in the spec that cannot be imported (allowlist/typo)."""
     spec = parse_spec_json(raw)
     unknown: list[str] = []
 
     def check(items):
         for it in items or []:
-            name, _ = _entry_name_params(it)
-            if not _is_skip(name) and name not in TRANSFORMER_REGISTRY:
-                unknown.append(name)
+            path, _ = _entry_name_params(it)
+            if not _is_skip(path) and _load_class(path) is None:
+                unknown.append(path)
 
     check(spec.get("clean_options"))
     check(spec.get("encoder_options"))
     for stage in spec.get("stages", []) or []:
         check(stage.get("options"))
     for it in _iter_model_items(spec.get("model")):
-        name, _ = _entry_name_params(it)
-        entry = MODEL_REGISTRY.get(name)
-        if not entry or task_type not in entry:
-            unknown.append(name)
+        path, _ = _entry_name_params(it)
+        if _load_class(path) is None:
+            unknown.append(path)
     return unknown
 
 
 def allowed_operators() -> dict:
     return {
-        "transformers": sorted(TRANSFORMER_REGISTRY),
-        "models": sorted(MODEL_REGISTRY),
+        "transformers": sorted(
+            p for p, e in REGISTRY.items() if e["kind"] == "transformer"
+        ),
+        "models": sorted(p for p, e in REGISTRY.items() if e["kind"] == "model"),
     }
 
 
@@ -342,32 +378,27 @@ def _fmt_rule(p, r) -> str:
 
 
 def _fmt_tunable(tunable) -> str:
-    if not tunable:
-        return ""
-    if all(k in ("regression", "classification") for k in tunable):  # task-keyed
-        parts = []
-        for task, params in tunable.items():
-            parts.append(
-                "; ".join(_fmt_rule(p, r) for p, r in params.items()) + f" [{task}]"
-            )
-        return " | ".join(parts)
     return ", ".join(_fmt_rule(p, r) for p, r in tunable.items())
 
 
 def format_allowed_for_prompt() -> str:
-    """Lists allowed operators + their tunable hyperparameters for the prompt."""
+    """List allowed dotted paths + their tunable hyperparameters for the prompt."""
     lines = [
-        "Use ONLY these operators (exact names). An operator is either a bare "
-        'name, or an object {"name": X, "params": {...}} to tune hyperparameters. '
+        "Name operators by their FULL DOTTED IMPORT PATH (e.g. "
+        '"sklearn.preprocessing.RobustScaler"). An operator is either a bare '
+        'path, or {"name": <path>, "params": {...}} to tune hyperparameters. '
         'Param rules: {"int":[lo,hi]}, {"float":[lo,hi],"log":true}, '
-        '{"choice":[...]}. For an optional stage use "skip".',
+        '{"choice":[...]}. For an optional stage use "skip". Choose the '
+        "task-appropriate class (Regressor for regression, Classifier for "
+        "classification). Only sklearn.* and skrub.* paths are allowed. These "
+        "have curated, searchable hyperparameters:",
         "Transformers:",
     ]
-    for name in sorted(TRANSFORMER_REGISTRY):
-        tun = _fmt_tunable(TRANSFORMER_REGISTRY[name]["tunable"])
-        lines.append(f"  {name}" + (f" (params: {tun})" if tun else ""))
+    for path in sorted(p for p, e in REGISTRY.items() if e["kind"] == "transformer"):
+        tun = _fmt_tunable(REGISTRY[path]["tunable"])
+        lines.append(f"  {path}" + (f" (params: {tun})" if tun else ""))
     lines.append("Models:")
-    for name in sorted(MODEL_REGISTRY):
-        tun = _fmt_tunable(MODEL_REGISTRY[name].get("tunable", {}))
-        lines.append(f"  {name}" + (f" (params: {tun})" if tun else ""))
+    for path in sorted(p for p, e in REGISTRY.items() if e["kind"] == "model"):
+        tun = _fmt_tunable(REGISTRY[path]["tunable"])
+        lines.append(f"  {path}" + (f" (params: {tun})" if tun else ""))
     return "\n".join(lines)
