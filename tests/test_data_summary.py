@@ -6,10 +6,9 @@ import pandas as pd
 
 from machine_learning_engineering.data_summary import infer_task_type, make_data_summary
 
-TARGET = "median_house_value"
 
-
-def _california() -> pd.DataFrame:
+def _california() -> tuple[pd.DataFrame, str]:
+    target = "median_house_value"
     path = os.path.join(
         os.path.dirname(__file__),
         "..",
@@ -18,13 +17,13 @@ def _california() -> pd.DataFrame:
         "california-housing-prices",
         "train.csv",
     )
-    return pd.read_csv(path)
+    return pd.read_csv(path), target
 
 
 def test_summary_reports_shape_target_and_every_column():
-    df = _california()
-    s = make_data_summary(df, target=TARGET)
-    assert TARGET in s
+    df, target = _california()
+    s = make_data_summary(df, target=target)
+    assert target in s
     assert "rows" in s and "columns" in s
     for col in df.columns:
         assert col in s
@@ -32,23 +31,21 @@ def test_summary_reports_shape_target_and_every_column():
 
 
 def test_summary_marks_target_and_infers_regression():
-    df = _california()
-    s = make_data_summary(df, target=TARGET)
+    df, target = _california()
+    s = make_data_summary(df, target=target)
     assert "(TARGET)" in s
     assert "regression" in s
-    assert infer_task_type(df, TARGET) == "regression"
+    assert infer_task_type(df, target) == "regression"
 
 
 def test_summary_includes_head_rows():
-    df = _california()
-    s = make_data_summary(df, target=TARGET, n_head_rows=3)
+    df, target = _california()
+    s = make_data_summary(df, target=target, n_head_rows=3)
     assert "First 3 rows" in s
 
 
 def test_summary_shows_examples_for_categoricals():
-    df = pd.DataFrame(
-        {"city": ["NYC", "LA", "NYC", "SF"], "target": [1, 0, 1, 0]}
-    )
+    df = pd.DataFrame({"city": ["NYC", "LA", "NYC", "SF"], "target": [1, 0, 1, 0]})
     s = make_data_summary(df, target="target")
     assert "examples=" in s  # categorical column lists example values
     assert "'NYC'" in s

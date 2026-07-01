@@ -45,9 +45,15 @@ def _california() -> pd.DataFrame:
 
 def test_parse_json_fenced_and_prose():
     fenced = '```json\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\n```'
-    assert parse_spec_json(fenced) == {"model": ["sklearn.ensemble.RandomForestRegressor"]}
-    prose = 'Here you go:\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\nThanks.'
-    assert parse_spec_json(prose) == {"model": ["sklearn.ensemble.RandomForestRegressor"]}
+    assert parse_spec_json(fenced) == {
+        "model": ["sklearn.ensemble.RandomForestRegressor"]
+    }
+    prose = (
+        'Here you go:\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\nThanks.'
+    )
+    assert parse_spec_json(prose) == {
+        "model": ["sklearn.ensemble.RandomForestRegressor"]
+    }
 
 
 def test_resolve_paths_to_instances():
@@ -64,7 +70,10 @@ def test_resolve_paths_to_instances():
     assert any(isinstance(o, StandardScaler) for o in spec["stages"][0]["options"])
 
     # model path-list -> {class_name: instance} dict
-    assert set(spec["model"]) == {"HistGradientBoostingRegressor", "RandomForestRegressor"}
+    assert set(spec["model"]) == {
+        "HistGradientBoostingRegressor",
+        "RandomForestRegressor",
+    }
     assert isinstance(
         spec["model"]["HistGradientBoostingRegressor"], HistGradientBoostingRegressor
     )

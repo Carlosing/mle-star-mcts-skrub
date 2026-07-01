@@ -88,3 +88,25 @@ def test_run_pipeline_falls_back_on_bad_spec():
     )
     assert result["used_fallback_spec"] is True
     assert isinstance(result["best_search_score"], float)
+
+
+def test_run_pipeline_classification_offline():
+    # The classification path: string target -> accuracy scorer, Classifier models.
+    from fixtures.open_payments_agent_io import RESPONSES as CLF_RESPONSES
+
+    model = FakeLlm().set_responses(CLF_RESPONSES)
+    result = pipeline.run_pipeline(
+        task_name="open-payments", budget=4, model=model, with_search=False
+    )
+
+    assert result["task_type"] == "classification"
+    assert result["search_scorer"] == "accuracy"
+    assert not result["used_fallback_spec"]
+    assert set(result["action_space"]["model"]) == {
+        "HistGradientBoostingClassifier",
+        "RandomForestClassifier",
+        "LogisticRegression",
+    }
+    assert isinstance(result["best_search_score"], float)
+    assert result["report"] is not None
+    assert result["report"]["scorer"] == "accuracy"

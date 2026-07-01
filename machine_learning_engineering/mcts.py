@@ -50,21 +50,56 @@ def select(node: MCTSNode, c: float = 0.5) -> MCTSNode:
     return node
 
 
+def canonicalize(state: dict, gating: Optional[dict] = None) -> dict:
+    """Drop gated keys whose parent isn't at its activating outcome.
+
+    `gating` maps a conditional choice name -> (parent_name, activating_label)
+    (see skrub_ops.get_choice_gating). A state stays *canonical* — it carries
+    only the hyperparameters that are actually active for its selected model —
+    so the cache and `tried_states` dedup don't treat inactive-HP variants as
+    distinct configs. No-op when `gating` is None.
+    """
+    if not gating:
+        return state
+    return {
+        k: v
+        for k, v in state.items()
+        if k not in gating or state.get(gating[k][0]) == gating[k][1]
+    }
+
+
 def expand(
     node: MCTSNode,
     action_space: dict[str, list],
     tried_states: set[tuple],
+    gating: Optional[dict] = None,
+    target_key: Optional[str] = None,
 ) -> list[MCTSNode]:
     """Generate children by swapping one choice value at a time.
 
     `action_space` maps choice name -> list of options. It comes from the
     skrub plan's choice nodes (skrub_ops.get_action_space) — never from an LLM
     (anti-pattern #1).
+
+    `gating` (model-gated HPs): a conditional key is only edited when its parent
+    is at the activating outcome in this node, and new states are canonicalized
+    so inactive HPs are dropped. `target_key`, if given, restricts expansion to
+    that single choice (Option 1 — lock all other stages).
     """
     children = []
-    for choice_name, options in action_space.items():
+    items = (
+        action_space.items()
+        if target_key is None
+        else [(target_key, action_space.get(target_key, []))]
+    )
+    for choice_name, options in items:
+        # skip a gated child whose parent isn't active in this node
+        if gating and choice_name in gating:
+            parent, activating = gating[choice_name]
+            if node.state.get(parent) != activating:
+                continue
         for option in options:
-            new_state = {**node.state, choice_name: option}
+            new_state = canonicalize({**node.state, choice_name: option}, gating)
             key = state_key(new_state)
             if key not in tried_states and new_state != node.state:
                 children.append(MCTSNode(state=new_state, parent=node))
@@ -90,27 +125,42 @@ def mcts_search(
     root: Optional[MCTSNode] = None,
     tried_states: Optional[set[tuple]] = None,
     prior_fn: Optional[Callable[[list[MCTSNode]], None]] = None,
+    gating: Optional[dict] = None,
+    target_key: Optional[str] = None,
+    score_cache: Optional[dict] = None,
 ) -> tuple[dict, float, MCTSNode]:
     """Run `budget` MCTS iterations and return (best_state, best_score, root).
 
-    Pass the returned `root` and `tried_states` back in on the next outer-loop
-    step so UCT statistics accumulate (anti-pattern #7: never reset the tree).
+    Pass the returned `root`, `tried_states` and `score_cache` back in on the
+    next outer-loop step so UCT statistics accumulate and rollouts are not
+    recomputed (anti-pattern #7: never reset the tree).
 
     `rollout_fn(state) -> float` must return a reward in [0, 1] and never
     raise (failed configs score 0.0, see skrub_ops.make_rollout_fn).
 
     `prior_fn`, if given, is called on freshly expanded children and may
     warm-start their Q/N (the optional LLM expansion prior, brief §6).
+    `gating`/`target_key` are forwarded to `expand` (model-gated HPs / stage
+    locking). `score_cache` memoizes `state_key -> reward`; deterministic
+    rollouts make this exact, so a config is evaluated at most once.
     """
+    root_state = canonicalize(root_state, gating)
     # First call: create the root node and initialize tried_states with it
     if root is None:
         root = MCTSNode(state=root_state)
     if tried_states is None:
         tried_states = {state_key(root_state)}
+    if score_cache is None:
+        score_cache = {}
+
+    def scored(state: dict) -> float:
+        key = state_key(state)
+        if key not in score_cache:
+            score_cache[key] = rollout_fn(state)
+        return score_cache[key]
 
     # Storing best configuration and score found during the search
-    # Initialized to root's state and its rollout score
-    best_state, best_score = root_state, rollout_fn(root_state)
+    best_state, best_score = root_state, scored(root_state)
 
     # MCTS main loop
     for _ in range(budget):
@@ -119,13 +169,13 @@ def mcts_search(
 
         # Expand it if it's not a terminal state (cannot be expanded)
         if leaf.N > 0 or leaf is root:
-            children = expand(leaf, action_space, tried_states)
+            children = expand(leaf, action_space, tried_states, gating, target_key)
             if children:  #
                 if prior_fn is not None:
                     prior_fn(children)
                 leaf = children[0]
-        # Perform a rollout to get a reward
-        reward = rollout_fn(leaf.state)
+        # Perform a rollout to get a reward (cached, once per distinct state)
+        reward = scored(leaf.state)
 
         # Backpropagate that reward up the tree.
         backpropagate(leaf, reward)

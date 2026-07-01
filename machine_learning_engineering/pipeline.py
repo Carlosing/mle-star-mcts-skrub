@@ -27,7 +27,7 @@ from google.genai import types
 from machine_learning_engineering import metrics, skrub_ops
 from machine_learning_engineering.adk_agent import build_root_agent
 from machine_learning_engineering.data_summary import infer_task_type, make_data_summary
-from machine_learning_engineering.mcts import mcts_search
+from machine_learning_engineering.search_loop import make_llm_proposer, run_search_loop
 from machine_learning_engineering.shared_libraries import config
 from machine_learning_engineering.spec_resolver import resolve_spec
 
@@ -129,13 +129,17 @@ def run_pipeline(
     log_dir: str | None = None,
     out_dir: str | None = None,
     seed: int = 42,
+    outer_steps: int = 1,
+    propose=None,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
     ``model``/``with_search`` are forwarded to ``build_root_agent`` (tests pass a
-    fake model + with_search=False to run fully offline). If ``out_dir`` is set,
-    the run is persisted there (result.json + a presentation-ready summary.md,
-    and the agent prompt/output log), and ``log_dir`` defaults to it.
+    fake model + with_search=False to run fully offline). The search itself runs
+    through ``search_loop.run_search_loop`` with model-gated HP search and a score
+    cache; ``outer_steps > 1`` enables ablation targeting (Option 1) and, with a
+    ``propose`` callable, LLM per-stage option injection (Option 3). If ``out_dir``
+    is set, the run is persisted there.
     """
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
@@ -149,15 +153,15 @@ def run_pipeline(
     raw = session.state.get("skrub_spec_raw", "")
     spec, used_fallback = _safe_resolve(raw, task_type)
 
-    plan = skrub_ops.build_staged_plan(spec, df, target=target)
-    action_space = skrub_ops.get_action_space(plan)
-    start_state = skrub_ops.get_default_state(plan)
-    rollout = skrub_ops.make_rollout_fn(
-        plan, df, seed=seed, scoring=metrics.search_scorer(task_type)
-    )
-
-    best_state, best_score, _ = mcts_search(
-        start_state, action_space, rollout, budget=budget
+    search = run_search_loop(
+        spec,
+        df,
+        target,
+        scoring=metrics.search_scorer(task_type),
+        outer_steps=outer_steps,
+        budget_per_step=budget,
+        seed=seed,
+        propose=propose,
     )
 
     result = {
@@ -169,10 +173,12 @@ def run_pipeline(
         "model": config.CONFIG.agent_model,
         "budget": budget,
         "search_scorer": metrics.search_scorer(task_type),
-        "best_state": best_state,
-        "best_search_score": best_score,
-        "report": _report(plan, best_state, df, metric),
-        "action_space": action_space,
+        "best_state": search["best_state"],
+        "best_search_score": search["best_score"],
+        "report": _report(search["plan"], search["best_state"], df, metric),
+        "action_space": search["action_space"],
+        "target_key": search["target_key"],
+        "injected_options": search["injected_options"],
         "used_fallback_spec": used_fallback,
         "data_summary": summary,  # the data report fed to the analyst
         "analysis": session.state.get("dataset_analysis", ""),  # report -> planner
@@ -227,6 +233,13 @@ def _result_markdown(r: dict) -> str:
     ]
     if rep:
         lines.append(f"- report metric ({rep.get('scorer')}): {rep.get('score')}")
+    if r.get("target_key"):
+        lines.append(f"- targeted stage (Option 1): {r['target_key']}")
+    if r.get("injected_options"):
+        lines.append(
+            f"- injected options not in the original plan (Option 3): "
+            f"{r['injected_options']}"
+        )
     lines += [
         "",
         "## Appendix — MCTS search space",
@@ -264,12 +277,29 @@ def _main() -> None:
     parser.add_argument(
         "--out", default=None, help="artifact dir (default: runs/<task>_<timestamp>)"
     )
+    parser.add_argument(
+        "--outer-steps",
+        type=int,
+        default=1,
+        help="search phases; >1 enables ablation targeting (Option 1)",
+    )
+    parser.add_argument(
+        "--refine",
+        action="store_true",
+        help="enable LLM per-stage option injection (Option 3); needs --outer-steps>1",
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
     out_dir = args.out or default_out_dir(task)
+    propose = make_llm_proposer() if args.refine else None
     result = run_pipeline(
-        task_name=args.task, target=args.target, budget=args.budget, out_dir=out_dir
+        task_name=args.task,
+        target=args.target,
+        budget=args.budget,
+        out_dir=out_dir,
+        outer_steps=args.outer_steps,
+        propose=propose,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"
@@ -283,6 +313,10 @@ def _main() -> None:
     )
     if result["report"]:
         print(f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}")
+    if result.get("target_key"):
+        print(f"Targeted stage: {result['target_key']}")
+    if result.get("injected_options"):
+        print(f"Injected options (not in original plan): {result['injected_options']}")
     print(
         f"\nArtifacts written to: {out_dir}/ "
         "(summary.md, result.json, <agent>_<phase>.json)"

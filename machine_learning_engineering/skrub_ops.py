@@ -99,6 +99,45 @@ def get_action_space(plan, n_numeric_options: int = 4) -> dict[str, list]:
     return space
 
 
+def get_choice_gating(plan) -> dict[str, tuple[str, str]]:
+    """Map each conditional (model-gated) choice -> (parent_name, activating_label).
+
+    skrub already tracks hyperparameters nested under a model option as
+    *conditional children* of that model outcome (``_evaluation.choice_graph``'s
+    ``children`` map, e.g. ``{(2, 0): [0], (2, 1): [1]}``). ``get_action_space``
+    lists every choice flat, so the MCTS layer otherwise wastes budget editing a
+    non-selected model's HPs. This returns the gate — keyed by the same names
+    ``get_action_space`` uses — so ``mcts.expand`` only edits an HP when its
+    parent model is selected.
+
+    Example:
+        get_choice_gating(plan)
+        # -> {"model__RandomForestRegressor__n_estimators":
+        #         ("model", "RandomForestRegressor"), ...}
+    """
+    graph = _ev.choice_graph(plan)
+    choices = graph["choices"]  # {id: Choice}
+    children = graph["children"]  # {(parent_id, outcome_idx): [child_ids], None: [...]}
+
+    def name_of(cid: int) -> str:
+        c = choices[cid]
+        return c.name if getattr(c, "name", None) is not None else str(cid)
+
+    gating: dict[str, tuple[str, str]] = {}
+    for parent_key, child_ids in children.items():
+        if parent_key is None:
+            continue  # top-level choices are never gated
+        parent_id, outcome_idx = parent_key
+        labels = _option_names(choices[parent_id])
+        if outcome_idx >= len(labels):
+            continue
+        activating = labels[outcome_idx]
+        parent_name = name_of(parent_id)
+        for child_id in child_ids:
+            gating[name_of(child_id)] = (parent_name, activating)
+    return gating
+
+
 def get_state(plan) -> dict:
     """Current configuration as a compact dict — the MCTS state S.
 

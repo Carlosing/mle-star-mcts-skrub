@@ -1,7 +1,6 @@
 """Unit tests for the pure MCTS engine — no skrub, no LLM, no network.
 
-Runnable anywhere:  python3 -m pytest tests/test_mcts.py
-              or:   python3 tests/test_mcts.py
+Runnable anywhere:  python3 -m pytest tests/test_mcts.py or:   python3 tests/test_mcts.py
 """
 
 import os
@@ -105,6 +104,59 @@ def test_tree_persists_across_outer_steps():
     assert root.N == n_after_first + 10  # statistics accumulated, not reset
 
 
+# --- score cache + conditional-HP gating + target-key locking ----------------
+
+GATED_SPACE = {"model": ["GBM", "RF"], "gbm_lr": [0.1, 0.2], "rf_trees": [50, 100]}
+GATING = {"gbm_lr": ("model", "GBM"), "rf_trees": ("model", "RF")}
+
+
+def test_score_cache_one_call_per_distinct_state():
+    calls = []
+
+    def rollout(state):
+        calls.append(mcts.state_key(state))
+        return 0.5
+
+    cache = {}
+    mcts.mcts_search(
+        {"model": "GBM"}, ACTION_SPACE, rollout, budget=30, score_cache=cache
+    )
+    # no state is ever rolled out twice; cache holds exactly the evaluated states
+    assert len(calls) == len(set(calls))
+    assert len(cache) == len(calls)
+
+
+def test_gating_skips_inactive_hp_and_canonicalizes():
+    node = mcts.MCTSNode(state={"model": "GBM"})
+    children = mcts.expand(
+        node, GATED_SPACE, {mcts.state_key(node.state)}, gating=GATING
+    )
+    # GBM is selected -> gbm_lr is editable, rf_trees (RF-only) is never proposed
+    assert any("gbm_lr" in c.state for c in children)
+    assert not any("rf_trees" in c.state for c in children)
+
+    # switching model to RF drops the now-inactive gbm_lr (canonical states)
+    n2 = mcts.MCTSNode(state={"model": "GBM", "gbm_lr": 0.1})
+    kids = mcts.expand(n2, GATED_SPACE, {mcts.state_key(n2.state)}, gating=GATING)
+    rf_kids = [c for c in kids if c.state.get("model") == "RF"]
+    assert rf_kids and all("gbm_lr" not in c.state for c in rf_kids)
+
+
+def test_target_key_restricts_expansion():
+    node = mcts.MCTSNode(state={"model": "GBM", "gbm_lr": 0.1})
+    children = mcts.expand(
+        node,
+        GATED_SPACE,
+        {mcts.state_key(node.state)},
+        gating=GATING,
+        target_key="gbm_lr",
+    )
+    # only gbm_lr is edited; every other key is locked at the node's value
+    assert children
+    assert all(set(c.state) == set(node.state) for c in children)
+    assert all(c.state["model"] == "GBM" and c.state["gbm_lr"] != 0.1 for c in children)
+
+
 def test_failed_rollouts_do_not_crash_search():
     def flaky(state):
         raise_it = state.get("model") == "RF"
@@ -120,7 +172,9 @@ def test_edge_change_describes_the_single_edit():
     child = mcts.MCTSNode(state={"model": "RF", "n_trees": 50}, parent=parent)
     assert mcts.edge_change(parent, child) == "model: GBM -> RF"
     # a newly added (staged) key shows '·' as the previous value
-    added = mcts.MCTSNode(state={"model": "GBM", "n_trees": 50, "scale": "Std"}, parent=parent)
+    added = mcts.MCTSNode(
+        state={"model": "GBM", "n_trees": 50, "scale": "Std"}, parent=parent
+    )
     assert mcts.edge_change(parent, added) == "scale: · -> Std"
 
 
@@ -129,10 +183,10 @@ def test_to_dot_has_nodes_edges_and_uct():
     _, _, root = mcts.mcts_search(start, ACTION_SPACE, fake_reward, budget=20)
     dot = mcts.to_dot(root)
     assert dot.startswith("digraph mcts {") and dot.rstrip().endswith("}")
-    assert "ROOT" in dot           # root node present
-    assert "->" in dot             # at least one edge
-    assert "UCT=" in dot           # child nodes carry final UCT scores
-    assert "label=" in dot         # edges carry change labels
+    assert "ROOT" in dot  # root node present
+    assert "->" in dot  # at least one edge
+    assert "UCT=" in dot  # child nodes carry final UCT scores
+    assert "label=" in dot  # edges carry change labels
 
 
 def test_print_tree_is_readable_text():
