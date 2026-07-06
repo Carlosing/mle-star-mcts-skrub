@@ -41,6 +41,7 @@ dev = [
     "ipykernel>=7.3.0",
     "pydot>=4.0.1",
     "graphviz>=0.21",
+    "ipdb>=0.13.13",
 ]
 deployment = [
     "absl-py>=2.2.1",

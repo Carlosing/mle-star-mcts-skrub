@@ -37,7 +37,7 @@ class FakeLlm(BaseLlm):
 
 
 def test_load_task_california():
-    df, target, task_type, metric, desc = pipeline.load_task(
+    df, target, task_type, metric, desc, aux_tables = pipeline.load_task(
         "california-housing-prices"
     )
     assert target == "median_house_value"
@@ -45,6 +45,7 @@ def test_load_task_california():
     assert metric == "root_mean_squared_error"
     assert target in df.columns
     assert "median_house_value" in desc  # full task description is returned
+    assert aux_tables == {}  # single-table task -> no auxiliary tables
 
 
 def test_run_pipeline_end_to_end_offline():

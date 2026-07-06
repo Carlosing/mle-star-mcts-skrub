@@ -10,7 +10,7 @@ installed library.
 ## Stage order
 
 ```
-assemble (relational) → clean → encode → [scope] → feature-eng/scale → select → model → hyperparameters → post-process
+assemble (relational) → clean → scope (scoped encodings) → encode → feature-eng/scale → select → model → hyperparameters → post-process
 ```
 
 A plan is built top-down in this order; MCTS decides one stage at a time
@@ -25,7 +25,7 @@ with **skip as its default outcome**, so an undecided stage means
 | 0 | **Assemble** (relational) | `AggJoiner`, `MultiAggJoiner`, `AggTarget`, `Joiner`, `InterpolationJoiner`, `fuzzy_join` | ✅ (`AggJoiner`) | Build the feature table from multiple tables. Highest-leverage stage for relational data — the skrub differentiator vs. flat-table AutoML |
 | 1 | **Clean / coerce** | `Cleaner`, `DropUninformative`, `deduplicate`, `ToDatetime`/`ToFloat`, `SquashingScaler` | ✅ (`clean_options`) | Parse nulls/dates, drop bad columns, dedupe categories, robust scaling |
 | 2 | **Encode / vectorize** | `TableVectorizer` + `GapEncoder`/`MinHashEncoder`/`StringEncoder`/`TextEncoder`/`SimilarityEncoder`/`DatetimeEncoder`/`ToCategorical` | ✅ (`encoder_options`) | Per-column-type encoding; the encoder is a searchable choice |
-| 3 | **Scope** | Selectors: `numeric`, `categorical`, `any_date`, `regex`, `cardinality_below`, … | ❌ future | Apply different transformers to column subsets (per-type branches) |
+| 3 | **Scope** | `.skb.apply(estimator, cols=<selector>)`; selectors: `regex`, `cols`, `numeric`, `cardinality_below`, … | ✅ (`scoped_encodings`) | Apply a *searchable* encoder to an explicit column subset (before the TableVectorizer, which still handles the rest). Column names are validated at resolve/build time; the runtime selector is a union of exact-match regexes, so a column dropped upstream degrades the group to a no-op (`skrub_ops._scope_selector` — `selectors.cols()` would raise) |
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
 | 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
@@ -51,7 +51,12 @@ spec = {
     ],
     # 1. clean
     "clean_options": [None, Cleaner()],
-    # 2. encode
+    # 3. scope — searchable encoder on an explicit column subset (skip default)
+    "scoped_encodings": [
+        {"name": "title_enc", "cols": ["job_title"],
+         "options": [GapEncoder(), MinHashEncoder()]},
+    ],
+    # 2. encode (the TableVectorizer still handles all unscoped columns)
     "encoder_options": [GapEncoder(), MinHashEncoder()],
     # 4–5. post-encoding numeric stages
     "stages": [
@@ -84,10 +89,13 @@ table). Every other optional stage uses `None` = skip as its default.
 ## Status
 
 Built and tested (see [test_staged.py](../tests/test_staged.py),
+[test_scope_stage.py](../tests/test_scope_stage.py),
 [test_spec_resolver.py](../tests/test_spec_resolver.py)): assemble
-(`AggJoiner`), clean, encode, scale, feature-eng, model, **and hyperparameter
-search** (per-operator `choose_*` from the JSON plan). The relational assemble
-stage is demonstrated to lift a near-chance score when the target depends on an
-auxiliary-table aggregate. Future: the `scope` (selector) and `post-process`
-(stacking) stages, and **conditional** (model-gated) HP nesting so a model's HPs
-are only active when that model is selected.
+(`AggJoiner`), clean, **scope** (`scoped_encodings`), encode, scale,
+feature-eng, model, **hyperparameter search** (per-operator `choose_*` from
+the JSON plan), and **conditional (model-gated) HP nesting**. The relational
+assemble stage is demonstrated to lift a near-chance score when the target
+depends on an auxiliary-table aggregate, and is wired end-to-end (multi-table
+`load_task`, aux digests, `plan_author` assemble configs — see
+[test_relational_pipeline.py](../tests/test_relational_pipeline.py)). Future:
+the `post-process` (stacking) stage.

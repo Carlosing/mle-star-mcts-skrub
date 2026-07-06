@@ -15,6 +15,7 @@ Run:  uv run python -m machine_learning_engineering.pipeline --budget 15
 
 import argparse
 import asyncio
+import glob
 import json
 import os
 import re
@@ -24,7 +25,7 @@ import pandas as pd
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from machine_learning_engineering import metrics, skrub_ops
+from machine_learning_engineering import ensemble, metrics, skrub_ops
 from machine_learning_engineering.adk_agent import build_root_agent
 from machine_learning_engineering.data_summary import infer_task_type, make_data_summary
 from machine_learning_engineering.search_loop import make_llm_proposer, run_search_loop
@@ -40,22 +41,36 @@ APP_NAME = "mle-mcts-skrub"
 def load_task(
     task_name: str | None = None, data_dir: str | None = None, target: str | None = None
 ):
-    """Return (df, target, task_type, metric) for a task directory.
+    """Return (df, target, task_type, metric, desc, aux_tables) for a task dir.
 
     Reads ``train.csv`` and parses ``task_description.txt`` for the target
     ("Predict the X") and the metric ("# Metric" section). ``target`` can be
-    passed explicitly to bypass the (brittle) description parse.
+    passed explicitly to bypass the (brittle) description parse. Any
+    ``aux_<name>.csv`` next to ``train.csv`` is loaded as an auxiliary table
+    (``aux_tables={name: df}``, empty dict for single-table tasks), enabling
+    the relational ``assemble`` stage.
     """
     task_name = task_name or config.CONFIG.task_name
     data_dir = data_dir or config.CONFIG.data_dir
     task_dir = os.path.join(data_dir, task_name)
 
     df = pd.read_csv(os.path.join(task_dir, "train.csv"))
+    aux_tables = {
+        os.path.basename(path)[len("aux_") : -len(".csv")]: pd.read_csv(path)
+        for path in sorted(glob.glob(os.path.join(task_dir, "aux_*.csv")))
+    }
     desc = _read_description(task_dir)
     target = target or _parse_target(desc, df)
     if target not in df.columns:
         raise ValueError(f"target {target!r} not in columns {list(df.columns)}")
-    return df, target, infer_task_type(df, target), _parse_metric(desc), desc
+    return (
+        df,
+        target,
+        infer_task_type(df, target),
+        _parse_metric(desc),
+        desc,
+        aux_tables,
+    )
 
 
 def _read_description(task_dir: str) -> str:
@@ -108,10 +123,14 @@ def _fallback_spec(task_type: str) -> dict:
     }
 
 
-def _safe_resolve(raw, task_type: str) -> tuple[dict, bool]:
+def _safe_resolve(
+    raw, task_type: str, aux_schemas=None, main_columns=None
+) -> tuple[dict, bool]:
     """resolve_spec with a fallback; returns (spec, used_fallback)."""
     try:
-        spec = resolve_spec(raw, task_type=task_type)
+        spec = resolve_spec(
+            raw, task_type=task_type, aux_schemas=aux_schemas, main_columns=main_columns
+        )
         return spec, False
     except Exception:
         return resolve_spec(_fallback_spec(task_type), task_type=task_type), True
@@ -131,6 +150,8 @@ def run_pipeline(
     seed: int = 42,
     outer_steps: int = 1,
     propose=None,
+    data_dir: str | None = None,
+    top_k: int = 1,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -144,24 +165,34 @@ def run_pipeline(
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
 
-    df, target, task_type, metric, description = load_task(task_name, target=target)
-    summary = make_data_summary(df, target)
+    df, target, task_type, metric, description, aux_tables = load_task(
+        task_name, data_dir=data_dir, target=target
+    )
+    summary = make_data_summary(df, target, aux_tables=aux_tables)
 
     root = build_root_agent(model=model, with_search=with_search, log_dir=log_dir)
     session = asyncio.run(_run_agents(root, summary))
 
     raw = session.state.get("skrub_spec_raw", "")
-    spec, used_fallback = _safe_resolve(raw, task_type)
+    spec, used_fallback = _safe_resolve(
+        raw,
+        task_type,
+        aux_schemas={name: list(adf.columns) for name, adf in aux_tables.items()},
+        main_columns=[c for c in df.columns if c != target],
+    )
 
     search = run_search_loop(
         spec,
         df,
         target,
-        scoring=metrics.search_scorer(task_type),
+        scoring=metrics.search_scorer(task_type, metric),
         outer_steps=outer_steps,
         budget_per_step=budget,
         seed=seed,
         propose=propose,
+        aux_tables=aux_tables or None,
+        context_text=summary,
+        stratify=(task_type == "classification"),
     )
 
     result = {
@@ -172,13 +203,23 @@ def run_pipeline(
         "metric": metric,
         "model": config.CONFIG.agent_model,
         "budget": budget,
-        "search_scorer": metrics.search_scorer(task_type),
+        "search_scorer": metrics.search_scorer(task_type, metric),
         "best_state": search["best_state"],
         "best_search_score": search["best_score"],
-        "report": _report(search["plan"], search["best_state"], df, metric),
+        "report": _report(
+            search["plan"],
+            search["best_state"],
+            df,
+            metric,
+            aux=aux_tables or None,
+            stratify=(task_type == "classification"),
+        ),
         "action_space": search["action_space"],
         "target_key": search["target_key"],
         "injected_options": search["injected_options"],
+        "ensemble": _top_k_report(
+            search, df, target, task_type, metric, aux_tables, top_k, seed
+        ),
         "used_fallback_spec": used_fallback,
         "data_summary": summary,  # the data report fed to the analyst
         "analysis": session.state.get("dataset_analysis", ""),  # report -> planner
@@ -233,6 +274,12 @@ def _result_markdown(r: dict) -> str:
     ]
     if rep:
         lines.append(f"- report metric ({rep.get('scorer')}): {rep.get('score')}")
+    ens = r.get("ensemble")
+    if ens:
+        lines.append(
+            f"- top-{ens['k']} ensemble ({ens['scorer']}): {ens['ensemble_score']:.4f} "
+            f"vs individuals {['%.4f' % s for s in ens['individual_scores']]}"
+        )
     if r.get("target_key"):
         lines.append(f"- targeted stage (Option 1): {r['target_key']}")
     if r.get("injected_options"):
@@ -255,7 +302,30 @@ def _result_markdown(r: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _report(plan, state: dict, df, metric: str):
+def _top_k_report(search, df, target, task_type, metric, aux_tables, top_k, seed):
+    """Top-k ensemble vs incumbent on a holdout (None when top_k <= 1 fails)."""
+    if top_k <= 1:
+        return None
+    scorer = metrics.report_scorer(metric) or metrics.search_scorer(task_type, metric)
+    try:
+        states = ensemble.top_k_states(search["score_cache"], top_k)
+        return ensemble.evaluate_top_k(
+            search["plan"],
+            states,
+            df,
+            target,
+            task_type,
+            scoring=scorer,
+            aux=aux_tables or None,
+            seed=seed,
+        )
+    except Exception:
+        return None
+
+
+def _report(
+    plan, state: dict, df, metric: str, aux: dict | None = None, stratify: bool = False
+):
     """Score the incumbent on the task/competition metric, for reporting only."""
     scorer = metrics.report_scorer(metric)
     if scorer is None:
@@ -263,7 +333,15 @@ def _report(plan, state: dict, df, metric: str):
     try:
         return {
             "scorer": scorer,
-            "score": skrub_ops.evaluate_full(plan, state, df, scoring=scorer),
+            "score": skrub_ops.evaluate_full(
+                plan,
+                state,
+                df,
+                aux=aux,
+                main_var="data" if aux else None,
+                scoring=scorer,
+                stratify=stratify,
+            ),
         }
     except Exception:
         return None
@@ -288,6 +366,12 @@ def _main() -> None:
         action="store_true",
         help="enable LLM per-stage option injection (Option 3); needs --outer-steps>1",
     )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=1,
+        help="ensemble the top-k incumbents from the score cache (1 = off)",
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
@@ -300,6 +384,7 @@ def _main() -> None:
         out_dir=out_dir,
         outer_steps=args.outer_steps,
         propose=propose,
+        top_k=args.top_k,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"
@@ -313,6 +398,12 @@ def _main() -> None:
     )
     if result["report"]:
         print(f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}")
+    if result.get("ensemble"):
+        ens = result["ensemble"]
+        print(
+            f"Top-{ens['k']} ensemble ({ens['scorer']}): {ens['ensemble_score']:.4f} "
+            f"(incumbent {ens['individual_scores'][0]:.4f})"
+        )
     if result.get("target_key"):
         print(f"Targeted stage: {result['target_key']}")
     if result.get("injected_options"):

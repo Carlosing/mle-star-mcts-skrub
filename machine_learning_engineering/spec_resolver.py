@@ -256,7 +256,15 @@ def _make(path, params, seed, context):
         return None
 
 
-def _resolve_options(items, seed, allow_skip, context):
+def _resolve_options(items, seed, allow_skip, context, priors_out=None, label_fn=repr):
+    """Resolve option items to instances; optionally collect per-option priors.
+
+    An option dict may carry ``"prior": 0.0-1.0`` (the LLM's confidence this
+    option wins on this dataset). When ``priors_out`` is given, priors are
+    stored under the label the option will get in the action space
+    (``label_fn(instance)`` — repr for list-based stages, class name for
+    dict-labeled ones).
+    """
     out = []
     skip_added = False
     for item in items or []:
@@ -269,7 +277,18 @@ def _resolve_options(items, seed, allow_skip, context):
         inst = _make(path, params, seed, context)
         if inst is not None:
             out.append(inst)
+            _collect_prior(priors_out, item, label_fn(inst))
     return out
+
+
+def _collect_prior(priors_out, item, label) -> None:
+    """Store an option's ``prior`` under its action-space label (clipped 0-1)."""
+    if priors_out is None or not isinstance(item, dict) or "prior" not in item:
+        return
+    try:
+        priors_out[label] = min(1.0, max(0.0, float(item["prior"])))
+    except (TypeError, ValueError):
+        pass
 
 
 def _iter_model_items(model):
@@ -280,16 +299,154 @@ def _iter_model_items(model):
     return list(model)
 
 
+def _sanitize_name(name) -> str:
+    """Slug a group/stage label so it is a safe choice-name suffix.
+
+    Double underscores are collapsed — ``__`` marks hyperparameter dimensions
+    in the action space, so a group name must never introduce one.
+
+    Example:
+        _sanitize_name("job title enc")  # -> "job_title_enc"
+    """
+    slug = re.sub(r"\W+", "_", str(name)).strip("_")
+    return re.sub(r"_{2,}", "_", slug) or "group"
+
+
+def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> list[dict]:
+    """Validate scoped-encoding groups (the searchable *scope* stage).
+
+    Keeps a group only if at least one of its columns exists in the main table
+    and at least one option resolves through the allowlist. Column names the
+    LLM invented are dropped (build_staged_plan re-checks against the actual
+    dataframe, and the runtime selector is missing-tolerant on top).
+
+    Example:
+        _resolve_scoped(
+            [{"name": "title enc", "cols": ["title", "ghost"],
+              "options": ["skip", "skrub.GapEncoder"]}], 42, ["title", "x"])
+        # -> [{"name": "title_enc", "cols": ["title"], "options": [<GapEncoder>]}]
+    """
+    out, seen = [], set()
+    for cfg in entries or []:
+        if not isinstance(cfg, dict):
+            continue
+        cols = [
+            c for c in (cfg.get("cols") or []) if main_columns is None or c in main_columns
+        ]
+        if not cols:
+            continue
+        name = _sanitize_name(cfg.get("name") or cols[0])
+        if name in seen:
+            continue
+        group_priors: dict = {}
+        options = [
+            o
+            for o in _resolve_options(
+                cfg.get("options"),
+                seed,
+                False,
+                f"scope_{name}",
+                priors_out=group_priors if priors is not None else None,
+                label_fn=lambda inst: type(inst).__name__,
+            )
+            if o is not None
+        ]
+        if not options:
+            continue
+        seen.add(name)
+        out.append({"name": name, "cols": cols, "options": options})
+        if priors is not None and group_priors:
+            priors[f"scope_{name}"] = group_priors
+    return out
+
+
+# Aggregations skrub's AggJoiner supports (skrub._agg_joiner.SUPPORTED_OPS);
+# "sum"/"median"/"mean"/"std" are numeric-only, enforced by skrub at fit.
+_AGG_OPERATIONS = {"count", "mode", "min", "max", "sum", "median", "mean", "std"}
+
+
+def _resolve_assemble(
+    entries, aux_schemas, main_columns, priors: dict | None = None
+) -> list[dict]:
+    """Validate LLM assemble (AggJoiner) configs against the real table schemas.
+
+    Same philosophy as HP clipping: hallucinated names are dropped, never
+    executed. An entry survives only if its table is a known auxiliary table,
+    its join keys exist in the respective tables, and at least one operation is
+    supported; ``cols`` is intersected with the aux columns (dropped entirely
+    if nothing survives, meaning "aggregate all"). Without ``aux_schemas``
+    (single-table run) every entry is dropped.
+
+    Example:
+        _resolve_assemble(
+            [{"table": "products", "key": "ID", "operations": ["mean", "bogus"]}],
+            aux_schemas={"products": ["ID", "price"]}, main_columns=["ID", "x"])
+        # -> [{"table": "products", "key": "ID", "operations": ["mean"], ...}]
+    """
+    out = []
+    for cfg in entries or []:
+        if not isinstance(cfg, dict):
+            continue
+        table = cfg.get("table")
+        if not aux_schemas or table not in aux_schemas:
+            continue
+        aux_cols = set(aux_schemas[table])
+        operations = [
+            op for op in (cfg.get("operations") or []) if op in _AGG_OPERATIONS
+        ]
+        if not operations:
+            continue
+        key, main_key, aux_key = cfg.get("key"), cfg.get("main_key"), cfg.get("aux_key")
+        if key is not None:
+            if key not in aux_cols or (main_columns and key not in main_columns):
+                continue
+            keys = {"key": key}
+        elif main_key is not None and aux_key is not None:
+            if aux_key not in aux_cols or (main_columns and main_key not in main_columns):
+                continue
+            keys = {"main_key": main_key, "aux_key": aux_key}
+        else:
+            continue
+        cleaned = {
+            "name": cfg.get("name") or f"{table}_{'_'.join(operations)}",
+            "table": table,
+            "operations": operations,
+            **keys,
+        }
+        cols = [c for c in (cfg.get("cols") or []) if c in aux_cols]
+        if cols:
+            cleaned["cols"] = cols
+        out.append(cleaned)
+        if priors is not None:
+            assemble_priors = priors.setdefault("assemble", {})
+            _collect_prior(assemble_priors, cfg, cleaned["name"])
+            if not assemble_priors:
+                priors.pop("assemble")
+    return out
+
+
 def resolve_spec(
-    raw, task_type: str = "regression", seed: int = SEED, strict: bool = False
+    raw,
+    task_type: str = "regression",
+    seed: int = SEED,
+    strict: bool = False,
+    aux_schemas: dict[str, list[str]] | None = None,
+    main_columns: list[str] | None = None,
 ) -> dict:
     """Turn an LLM spec (dotted paths + HP ranges) into a build_staged_plan spec.
 
     Returns instance-valued clean_options / encoder_options / stages and a
     ``{class_name: instance}`` ``model`` dict, where tuned params are skrub
-    choose_* nodes. ``assemble`` is passed through. ``task_type`` is advisory now
-    (the LLM names the task-appropriate class). Raises if no model could be
-    imported.
+    choose_* nodes. ``assemble`` entries are validated against ``aux_schemas``
+    (``{table_name: [columns]}``) and ``main_columns`` — invalid tables / keys /
+    operations / cols are dropped, and without ``aux_schemas`` the stage is
+    dropped entirely (see ``_resolve_assemble``). ``scoped_encodings`` groups
+    are validated the same way (see ``_resolve_scoped``). Any option carrying
+    ``"prior": 0.0-1.0`` contributes to ``out["priors"]`` =
+    ``{choice_name: {label: weight}}`` — consumed by the search loop's
+    ``prior_fn``, ignored by ``build_staged_plan``. ``task_type`` is advisory
+    now (the LLM names the task-appropriate class). Raises if no model could
+    be imported.
     """
     spec = parse_spec_json(raw)
     if task_type not in ("regression", "classification"):
@@ -304,20 +461,39 @@ def resolve_spec(
             )
 
     out: dict = {}
-    if spec.get("assemble"):
-        out["assemble"] = spec["assemble"]  # config passthrough
+    priors: dict[str, dict[str, float]] = {}
+    assemble = _resolve_assemble(
+        spec.get("assemble"), aux_schemas, main_columns, priors=priors
+    )
+    if assemble:
+        out["assemble"] = assemble
 
-    clean = _resolve_options(spec.get("clean_options"), seed, True, "clean")
+    def _options_with_priors(items, allow_skip, context, label_fn=repr):
+        stage_priors: dict = {}
+        opts = _resolve_options(
+            items, seed, allow_skip, context, priors_out=stage_priors, label_fn=label_fn
+        )
+        if stage_priors:
+            priors[context] = stage_priors
+        return opts
+
+    clean = _options_with_priors(spec.get("clean_options"), True, "clean")
     if clean:
         out["clean_options"] = clean
-    enc = _resolve_options(spec.get("encoder_options"), seed, False, "encoder")
+    enc = _options_with_priors(spec.get("encoder_options"), False, "encoder")
     if enc:
         out["encoder_options"] = enc
 
+    scoped = _resolve_scoped(
+        spec.get("scoped_encodings"), seed, main_columns, priors=priors
+    )
+    if scoped:
+        out["scoped_encodings"] = scoped
+
     stages = []
     for stage in spec.get("stages", []) or []:
-        opts = _resolve_options(
-            stage.get("options"), seed, True, stage.get("name", "stage")
+        opts = _options_with_priors(
+            stage.get("options"), True, stage.get("name", "stage")
         )
         if opts:
             stages.append({"name": stage["name"], "options": opts})
@@ -325,14 +501,20 @@ def resolve_spec(
         out["stages"] = stages
 
     models = {}
+    model_priors: dict = {}
     for item in _iter_model_items(spec.get("model")):
         path, params = _entry_name_params(item)
         inst = _make(path, params, seed, "model")
         if inst is not None:
             models[type(inst).__name__] = inst
+            _collect_prior(model_priors, item, type(inst).__name__)
     if not models:
         raise ValueError("spec has no usable model (none could be imported)")
     out["model"] = models
+    if model_priors:
+        priors["model"] = model_priors
+    if priors:
+        out["priors"] = priors
     return out
 
 

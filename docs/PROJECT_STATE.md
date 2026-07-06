@@ -8,9 +8,9 @@ LLM never does the search; it only proposes the space (**O(1) LLM calls per
 task**, plus at most one call per outer step for Option 3 — never inside the
 inner search loop).
 
-_Last updated: 2026-07-01 (end of Week 1). Offline suite: **73 passed, 2 skipped**
-(`uv run python -m pytest tests/ -q`, ~4.5 min; the 2 skipped are the gated live
-Gemini smoke tests)._
+_Last updated: 2026-07-05 (Week 2, feature work done except the harness). Offline
+suite: **105 passed, 2 skipped** (`uv run python -m pytest tests/ -q`, ~4.5 min; the
+2 skipped are the gated live Gemini smoke tests)._
 
 ## Architecture — three layers
 
@@ -46,8 +46,10 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 | `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; curated allowed-list registry; clips HP ranges; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `google_search`; `build_root_agent` factory |
-| `metrics.py` | search-reward scorer (per task) vs report metric (competition) |
-| `pipeline.py` | end-to-end driver + CLI (`--budget`, `--outer-steps`, `--refine`) |
+| `metrics.py` | search-reward scorer (per task; adopts a bounded task metric like roc_auc) vs report metric (competition) |
+| `ensemble.py` | **top-k read-off**: `top_k_states` over the score cache + `evaluate_top_k` (seeded holdout, soft-vote/average) |
+| `pipeline.py` | end-to-end driver + CLI (`--budget`, `--outer-steps`, `--refine`, `--top-k`); multi-table `load_task` (`aux_*.csv`) |
+| `scripts/stage_credit_fraud.py` | stages the relational credit-fraud task under `tasks/` (`make stage-credit-fraud`) |
 | `run_logging.py` | sanity log of prompts+outputs to JSONL (`log_dir`) |
 | `agent.py`, `sub_agents/`, `eval/` | legacy MLE-STAR / OpenAI template (decoupled; kept for merge, **not on the MCTS path**) |
 | `probe_gemini.py` | standalone model/quota probe |
@@ -90,12 +92,53 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 - ✅ Task dirs present: `california-housing-prices`, `employee-salaries`, `midwest-survey`, `open-payments`.
 - ✅ Offline agent-I/O fixtures: `california_agent_io` (regression), `open_payments_agent_io` (classification).
 
-**Relational assemble — engine built & unit-tested (not yet wired end-to-end; see roadmap)**
-- ✅ `build_staged_plan` supports an `assemble` stage (`AggJoiner` over `aux_tables`, `skip` as default),
-  `resolve_spec` passes `assemble` through, and rollouts accept `aux`/`main_var`.
-- ✅ Unit-tested on synthetic relational data: the join lifts a near-chance score
-  (`test_staged.py::test_assemble_improves_relational_score`,
-  `test_assemble_stage_in_action_space_with_clean_labels`).
+**Week 2 — second axis + amplifiers (landed 2026-07-05, all offline-tested)**
+- ✅ **Relational assemble, end-to-end** — `load_task` discovers `aux_*.csv` tables;
+  `make_data_summary` digests each aux table **with join-key candidates**; `plan_author`
+  proposes `AggJoiner` configs (exact schema in its prompt); `resolve_spec` validates them
+  against the real table schemas (tables/keys/operations/cols — hallucinations dropped);
+  `run_search_loop(aux_tables=…)` threads aux through builds, rollouts and the Option-3
+  rebuild. Credit-fraud staged under `tasks/credit-fraud` (15k baskets, 1.25% fraud).
+  (`tests/test_relational_pipeline.py`.)
+- ✅ **Scope stage (reopened) — per-column searchable encoders** — `scoped_encodings`
+  groups become `scope_<name>` choices applied via `.skb.apply(cols=…)` before the
+  TableVectorizer; column names validated at resolve+build time, runtime selector is a
+  missing-tolerant regex union (`_scope_selector`); Options 1/3 can target/inject into
+  groups, and an Option-3 scoped proposal (`{"name", "cols"}`) creates a NEW group
+  mid-search. (`tests/test_scope_stage.py`.)
+- ✅ **prior_fn warm-start (free-form)** — options may carry `"prior": 0.0-1.0` in the
+  plan (zero extra LLM calls); `resolve_spec` collects `spec["priors"]`; `_make_prior_fn`
+  seeds EVERY fresh child (neutral 0.5 default — seeding only rated children would invert
+  the prior under UCT's inf-for-unvisited rule). (`tests/test_priors_and_proposer.py`.)
+- ✅ **Richer Option-3 proposer** — the one-call-per-step prompt now carries the full
+  cross-stage tree ledger, the incumbent config+score, the data digest and real column
+  names; plan_author is instructed to give generous (registry-clipped) HP ranges up front.
+- ✅ **Top-k ensemble (thin read-off)** — `ensemble.top_k_states` ranks the persisted
+  score cache; `evaluate_top_k` fits each config on a seeded split and soft-votes /
+  averages on the holdout; `--top-k` / `TOP_K=` reports ensemble vs incumbent.
+  (`tests/test_ensemble.py`.)
+- ✅ **Search reward can adopt a bounded task metric** — `search_scorer(task_type, metric)`
+  returns roc_auc/f1/etc. when the task metric is already bounded higher-is-better
+  (accuracy is blind on 1.25%-positive credit-fraud).
+- ✅ **Stratified CV for imbalanced classification (bug found during the live credit-fraud
+  smoke)** — skrub's `cross_validate` calls `check_cv(cv)` without `y`/`classifier`, so it
+  always defaults to plain `KFold`, even for classifiers. On a subsampled ~1%-positive
+  target a random fold can land on zero positives; sklearn's scorer then silently NaNs
+  that fold (no exception) and the NaN reward would poison the score cache. Fixed via
+  `skrub_ops._cv_kwarg`/`stratify=` threaded through `make_rollout_fn`/`evaluate_full`/
+  `run_search_loop`/`pipeline.py`, auto-enabled for `task_type == "classification"`.
+  (`tests/test_relational_pipeline.py::test_stratified_rollout_avoids_nan_on_rare_target`.)
+- ✅ **`get_default_state` root-state bug (found during the SAME live smoke, more serious)**
+  — when a list-based stage (`encoder_options`, `clean_options`, `stages`) has an HP-tuned
+  entry (a nested choice), skrub's own `describe_defaults()` abbreviates it to
+  `"ClassName(...)"`, which never matches `get_action_space`'s full-repr label. The old
+  reconciliation silently stored that unappliable abbreviated string as the search ROOT
+  state, so `apply_state` raised on it and **every rollout in the run scored 0.0** —
+  observed live once the plan_author prompt (Item 3) started asking for generous HP
+  ranges on non-model operators too, e.g. `encoder_options`. Fixed: discrete defaults now
+  come from `get_action_space(plan)[name][0]` (skrub's `Choice.default` is always
+  `outcomes[0]`, verified against `_choosing.py`), never from the describe_defaults()
+  string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_encoder_options_have_tuned_hps`.)
 
 Run all: `uv run python -m pytest tests/ -q`  (or `make test`)
 Run live pipeline: `make run-live BUDGET=15` · with targeting+injection: `make run-refine`
@@ -113,40 +156,36 @@ axis without moving the LLM into the inner loop.*
 
 | Item | Priority | Status | Est. |
 |---|---|---|---|
-| **Relational assemble — end-to-end auto-config** | **High** (differentiator) | Engine done; wiring left | Mon–Tue (Jul 3–4) |
-| **`prior_fn` warm-start (free form)** | Medium | Engine hook only | Wed (Jul 5) |
-| **Top-k ensemble** | Medium | Not started | Thu (Jul 6) |
-| **Experimentation harness + sweeps** | **High** (A-grade) | Not started | Fri + weekend (Jul 7–9) |
+| **Relational assemble — end-to-end auto-config** | **High** (differentiator) | ✅ **done Jul 5** (AggTarget stretch not taken) | Mon–Tue (Jul 3–4) |
+| **Scope stage — per-column encoders** (reopened by decision) | High | ✅ **done Jul 5** (`scoped_encodings`) | — |
+| **`prior_fn` warm-start (free form)** | Medium | ✅ **done Jul 5** | Wed (Jul 5) |
+| **Top-k ensemble** | Medium | ✅ **done Jul 5** (`ensemble.py`) | Thu (Jul 6) |
+| **Richer Option-3 proposer** (evidence context + scoped proposals) | Medium | ✅ **done Jul 5** | — |
+| **Experimentation harness + sweeps** | **High** (A-grade) | **Not started — the remaining Week-2 item** | Fri + weekend (Jul 7–9) |
 
-1. **Relational assemble — end-to-end auto-config.** The skrub mechanism exists and is
-   unit-tested; what's left is the full path:
-   - a **multi-table task loader** (`load_task` reads a single `train.csv` today) + a real
-     relational dataset (e.g. `fetch_credit_fraud`; not yet in `tasks/`);
-   - thread `aux_tables`/`main_var` through `run_search_loop` → `build_staged_plan` /
-     `make_rollout_fn` (the driver never passes `aux` today);
-   - have `plan_author` **propose `AggJoiner` configs** from the digest (schema + prompt);
-   - **`AggTarget` leakage guard** — target-based aggregation must be computed inside the CV
-     fold; treat it as a guarded, leakage-checked action (only `AggJoiner` exists now).
-   *Done when:* a multi-table run auto-configures an `AggJoiner` and the lift is real on
-   held-out data, not just validation.
-
-2. **`prior_fn` warm-start (free form only).** The engine hook exists (`mcts.mcts_search(prior_fn=…)`,
-   called on freshly expanded children) but is unwired. Build the *free* version only:
-   extend `spec_resolver`'s schema with an optional per-option prior weight, have `plan_author`
-   emit it **in its existing call**, and make `prior_fn` a pure lookup that seeds child `Q` + a
-   small pseudo-count `N`. **Zero new LLM calls.** If it can't fold into the existing call, cut it.
-   *Done when:* children enter with a prior-seeded Q and a run reaches a comparable score in
-   fewer rollouts.
-
-3. **Top-k ensemble (thin read-off).** Read the top-k distinct incumbents off the persisted
-   tree, fit, and average / soft-vote. No LLM, no new search. *Done when:*
-   `top_k_ensemble(tree, k=…)` beats the single incumbent on ≥1 dataset.
+Remaining notes:
+- **AggTarget** (target-based aggregation as a guarded assemble option) was the explicit
+  stretch and was *not* taken; skrub's `AggTarget` takes `y` at fit, so inside skrub CV it
+  is fold-safe by construction — cheap to add later if evaluation wants it.
+- ~~**Live validation still owed**~~ ✅ done 2026-07-05: `make run-refine TASK=credit-fraud
+  BUDGET=15 TOP_K=3` completed cleanly — best search score (roc_auc) 0.5850, held-out
+  report 0.5781, top-3 ensemble 0.6032 (beats the single incumbent). Assemble stayed
+  `"skip"` in the final incumbent this run (explored but not converged on within
+  budget 15×3) — a longer/bigger live run is the natural next check, not a bug.
+- **Known residual issue (non-blocking):** some individual CV folds during the live
+  run still raise `ValueError: y should be a 1d array, got shape (100, 2)` from the
+  `roc_auc` scorer — a different failure mode than the stratified-CV fix above (looks
+  like a train fold with too few positives for `StratifiedKFold` to fully balance,
+  or skrub's own scoring wrapper not slicing predict_proba the way sklearn's builtin
+  scorer does). `pandas.Series.mean()` skips the NaN'd fold so it doesn't zero the
+  run, but it deserves a closer look before the Week-3 write-up.
 
 4. **Experimentation harness + sweeps (the A-grade differentiator).** No harness exists yet
    (`eval/` is the legacy ADK template, off the MCTS path). Build a small driver that runs the
    pipeline across seeds/datasets and produces: **`c`-sweep** {0.3, 0.5, 0.7, 1.0}, **ablation-loop
-   on/off** (Option 1), **outer-step budget split**, **Option 3 dosage**. *Done when:* 2–3 sweep
-   figures each with a one-sentence finding.
+   on/off** (Option 1), **outer-step budget split**, **Option 3 dosage**, and now also
+   **priors on/off** and **top-k dosage**. *Done when:* 2–3 sweep figures each with a
+   one-sentence finding.
 
 > **Hard feature freeze: end of Week 2 (Sun Jul 9).** After this — evaluation, debugging, writing only.
 
@@ -171,14 +210,17 @@ axis without moving the LLM into the inner loop.*
 ### Ops / housekeeping (fit in around the above)
 
 - `uv lock` reconcile when online (`make sync`); local/Docker version parity.
-- Acquire/stage the relational dataset (`fetch_credit_fraud`) under `tasks/`.
+- ~~Acquire/stage the relational dataset (`fetch_credit_fraud`) under `tasks/`.~~ ✅ done
+  (`make stage-credit-fraud` → `tasks/credit-fraud/`).
 - Stable live-eval runs once Gemini quota is steady.
 
 ### Explicitly cut (do not reopen)
 
-- Full MLE-STAR iterative ensembler (the thin top-k read-off replaces it).
+- Full MLE-STAR iterative ensembler (the thin top-k read-off in `ensemble.py` replaces it).
 - ArchPilot-style restart, mid-search GEN/progressive-widening — wrong fit (our scorer is fixed), wrong cost class.
-- `scope` / `post-process` skrub stages, per-model training loss as a searchable HP — future work.
+- `post-process` skrub stage, per-model training loss as a searchable HP — future work.
+  (`scope` was on this list but was **reopened by decision and shipped 2026-07-05** as
+  `scoped_encodings`.)
 - Per-expansion or per-rollout LLM calls — the invariant; rejected regardless of per-call cost.
 
 ### Fallback

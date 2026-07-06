@@ -55,7 +55,9 @@ _ANALYST_INSTRUCTION = (
     "or numeric;\n"
     "  - candidate encoders (e.g. GapEncoder vs MinHashEncoder), cleaning "
     "steps, scaling/feature-engineering, and 2-3 candidate model families;\n"
-    "  - any relational/auxiliary-table opportunity (aggregate joins).\n"
+    "  - any relational/auxiliary-table opportunity (aggregate joins). If the "
+    "summary lists auxiliary tables, name the join keys (the summary lists "
+    "candidates) and which aux columns/aggregations look predictive.\n"
     "This analysis is the input to a planner that will turn it into a "
     "searchable skrub pipeline; be concrete about the *options* worth searching "
     "at each stage, not a single fixed choice."
@@ -72,8 +74,13 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "(required). For optional stages, include a 'skip' option.\n\n"
     "An operator is a FULL DOTTED IMPORT PATH (bare, for defaults) OR an object "
     '{"name": <path>, "params": {...}} to ALSO search its hyperparameters — '
-    "prefer tuning the model's key hyperparameters. Emit ONLY JSON of this "
-    "shape (dotted paths + HP ranges; lazy import/resolution is downstream):\n"
+    "prefer tuning the model's key hyperparameters, and give GENEROUS, "
+    "domain-informed ranges (wide enough to contain the optimum for THIS kind "
+    "of data; they are clipped to curated bounds downstream). Any operator "
+    'object may also carry "prior": 0.0-1.0 — your confidence that this option '
+    "wins on THIS dataset; the search visits high-prior options first. Emit "
+    "ONLY JSON of this shape (dotted paths + HP ranges; lazy import/resolution "
+    "is downstream):\n"
     "{\n"
     '  "clean_options": ["skip", "skrub.Cleaner"],\n'
     '  "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],\n'
@@ -83,12 +90,32 @@ _PLAN_AUTHOR_INSTRUCTION = (
     '      {"name": "sklearn.preprocessing.PolynomialFeatures", "params": {"degree": {"int": [2, 3]}}}]}\n'
     "  ],\n"
     '  "model": [\n'
-    '    {"name": "sklearn.ensemble.HistGradientBoostingRegressor", "params": {\n'
+    '    {"name": "sklearn.ensemble.HistGradientBoostingRegressor", "prior": 0.8, "params": {\n'
     '       "learning_rate": {"float": [0.01, 0.3], "log": true},\n'
     '       "max_iter": {"int": [100, 600]}, "max_depth": {"int": [2, 16]}}},\n'
     '    {"name": "sklearn.ensemble.RandomForestRegressor", "params": {"n_estimators": {"int": [100, 500]}}}\n'
     "  ]\n"
-    "}\n\n" + format_allowed_for_prompt()
+    "}\n\n"
+    "RELATIONAL (only when the data summary lists auxiliary tables — omit "
+    '"assemble" otherwise): add an "assemble" key with 1-3 aggregate-join '
+    "candidates over the auxiliary tables. Each entry is\n"
+    '  {"name": <short label>, "table": <aux table name>, '
+    '"key": <shared column> OR "main_key": <main col> + "aux_key": <aux col>, '
+    '"operations": [<subset of mean,min,max,sum,median,std,count,mode>], '
+    '"cols": [<aux value columns to aggregate>]}\n'
+    "Use EXACT table and column names from the data summary (join-key "
+    "candidates are listed there); sum/median/mean/std only on numeric "
+    'columns. A "skip" option is added automatically.\n\n'
+    "SCOPED ENCODING (optional, at most 3 groups): when a SPECIFIC column "
+    "deserves its own encoder (a dirty high-cardinality categorical, free "
+    "text, ...) instead of the one shared high-cardinality encoder, add\n"
+    '  "scoped_encodings": [{"name": <short label>, '
+    '"cols": [<exact column names from the data summary>], '
+    '"options": [<encoder paths to search, e.g. "skrub.GapEncoder">]}]\n'
+    "The engine searches each group independently (a 'skip' option is added "
+    "automatically) and the default vectorizer still handles all unscoped "
+    "columns. Use exact column names; invented names are dropped.\n\n"
+    + format_allowed_for_prompt()
 )
 
 

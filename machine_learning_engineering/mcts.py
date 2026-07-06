@@ -139,7 +139,11 @@ def mcts_search(
     raise (failed configs score 0.0, see skrub_ops.make_rollout_fn).
 
     `prior_fn`, if given, is called on freshly expanded children and may
-    warm-start their Q/N (the optional LLM expansion prior, brief §6).
+    warm-start their Q/N (the optional LLM expansion prior, brief §6). It
+    should seed EVERY fresh child (a neutral default for unrated options):
+    unvisited nodes score inf in UCT, so seeding only some children would
+    make the rated ones *less* attractive than their unseeded siblings.
+    The first rollout after an expansion goes to the highest-UCT child.
     `gating`/`target_key` are forwarded to `expand` (model-gated HPs / stage
     locking). `score_cache` memoizes `state_key -> reward`; deterministic
     rollouts make this exact, so a config is evaluated at most once.
@@ -173,7 +177,16 @@ def mcts_search(
             if children:  #
                 if prior_fn is not None:
                     prior_fn(children)
-                leaf = children[0]
+                    # roll out the child the prior likes best (mean Q/N; UCT's
+                    # exploration term is undefined here — the parent may not
+                    # have been backpropagated yet). Without priors keep
+                    # first-child order.
+                    leaf = max(
+                        children,
+                        key=lambda n: n.Q / n.N if n.N else float("inf"),
+                    )
+                else:
+                    leaf = children[0]
         # Perform a rollout to get a reward (cached, once per distinct state)
         reward = scored(leaf.state)
 

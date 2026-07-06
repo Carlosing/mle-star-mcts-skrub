@@ -38,8 +38,26 @@ _REPORT_SCORER = {
 }
 
 
-def search_scorer(task_type: str) -> str:
-    """The MCTS reward scorer for a task type (raises on unknown task type)."""
+# Report metrics that are ALSO valid search rewards (bounded ~[0,1],
+# higher-is-better). RMSE etc. stay report-only: unbounded rewards break UCT.
+_BOUNDED_SCORERS = {"roc_auc", "accuracy", "f1", "r2"}
+
+
+def search_scorer(task_type: str, metric_name: str | None = None) -> str:
+    """The MCTS reward scorer for a task type (raises on unknown task type).
+
+    If the task's own metric is already a bounded, higher-is-better scorer
+    (e.g. roc_auc), search on it directly — this matters for imbalanced
+    classification, where accuracy cannot separate configurations.
+
+    Example:
+        search_scorer("classification")             # -> "accuracy"
+        search_scorer("classification", "roc_auc")  # -> "roc_auc"
+        search_scorer("regression", "rmse")         # -> "r2"  (rmse is unbounded)
+    """
+    reported = report_scorer(metric_name) if metric_name else None
+    if reported in _BOUNDED_SCORERS:
+        return reported
     try:
         return SEARCH_SCORER[task_type]
     except KeyError:

@@ -17,10 +17,12 @@ Determinism requirements (UCT values never converge otherwise):
   is NOT seeded in 0.9.
 """
 
+import re
 from typing import Callable
 
 import numpy as np
 import skrub
+from skrub import selectors as _selectors
 from skrub._data_ops import _evaluation as _ev
 
 
@@ -172,10 +174,18 @@ def get_default_state(plan) -> dict:
     """The plan's pristine default config as action-space *labels*.
 
     Resets the plan first (so the read isn't contaminated by a prior
-    `apply_state`), then normalizes discrete defaults to the labels
-    `get_action_space` uses (`None` -> `'None'`, etc.) while keeping true
-    numeric defaults untouched. This is the "nothing chosen yet" baseline for
+    `apply_state`), then reads discrete defaults from `get_action_space`
+    itself (index 0 — skrub's `Choice.default` is always `outcomes[0]`,
+    verified against skrub 0.9's `_choosing.py`) and true numeric defaults
+    from `describe_defaults()`. This is the "nothing chosen yet" baseline for
     staged construction. NOTE: resetting the plan is a deliberate side effect.
+
+    Do NOT match discrete defaults against `describe_defaults()`'s own string:
+    for an outcome that itself contains a nested choice (e.g. an
+    HP-tuned `encoder_options` entry), skrub abbreviates it to
+    `"ClassName(...)"`, which never matches `get_action_space`'s full-repr
+    label — round-tripping through that string silently produces an
+    unappliable root state (`apply_state` raises, every rollout scores 0.0).
 
     Example:
         get_default_state(staged_plan)
@@ -183,15 +193,15 @@ def get_default_state(plan) -> dict:
     """
     _reset_choices(plan)
     space = get_action_space(plan)
+    choices_by_name = get_choices(plan)
     out = {}
+    # Iterate describe_defaults()'s own keys, not every choice in the plan:
+    # a numeric HP nested under a currently-*inactive* gated stage (e.g. a
+    # feature_eng option whose default is skip) has no entry here at all —
+    # that's correct, gating drops it (see mcts.canonicalize).
     for name, val in plan.skb.describe_defaults().items():
-        opts = space.get(name, [])
-        if val in opts:
-            out[name] = val
-        elif str(val) in opts:  # bare None -> 'None', etc.
-            out[name] = str(val)
-        else:
-            out[name] = val  # numeric true default, not in the discretized opts
+        _, choice = choices_by_name[name]
+        out[name] = space[name][0] if hasattr(choice, "outcomes") else val
     return out
 
 
@@ -231,6 +241,43 @@ def _skip_first(options: list) -> list:
     return options
 
 
+def _scope_selector(cols: list[str]):
+    """Missing-tolerant skrub selector matching exactly the named columns.
+
+    `selectors.cols()` raises when a name is absent, so a column dropped by an
+    upstream stage (e.g. Cleaner) would zero the whole rollout. A union of
+    exact-match regexes selects whichever of the columns still exist and
+    silently skips the rest — the scoped stage degrades to a no-op instead of
+    failing.
+
+    Example:
+        _scope_selector(["title", "ghost"]).expand(df)  # -> ["title"]
+    """
+    selector = _selectors.regex(re.escape(cols[0]) + r"\Z")
+    for col in cols[1:]:
+        selector = selector | _selectors.regex(re.escape(col) + r"\Z")
+    return selector
+
+
+def _scoped_options(options: list) -> dict:
+    """Label scoped-encoding options by class name, with 'skip' as default.
+
+    Example:
+        _scoped_options([GapEncoder(), MinHashEncoder()])
+        # -> {"skip": None, "GapEncoder": ..., "MinHashEncoder": ...}
+    """
+    labeled = {"skip": None}
+    for inst in options:
+        if inst is None:
+            continue
+        label = base = type(inst).__name__
+        i = 2
+        while label in labeled:
+            label, i = f"{base}_{i}", i + 1
+        labeled[label] = inst
+    return labeled
+
+
 def build_staged_plan(
     spec: dict, df, target: str = "target", aux_tables: dict | None = None
 ):
@@ -245,8 +292,8 @@ def build_staged_plan(
     search the *construction* of the pipeline, not just hyperparameters.
 
     Stages are applied in canonical pipeline order:
-    assemble (relational) -> clean -> encode -> post-encoding stages -> model.
-    See docs/pipeline-stages.md for the full taxonomy.
+    assemble (relational) -> clean -> scoped encodings -> encode ->
+    post-encoding stages -> model. See docs/pipeline-stages.md for the taxonomy.
 
     `spec` shape (operators are real estimator instances, not strings —
     translating LLM text to instances is a separate concern):
@@ -261,6 +308,14 @@ def build_staged_plan(
           ],
           # optional: cleaning / type coercion before encoding
           "clean_options": [None, Cleaner()],
+          # optional: scope — apply a searchable encoder to SPECIFIC columns
+          # (before the TableVectorizer, which still handles the rest). Column
+          # names are validated against df and matched missing-tolerantly at
+          # runtime (see _scope_selector); a 'skip' default is added.
+          "scoped_encodings": [
+            {"name": "title_enc", "cols": ["job_title"],
+             "options": [GapEncoder(), MinHashEncoder()]},
+          ],
           # optional: encoder choice inside the TableVectorizer
           "encoder_options": [GapEncoder(), MinHashEncoder()],
           # optional: post-encoding numeric stages
@@ -312,6 +367,18 @@ def build_staged_plan(
     if spec.get("clean_options"):
         node = node.skb.apply(
             skrub.choose_from(_skip_first(spec["clean_options"]), name="clean")
+        )
+
+    # --- scope: searchable encoder on an explicit column subset ---
+    for group in spec.get("scoped_encodings", []) or []:
+        cols = [c for c in group.get("cols", []) if c in df.columns and c != target]
+        if not cols:
+            continue  # nothing valid to scope over -> group dropped
+        node = node.skb.apply(
+            skrub.choose_from(
+                _scoped_options(list(group["options"])), name=f"scope_{group['name']}"
+            ),
+            cols=_scope_selector(cols),
         )
 
     # --- encode / vectorize ---
@@ -389,6 +456,25 @@ def _single_var_name(plan) -> str:
     #          (raises for a relational plan with >1 input var)
 
 
+def _cv_kwarg(stratify: bool, seed: int) -> dict:
+    """A `cross_validate(cv=...)` kwarg, stratified when the target is rare.
+
+    skrub's `cross_validate` calls `check_cv(cv)` **without** `y`/`classifier`,
+    so it never auto-detects classification — it always defaults to plain
+    `KFold`. On an imbalanced target (e.g. credit-fraud's ~1% positive rate)
+    a random fold of a small subsample can land on zero positives, and
+    sklearn's scorer then fails that fold silently (NaN, not an exception) —
+    NaN rewards then poison the score cache without ever crashing. Passing an
+    explicit `StratifiedKFold` (which skrub forwards straight to `cv.split`)
+    fixes this; `stratify=False` keeps the old (regression) behavior.
+    """
+    if not stratify:
+        return {}
+    from sklearn.model_selection import StratifiedKFold
+
+    return {"cv": StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)}
+
+
 def make_rollout_fn(
     plan,
     df,
@@ -397,6 +483,7 @@ def make_rollout_fn(
     aux: dict | None = None,
     main_var: str | None = None,
     scoring: str | None = None,
+    stratify: bool = False,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -417,6 +504,10 @@ def make_rollout_fn(
     "accuracy" so rewards stay on the same scale as the UCT exploration term.
     None keeps the estimator's default .score() (R2 for regressors).
 
+    `stratify=True` (pass for classification, especially imbalanced targets)
+    uses a seeded `StratifiedKFold` instead of skrub's plain-`KFold` default —
+    see `_cv_kwarg` for why this matters.
+
     Input:  plan + training df; returns a closure rollout(state) -> float.
 
     Example:
@@ -434,11 +525,12 @@ def make_rollout_fn(
         try:
             apply_state(plan, state)
             environment = {var_name: small, **(aux or {})}
-            cv_kwargs = {"environment": environment}
+            cv_kwargs = {"environment": environment, **_cv_kwarg(stratify, seed)}
             if scoring is not None:
                 cv_kwargs["scoring"] = scoring
             result = plan.skb.cross_validate(**cv_kwargs)
-            return float(result["test_score"].mean())
+            score = float(result["test_score"].mean())
+            return score if score == score else 0.0  # NaN (a scorer-failed fold) -> 0.0
         except Exception:
             return 0.0
 
@@ -452,6 +544,7 @@ def evaluate_full(
     aux: dict | None = None,
     main_var: str | None = None,
     scoring: str | None = None,
+    stratify: bool = False,
 ) -> float:
     """Score a configuration on the FULL data — the final h(s), not a proxy.
 
@@ -460,12 +553,13 @@ def evaluate_full(
     (and `main_var`) for relational plans, as in `make_rollout_fn`. `scoring`
     is an sklearn scorer name (e.g. the task/report metric like
     "neg_root_mean_squared_error"); None keeps the estimator default.
+    `stratify=True` for (imbalanced) classification — see `_cv_kwarg`.
 
     Example:
         evaluate_full(plan, {"model": "GBM"}, df)  # -> 0.88  (full-data mean CV score)
     """
     apply_state(plan, state)
-    cv_kwargs: dict = {}
+    cv_kwargs: dict = dict(_cv_kwarg(stratify, seed=42))
     if df is not None:
         var_name = main_var or _single_var_name(plan)
         cv_kwargs["environment"] = {var_name: df, **(aux or {})}

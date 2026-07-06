@@ -10,8 +10,10 @@ TASK ?=
 OUTER_STEPS ?= 1
 # set REFINE=1 to enable LLM per-stage option injection (Option 3; needs OUTER_STEPS>1)
 REFINE ?=
+# ensemble the top-k incumbents from the score cache (1 = off)
+TOP_K ?= 1
 
-.PHONY: help sync test test-live probe run-live run-refine
+.PHONY: help sync test test-live probe run-live run-refine stage-credit-fraud
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
@@ -21,6 +23,7 @@ help:
 	@echo "make run-live   - full pipeline on the REAL API; writes runs/<task>_<ts>/"
 	@echo "                  vars: BUDGET=$(BUDGET) TASK=<name> OUTER_STEPS=$(OUTER_STEPS) REFINE=1"
 	@echo "make run-refine - run-live with Option 1 + Option 3 on (OUTER_STEPS=3, REFINE=1)"
+	@echo "make stage-credit-fraud - download + stage the relational credit-fraud task (online, once)"
 
 sync:
 	uv lock && uv sync
@@ -36,8 +39,11 @@ probe:
 
 run-live:
 	uv run python -m machine_learning_engineering.pipeline \
-		--budget $(BUDGET) --outer-steps $(OUTER_STEPS) \
+		--budget $(BUDGET) --outer-steps $(OUTER_STEPS) --top-k $(TOP_K) \
 		$(if $(TASK),--task $(TASK),) $(if $(REFINE),--refine,)
 
 run-refine:
 	$(MAKE) run-live OUTER_STEPS=3 REFINE=1 BUDGET=$(BUDGET) TASK=$(TASK)
+
+stage-credit-fraud:
+	uv run python scripts/stage_credit_fraud.py

@@ -24,17 +24,71 @@ def _fmt(x) -> str:
         return str(x)
 
 
+def _join_key_candidates(
+    main: pd.DataFrame, aux: pd.DataFrame, max_pairs: int = 3
+) -> list[tuple[str, str, float]]:
+    """Rank (main_col, aux_col) pairs by how plausibly they join the tables.
+
+    A pair qualifies if the columns share a dtype family and the aux values
+    overlap the main values (sampled, so large tables stay cheap). Same-name
+    pairs get a small bonus so the natural key sorts first.
+
+    Example:
+        _join_key_candidates(main, aux)  # -> [("id", "id", 1.0)]
+    """
+    main_vals = {
+        c: set(main[c].dropna().unique()[:5000])
+        for c in main.columns
+        if main[c].nunique(dropna=True) > 1
+    }
+    pairs = []
+    for ac in aux.columns:
+        a_vals = set(aux[ac].dropna().unique()[:5000])
+        if not a_vals:
+            continue
+        for mc, m_vals in main_vals.items():
+            if pd.api.types.is_numeric_dtype(main[mc]) != pd.api.types.is_numeric_dtype(
+                aux[ac]
+            ):
+                continue
+            overlap = len(a_vals & m_vals) / len(a_vals)
+            if overlap >= 0.5 or (mc == ac and overlap > 0):
+                pairs.append((mc, ac, round(overlap + (0.01 if mc == ac else 0), 3)))
+    pairs.sort(key=lambda p: -p[2])
+    return [(mc, ac, min(ov, 1.0)) for mc, ac, ov in pairs[:max_pairs]]
+
+
+def _aux_table_digest(name: str, adf: pd.DataFrame, main: pd.DataFrame) -> list[str]:
+    """Compact per-aux-table digest lines (schema + join-key candidates)."""
+    lines = [f"Auxiliary table {name!r}: {adf.shape[0]} rows x {adf.shape[1]} columns."]
+    lines.append("  Columns:")
+    for col in adf.columns:
+        s = adf[col]
+        lines.append(
+            f"    - {col}: dtype={s.dtype}, cardinality={int(s.nunique(dropna=True))}"
+        )
+    candidates = _join_key_candidates(main, adf)
+    if candidates:
+        lines.append("  Join-key candidates (main column <-> aux column, overlap):")
+        for mc, ac, ov in candidates:
+            lines.append(f"    - {mc} <-> {ac} (overlap={ov:.0%})")
+    return lines
+
+
 def make_data_summary(
     df: pd.DataFrame,
     target: str,
     n_example_values: int = 5,
     n_head_rows: int = 5,
+    aux_tables: dict[str, pd.DataFrame] | None = None,
 ) -> str:
     """Return a compact text digest of ``df`` to feed the analyst agent.
 
     Includes shape, target, inferred task type, and per-column dtype / missing
     rate / cardinality / examples (for categoricals) or min-max-mean (numerics),
-    plus the first few rows.
+    plus the first few rows. With ``aux_tables={name: df}``, each auxiliary
+    table gets a schema digest plus join-key candidates, so the planner can
+    propose aggregate joins (the ``assemble`` stage) using real names.
     """
     n_rows, n_cols = df.shape
     lines = [
@@ -61,4 +115,7 @@ def make_data_summary(
     lines.append("")
     lines.append(f"First {n_head_rows} rows:")
     lines.append(df.head(n_head_rows).to_string(index=False))
+    for name, adf in (aux_tables or {}).items():
+        lines.append("")
+        lines.extend(_aux_table_digest(name, adf, df))
     return "\n".join(lines)
