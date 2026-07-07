@@ -9,9 +9,11 @@ task**, plus at most one call between search slices for Option 3 — never insid
 the inner search loop).
 
 _Last updated: 2026-07-07 (Week 2 complete: sweep harness + imbalance-safe rollouts
-landed; next = live re-baseline + Week-3 evaluation). Offline suite: **127 passed,
-2 skipped** (`uv run python -m pytest tests/ -q`, ~6 min; the 2 skipped are the
-gated live Gemini smoke tests)._
+landed; HP-refinement bonus phase + single env-switched ADK stack + arbitrary
+(import-level-gated) HP tuning + per-rollout 45s wall-clock cap landed; live
+credit-fraud re-baselined to roc_auc 0.664). Offline suite: **139 passed, 1
+skipped** (`uv run python -m pytest tests/ -q`, ~7 min; the 1 skipped is the
+gated live Gemini smoke test)._
 
 ## Architecture — three layers
 
@@ -24,8 +26,9 @@ gated live Gemini smoke tests)._
         └──────────── pipeline.py (driver) wires the whole thing ───────────┘
 ```
 
-Design rule: **clients may be provider-native, but the logic layer imports no
-LLM client.** See [agent-architecture.md](agent-architecture.md).
+Design rule: **one ADK stack drives either provider (native Gemini or
+OpenAI/compatible via `LiteLlm`), switched by `ROOT_AGENT_MODEL`; the logic
+layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md).
 
 ## End-to-end flow (`pipeline.run_pipeline`)
 
@@ -34,7 +37,7 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 3. **ADK agents** → `data_analyst` (web search) → `plan_author` → JSON plan in state.
 4. **resolve_spec** → JSON names/HP-ranges → seeded estimators + `choose_*` nodes (allowed-list, no `eval`).
 5. **build_staged_plan** → skrub DataOps plan; **get_action_space** → the MCTS search space; **get_choice_gating** → model→HP gate.
-6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to re-target a stage (Option 1, `retarget=`) and, with a proposer, injecting new options for it before each subsequent slice (Option 3 — `search → propose → search → …`).
+6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to re-target a stage (Option 1, `retarget=`) and, with a proposer, injecting new options for it before each subsequent slice (Option 3 — `search → propose → search → …`). After the budget, an **HP-refinement bonus phase** (`ceil(total/4)` rollouts, no LLM) descends from the incumbent node and expands only the incumbent model's untested gated HPs (`hp_refine=`).
 7. **report** → score the incumbent on the competition metric (RMSE, etc.); write `runs/<task>_<ts>/{result.json,summary.md}`.
 
 ## Module map
@@ -42,17 +45,17 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 | File | Role |
 |---|---|
 | `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook, DOT/ASCII viz) |
-| `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble`), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`), `run_ablation`, `pick_target_node` |
-| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 option injection between slices (`_inject`/`_augment_spec`), `make_llm_proposer` (≤ one Gemini call between slices) |
-| `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; curated allowed-list registry; clips HP ranges; `assemble` passthrough |
+| `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble`), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`; per-rollout 45s wall-clock cap via `_time_limit`/`timeout_s` → slow config scores 0.0), `run_ablation`, `pick_target_node` |
+| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 option injection between slices (`_inject`/`_augment_spec`), `make_llm_proposer` (≤ one Gemini call between slices); post-budget **HP-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over its untested gated HPs — `_incumbent_hp_targets`, `hp_refine=`) |
+| `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`) is the safety envelope; free-form HP ranges (`_build_free_choice`) unless curated in `REGISTRY` (then clipped); per-param safety nets (`_accepts_param`, `_RNG_PARAMS`) drop unknown/RNG params without dropping the operator; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
-| `adk_agent.py` | ADK graph `data_analyst → plan_author`; `google_search`; `build_root_agent` factory |
+| `adk_agent.py` | ADK graph `data_analyst → plan_author`; `build_root_agent` factory; `_resolve_model` env-switches native Gemini vs `LiteLlm` (OpenAI/compatible); `google_search` attached only on the Gemini path |
 | `metrics.py` | search-reward scorer (per task; adopts a bounded task metric like roc_auc) vs report metric (competition) |
 | `ensemble.py` | **top-k read-off**: `top_k_states` over the score cache + `evaluate_top_k` (seeded holdout, soft-vote/average) |
 | `pipeline.py` | end-to-end driver + CLI (`--budget`, `--outer-steps`, `--refine`, `--top-k`); multi-table `load_task` (`aux_*.csv`) |
 | `scripts/stage_credit_fraud.py` | stages the relational credit-fraud task under `tasks/` (`make stage-credit-fraud`) |
 | `run_logging.py` | sanity log of prompts+outputs to JSONL (`log_dir`) |
-| `agent.py`, `sub_agents/`, `eval/` | legacy MLE-STAR / OpenAI template (decoupled; kept for merge, **not on the MCTS path**) |
+| `agent.py`, `sub_agents/`, `eval/` | **deprecated** standalone OpenAI `ManagerAgent` template (OpenAI now runs *through* ADK via `LiteLlm`; decoupled, **off the MCTS path**) |
 | `probe_gemini.py` | standalone model/quota probe |
 
 ---
@@ -75,6 +78,9 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
   mines per-stage deltas from the persisted tree (no fresh rollouts), `pick_target_node`
   chooses the highest-variance stage, `target_key` locks the rest and refocuses expansion
   on that stage (`test_targeting_picks_an_operator_stage`, `test_target_key_restricts_expansion`).
+  This is the *between-slice, stage-level* targeting; the *post-budget* targeting that
+  focuses on the incumbent model's hyperparameters is the **HP-refinement bonus phase**
+  below (`expand` now accepts a *set* of target keys, and `mcts_search` a `start_node`).
 - ✅ **Option 3 — LLM per-stage option injection** — after targeting, one proposer call/outer
   step suggests new operator paths for the target stage; `_inject` allow-lists + de-dupes
   them, the plan is rebuilt, and search continues on the same tree. **A run keeps a pipeline
@@ -84,7 +90,7 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 **Logic + agent layers (pre-existing, still green)**
 - ✅ **skrub layer** — staged plan build, action space, `apply_state`, seeded rollouts, `run_ablation`.
 - ✅ **Spec resolver** — allowed-list operators **+ hyperparameter search** (clipped ranges, seeded, no `eval`).
-- ✅ **ADK agent graph** on native Gemini (free AI Studio key); per-stack web search; rich JSON plan authored by the LLM (no hand-written menu).
+- ✅ **ADK agent graph** — one stack, provider switched by `ROOT_AGENT_MODEL` (native Gemini with `google_search`, or OpenAI/compatible via `LiteLlm` with web search off); rich JSON plan authored by the LLM (no hand-written menu).
 - ✅ **End-to-end driver** with search-vs-report scoring split; run artifacts (`result.json` + `summary.md`) written per run.
 - ✅ **Offline tests for every layer** (agents mocked via `FakeLlm`) + 2 gated live smoke tests.
 - ✅ Python pinned to 3.13; `gemini-2.5-flash` default model.
@@ -142,6 +148,19 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
   string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_encoder_options_have_tuned_hps`.)
 
 **Week 2 — follow-ups (landed 2026-07-07, all offline-tested)**
+- ✅ **HP-refinement bonus phase** — after the main budget, `run_search_loop`
+  spends `ceil(total/4)` extra rollouts starting selection at the incumbent
+  node (`mcts.start_node` local descent; UCT + backprop unchanged) and
+  restricting expansion to the incumbent model's *active, still-untested*
+  gated HPs (`_incumbent_hp_targets`; `mcts.expand` now accepts a set of
+  target keys). Gating guarantees it only ever tunes the incumbent's own
+  model, and it is a strict no-op when no untested HP space remains (bare,
+  non-tuned plans), so it never disturbs the existing bare-spec invariants.
+  This is the "biased HP exploration around the best config" the targeting
+  logic was originally conceived for. Off switch: `hp_refine=False`; refined
+  dims surface as `result["hp_refined"]`.
+  (`tests/test_search_loop.py::test_hp_bonus_phase_refines_incumbent_after_main_budget`,
+  `::test_hp_bonus_phase_is_noop_and_off_switch`.)
 - ✅ **Scoped groups v2: position + additive** — `scoped_encodings` entries take
   `"position": "pre_encode"|"post_encode"` (post-encode groups apply after the
   TableVectorizer — numeric passthrough names only) and `"additive": true`
@@ -164,7 +183,7 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
   (`tests/test_search_loop.py` — interleave section.)
 
 Run all: `uv run python -m pytest tests/ -q`  (or `make test`)
-Run live pipeline: `make run-live BUDGET=15` · with targeting+injection: `make run-refine`
+Run live pipeline: `make run-live BUDGET=20` (small) / `BUDGET=80` (large) · with targeting+injection: `make run-refine`
 
 ---
 
@@ -275,15 +294,20 @@ future work. **Protect Week-3 evaluation time above any single feature.**
 
 - **Structured JSON plan, not code-gen** — no `eval` of model output, central
   seeding (determinism MCTS needs), schema-validated, MCTS-friendly named choices.
-- **Allowed-list registry** (not dynamic import) — novel ops/HPs are dropped or
-  clipped, never executed; Option 3's injected paths go through the same gate.
+- **Import-level allow-list** (not dynamic import) — the safety envelope is the
+  import root (`sklearn`/`skrub`), so a hallucinated/unlisted operator is dropped,
+  never executed. HP ranges are free-form (used as given) unless the param is
+  curated in `REGISTRY` (then clipped); a param the class can't accept, or an
+  RNG-identity param, is dropped individually without dropping the operator.
+  Option 3's injected paths go through the same import gate.
 - **Two scorers** — bounded higher-is-better reward for *search*; the competition
   metric only for the *final report* (they must not be conflated).
 - **Persist the tree, don't restart** — our scorer is fixed, so a config's reward never
   changes when the target moves; the tree is a running ablation we mine for free.
 - **LLM-call complexity is the cost model** — O(1) per task, ≤ O(outer steps) with Option 3;
   never O(expansions) or O(rollouts). The single real cost is CV rollouts.
-- **Provider-native clients, shared logic** — Gemini (ADK) and OpenAI stacks stay
-  separate; the MCTS/skrub core is client-agnostic and import-clean.
+- **One ADK stack, env-switched provider, shared logic** — `ROOT_AGENT_MODEL`
+  selects native Gemini or OpenAI/compatible (`LiteLlm`) with no code change;
+  the MCTS/skrub core is client-agnostic and import-clean.
 </content>
 </invoke>

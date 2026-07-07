@@ -5,15 +5,19 @@ This is intentionally a *thin slice* of MLE-STAR: it keeps only the front half
 any Python code generation. The plan is handed to the MCTS+skrub layer
 (``skrub_ops.build_staged_plan`` → ``mcts.mcts_search``), which does the search.
 
-Why this lives in its own module (not ``agent.py``): the hand-rolled
-OpenAI ``ManagerAgent`` in ``agent.py`` is the team's code and is kept intact.
-This file is the parallel ADK path and is the one to point ``adk run`` /
-``adk web`` at.
+This ADK graph is now the **single** agent stack: it drives native Gemini *or*
+an OpenAI / OpenAI-compatible endpoint, chosen purely by env vars — no code
+change to switch providers. (The old hand-rolled OpenAI ``ManagerAgent`` in
+``agent.py`` is deprecated and off the MCTS path.)
 
-Model wiring: ``config.CONFIG.agent_model`` is a plain Gemini model string
-(e.g. ``gemini-2.5-flash``), which ADK's LLMRegistry routes to **native
-Gemini**. With ``GOOGLE_API_KEY`` set and ``GOOGLE_GENAI_USE_VERTEXAI=FALSE``
-(see ``.env``), that uses the free Google AI Studio key — no Vertex/Cloud.
+Model wiring (see ``_resolve_model``): ``config.CONFIG.agent_model`` comes from
+``ROOT_AGENT_MODEL``. A bare Gemini id (e.g. ``gemini-2.5-flash``) routes to
+**native Gemini** via ADK's LLMRegistry — with ``GOOGLE_API_KEY`` set and
+``GOOGLE_GENAI_USE_VERTEXAI=FALSE`` that uses the free Google AI Studio key, no
+Vertex/Cloud. Any other model id (e.g. ``openai/gpt-4o``) is wrapped in ADK's
+``LiteLlm`` and reads ``API_KEY``/``API_BASE`` from the env, so the same graph
+runs against real OpenAI or a proxy. ``google_search`` is a Gemini-native tool,
+so web search is available **only** on the Gemini path (auto-disabled otherwise).
 
 Construction goes through ``build_root_agent`` so tests can inject a fake model
 and a prompt/output log directory without hitting the live API. The module-level
@@ -29,6 +33,8 @@ injected into the plan_author instruction from the registry, so the model stays
 in-bounds.
 """
 
+import os
+
 from google.adk import agents
 from google.adk.tools.google_search_tool import google_search
 
@@ -36,8 +42,46 @@ from machine_learning_engineering.run_logging import make_prompt_logging_callbac
 from machine_learning_engineering.shared_libraries import config
 from machine_learning_engineering.spec_resolver import format_allowed_for_prompt
 
-# The model string -> native Gemini (AI Studio key) via ADK's registry.
+# The model string (ROOT_AGENT_MODEL) -> native Gemini or a LiteLlm-wrapped
+# OpenAI/compatible endpoint; see `_resolve_model`.
 _MODEL = config.CONFIG.agent_model
+
+
+def _is_gemini_model(model) -> bool:
+    """True when `model` is a bare Gemini model id (the native-Gemini path)."""
+    return isinstance(model, str) and "gemini" in model.lower()
+
+
+def _resolve_model(model):
+    """Resolve a model spec into an (adk_model, is_gemini) pair.
+
+    A bare Gemini id is returned unchanged for ADK's native-Gemini routing. Any
+    other string is wrapped in ``LiteLlm`` so the SAME agent graph can drive an
+    OpenAI / OpenAI-compatible endpoint (real OpenAI, a university proxy, AI
+    Studio's OpenAI-compat base, ...), selected purely by ``ROOT_AGENT_MODEL`` +
+    ``API_KEY``/``API_BASE`` in the env — switching providers needs no code
+    change. A non-string is an already-built model (tests' ``FakeLlm``) and is
+    passed through. ``google_search`` is Gemini-native, so ``is_gemini`` tells
+    the caller whether web search may be attached.
+
+    Example:
+        _resolve_model("gemini-2.5-flash")  # -> ("gemini-2.5-flash", True)
+        _resolve_model("openai/gpt-4o")     # -> (LiteLlm(model="openai/gpt-4o"), False)
+    """
+    if not isinstance(model, str):
+        return model, True  # pre-built BaseLlm; caller controls with_search
+    if _is_gemini_model(model):
+        return model, True
+    from google.adk.models.lite_llm import LiteLlm
+
+    api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_base = os.environ.get("API_BASE") or os.environ.get("OPENAI_API_BASE")
+    kwargs = {}
+    if api_key:
+        kwargs["api_key"] = api_key
+    if api_base:
+        kwargs["api_base"] = api_base
+    return LiteLlm(model=model, **kwargs), False
 
 
 # --- Instructions (module constants so the factory stays readable) ----------
@@ -80,7 +124,13 @@ _PLAN_AUTHOR_INSTRUCTION = (
     '{"name": <path>, "params": {...}} to ALSO search its hyperparameters — '
     "prefer tuning the model's key hyperparameters, and give GENEROUS, "
     "domain-informed ranges (wide enough to contain the optimum for THIS kind "
-    "of data; they are clipped to curated bounds downstream). Any operator "
+    "of data). You may tune ANY hyperparameter the operator's constructor "
+    "accepts (not only a fixed list), and your ranges are used AS GIVEN (not "
+    "clipped). Because the search cross-validates many configs under a "
+    "wall-clock budget, AVOID ranges whose upper bound makes a single fit "
+    "extremely slow (e.g. n_estimators or max_iter in the tens of thousands, "
+    "very large n_components, a high polynomial degree) — keep upper bounds to "
+    "what trains in a few seconds on a subsample. Any operator "
     'object may also carry "prior": 0.0-1.0 — your confidence that this option '
     "wins on THIS dataset; the search visits high-prior options first. Emit "
     "ONLY JSON of this shape (dotted paths + HP ranges; lazy import/resolution "
@@ -141,13 +191,18 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
         (``config.CONFIG.agent_model``). Tests pass a fake model here.
       log_dir: if given, prompts + outputs of every LLM turn are appended to
         ``<log_dir>/<agent>_<phase>.json`` for sanity inspection (see run_logging).
-      with_search: attach the Gemini-only ``google_search`` tool to the analyst.
-        Set False for offline/mocked runs with a non-Gemini fake model.
+      with_search: *request* the Gemini-only ``google_search`` tool on the
+        analyst. It is attached only when the resolved model is native Gemini
+        (`_resolve_model`); on an OpenAI/compatible model it is silently
+        dropped, since ``google_search`` is Gemini-native. Set False for
+        offline/mocked runs.
 
     Returns:
       The root ``SequentialAgent``; its ``sub_agents`` are ``[analyst, author]``.
     """
     model = model if model is not None else _MODEL
+    resolved, is_gemini = _resolve_model(model)
+    use_search = with_search and is_gemini
 
     before_cb, after_cb = (None, None)
     if log_dir is not None:
@@ -155,8 +210,8 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
 
     data_analyst = agents.LlmAgent(
         name="data_analyst",
-        model=model,
-        tools=[google_search] if with_search else [],
+        model=resolved,
+        tools=[google_search] if use_search else [],
         before_model_callback=before_cb,
         after_model_callback=after_cb,
         description="Reads the task description and a dataset summary, retrieves "
@@ -169,7 +224,7 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
 
     plan_author = agents.LlmAgent(
         name="plan_author",
-        model=model,
+        model=resolved,
         before_model_callback=before_cb,
         after_model_callback=after_cb,
         description="Turns the analyst's findings into a rich, per-stage menu of "

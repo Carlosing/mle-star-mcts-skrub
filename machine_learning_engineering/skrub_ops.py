@@ -19,6 +19,9 @@ Determinism requirements (UCT values never converge otherwise):
 
 import functools
 import re
+import signal
+import threading
+from contextlib import contextmanager
 from typing import Callable
 
 import numpy as np
@@ -26,6 +29,56 @@ import pandas as pd
 import skrub
 from skrub import selectors as _selectors
 from skrub._data_ops import _evaluation as _ev
+
+
+class _RolloutTimeout(BaseException):
+    """Signals that a rollout exceeded its wall-clock budget.
+
+    A ``BaseException`` (not ``Exception``) **on purpose**: skrub/sklearn
+    ``cross_validate`` catches ``Exception`` inside each fold's fit
+    (``error_score`` / ``FitFailedWarning``), so an ``Exception`` raised by the
+    timeout would only NaN a single fold and the CV would keep running. A
+    ``BaseException`` escapes that handler and aborts the whole CV, so the
+    rollout catches it explicitly and returns 0.0.
+    """
+
+
+@contextmanager
+def _time_limit(seconds: float | None):
+    """Best-effort wall-clock cap on the wrapped block via SIGALRM.
+
+    Raises ``_RolloutTimeout`` if the block runs longer than ``seconds``. A
+    no-op when ``seconds`` is falsy/non-positive, off the main thread, or on a
+    platform without SIGALRM — there the block simply runs uncapped (the
+    caller's error handling still applies). The alarm fires between Python-level
+    iterations (e.g. an estimator's ``n_estimators`` / ``max_iter`` loop), so it
+    catches the iteration-count runaways free-form HP ranges can create; it
+    cannot preempt a single non-yielding C call.
+
+    Example:
+        with _time_limit(45):          # aborts to _RolloutTimeout after 45s
+            plan.skb.cross_validate(...)
+    """
+    armable = (
+        bool(seconds)
+        and seconds > 0
+        and hasattr(signal, "SIGALRM")
+        and threading.current_thread() is threading.main_thread()
+    )
+    if not armable:
+        yield
+        return
+
+    def _fire(signum, frame):
+        raise _RolloutTimeout
+
+    previous = signal.signal(signal.SIGALRM, _fire)
+    signal.setitimer(signal.ITIMER_REAL, float(seconds))
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)  # always disarm
+        signal.signal(signal.SIGALRM, previous)
 
 
 # ---------------------------------------------------------------------------
@@ -630,6 +683,7 @@ def make_rollout_fn(
     scoring: str | None = None,
     stratify: bool = False,
     target: str | None = None,
+    timeout_s: float | None = 45.0,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -658,6 +712,13 @@ def make_rollout_fn(
     minority is smaller than the fold count; without `target` the subsample
     stays the plain seeded `df.sample` of before. Per-fold NaNs (degenerate
     folds) are skipped via `_fold_mean` instead of failing the config.
+
+    `timeout_s` (default 45s) is a per-config wall-clock cap: a config whose CV
+    exceeds it scores 0.0 like any other failure (via `_time_limit`), so a
+    free-form hyperparameter range that makes a single fit pathologically slow
+    can't stall the search. `None`/0 disables the cap. Best-effort — see
+    `_time_limit` (main-thread + SIGALRM only; can't preempt a non-yielding C
+    call).
 
     Input:  plan + training df; returns a closure rollout(state) -> float.
 
@@ -688,8 +749,11 @@ def make_rollout_fn(
             }
             if scoring is not None:
                 cv_kwargs["scoring"] = scoring
-            result = plan.skb.cross_validate(**cv_kwargs)
+            with _time_limit(timeout_s):
+                result = plan.skb.cross_validate(**cv_kwargs)
             return _fold_mean(result["test_score"])
+        except _RolloutTimeout:
+            return 0.0  # BaseException — not covered by `except Exception` below
         except Exception:
             return 0.0
 
@@ -749,11 +813,16 @@ def run_ablation(plan, node_name: str, df, base_state: dict | None = None) -> di
 
 
 def pick_target_node(ablation_results: dict[str, dict]) -> str:
-    """Deterministic node-targeting stub: highest score variance wins.
+    """Deterministic stage targeting (Option 1): highest score variance wins.
 
-    `ablation_results` maps node_name -> {option: score}. The node whose
-    options differ most is the most promising refinement target. The LLM
-    targeting upgrade (task A4) replaces this function.
+    `ablation_results` maps node_name -> {option: score}. The stage whose
+    options differ most is the most promising between-slice refinement target
+    (`search_loop.run_search_loop` locks the rest via `target_key`). Targeting
+    stays pure code by design — an LLM inside the search loop is the rejected
+    anti-pattern, not a pending upgrade. The complementary *post-budget*
+    targeting that focuses on the incumbent model's untested hyperparameters is
+    `search_loop._incumbent_hp_targets` (the HP-refinement bonus phase), which
+    is deterministic for the same reason.
 
     Example:
         pick_target_node({"model":   {"GBM": 0.88, "RF": 0.87},

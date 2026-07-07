@@ -2,8 +2,10 @@
 # Uses `uv run` so it runs against the existing venv without
 # re-resolving the lockfile. Run `make sync` once (online) to build/reconcile.
 
-# MCTS evaluations per phase (e.g. make run-live BUDGET=50)
-BUDGET ?= 15
+# MCTS evaluations per phase; multiples of 4 keep the HP-refinement bonus
+# phase (ceil(budget/4)) a round number — 20 for a small search, 80 for a
+# large one (e.g. make run-live BUDGET=80).
+BUDGET ?= 20
 # task name under tasks/ (empty = config default)
 TASK ?=
 # search phases; >1 enables ablation targeting (Option 1)

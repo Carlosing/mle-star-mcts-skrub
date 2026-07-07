@@ -29,7 +29,7 @@ with **skip as its default outcome**, so an undecided stage means
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
 | 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
-| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims; conditional (model-gated) nesting is the remaining refinement |
+| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims — conditional (model-gated) nesting is **shipped** (`get_choice_gating`), and a post-budget **HP-refinement bonus phase** (`search_loop`, `ceil(budget/4)` rollouts from the incumbent node) spends extra budget only on the incumbent model's untested HPs |
 | 8 | **Post-process / ensemble** | `concat` (stacking), `if_else`, `match`, `apply_func` | ❌ future | Combine feature sets / predictions; conditional branches |
 
 Not pipeline stages, but relevant: `TableReport` and `column_associations` are

@@ -10,7 +10,7 @@ The only live-LLM cost is the two agent turns; the MCTS rollouts are pure skrub
 (no quota). Spec parsing/resolution is wrapped so a malformed or truncated LLM
 response falls back to a minimal default rather than crashing the run.
 
-Run:  uv run python -m machine_learning_engineering.pipeline --budget 15
+Run:  uv run python -m machine_learning_engineering.pipeline --budget 20
 """
 
 import argparse
@@ -142,7 +142,7 @@ def _safe_resolve(
 def run_pipeline(
     task_name: str | None = None,
     target: str | None = None,
-    budget: int = 15,
+    budget: int = 20,
     model=None,
     with_search: bool = True,
     log_dir: str | None = None,
@@ -233,6 +233,7 @@ def run_pipeline(
         "action_space": search["action_space"],
         "target_key": search["target_key"],
         "injected_options": search["injected_options"],
+        "hp_refined": search.get("hp_refined", []),
         "ensemble": _top_k_report(
             search, df, target, task_type, metric, aux_tables, top_k, seed
         ),
@@ -301,6 +302,10 @@ def _result_markdown(r: dict) -> str:
         )
     if r.get("target_key"):
         lines.append(f"- targeted stage (Option 1): {r['target_key']}")
+    if r.get("hp_refined"):
+        lines.append(
+            f"- HP-refinement bonus phase tuned (incumbent model): {r['hp_refined']}"
+        )
     if r.get("injected_options"):
         lines.append(
             f"- injected options not in the original plan (Option 3): "
@@ -370,7 +375,13 @@ def _main() -> None:
     parser = argparse.ArgumentParser(description="Run the agent->MCTS pipeline.")
     parser.add_argument("--task", default=None, help="task name under data_dir")
     parser.add_argument("--target", default=None, help="override target column")
-    parser.add_argument("--budget", type=int, default=15, help="MCTS evaluations")
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=20,
+        help="MCTS evaluations per phase (20 small / 80 large; a further "
+        "ceil(budget/4) HP-refinement rollouts run after)",
+    )
     parser.add_argument(
         "--out", default=None, help="artifact dir (default: runs/<task>_<timestamp>)"
     )

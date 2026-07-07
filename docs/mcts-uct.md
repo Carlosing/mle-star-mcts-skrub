@@ -73,6 +73,16 @@ toward promising *regions* of the config space, not just individual points.
   rollout, and backprop are all pure code. The optional `prior_fn` hook is the
   only place an LLM can influence the tree (warm-starting child `Q`/`N`),
   following the AlphaZero "policy prior + UCT search" pattern (brief §6).
+- **Targeting narrows what `expand` grows, not where selection starts.** The
+  outer loop (`search_loop.py`) can pass `target_key` — a single choice name,
+  or a *set* of them — so `expand` only edits those stages while UCT selection
+  and backprop are untouched. The **HP-refinement bonus phase** additionally
+  passes `start_node` so selection *descends from the incumbent node* rather
+  than the root, spending a final `ceil(budget/4)` rollouts locally on the
+  incumbent model's untested hyperparameters (backprop still walks the full
+  path to the root, so global `Q/N` stays consistent). Gating guarantees it
+  only ever tunes the incumbent's own model. This is the deterministic form of
+  the "biased HP exploration" the stage-targeting was originally conceived for.
 
 ## Optimization-MCTS, not game-MCTS
 
@@ -153,8 +163,12 @@ the multiple paths that could reach a config — the first parent to propose it
 wins and fixes its position in the tree. For optimization that is fine (we want
 each config evaluated once, not its `Q/N` averaged over arrival routes), and it
 keeps the engine pure. The only residual "revisit" is the exhausted-leaf edge
-case noted above, where the same state is re-evaluated — which a score cache
-would eliminate.
+case, where a leaf whose single-edit neighbours are all already tried is
+re-selected and its state re-evaluated; the persisted **score cache**
+(`mcts_search`'s `score_cache`) makes that a free lookup rather than a repeated
+rollout, so those iterations cost nothing but a UCT bookkeeping update. (The
+HP-refinement bonus phase leans on exactly this: once the incumbent's untested
+HPs are exhausted, remaining bonus rollouts are cache hits.)
 
 ### Extensions worth knowing (optimization-specific)
 

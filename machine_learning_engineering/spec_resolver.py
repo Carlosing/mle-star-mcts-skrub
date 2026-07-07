@@ -13,17 +13,24 @@ is needed eagerly (for the ``choose_*`` nodes). Safety: only paths under
 never import an arbitrary module. A path that can't be imported is simply
 dropped (no special handling, by design).
 
-Hyperparameters are still curated: ``REGISTRY`` holds vetted tunable bounds per
-path. A tuned param becomes a ``skrub.choose_int`` / ``choose_float`` /
-``choose_from`` node so it surfaces in ``get_action_space`` and MCTS searches it
-(the CASH structure — HPs nested under each model). An operator that is
-importable but not in ``REGISTRY`` is usable at its defaults (no HP search).
+The safety envelope is at the IMPORT level, not the search level: any param the
+LLM tunes is accepted with the range it gave (``_build_free_choice``), as long
+as the operator's constructor actually accepts that param (``_accepts_param`` —
+an unknown param is dropped individually, never dropping the operator) and it is
+not an RNG-identity param (``_RNG_PARAMS``, seeded centrally for determinism).
+``REGISTRY`` is now a set of *curated known-good* bounds: a param listed there is
+still clipped to its vetted range (``_build_choice``), while any other param is
+free-form. Either way a tuned param becomes a ``skrub.choose_int`` /
+``choose_float`` / ``choose_from`` node so it surfaces in ``get_action_space``
+and MCTS searches it (the CASH structure — HPs nested under each model).
 
 Flow: parse_spec_json(text) -> resolve_spec(dict) -> dict for build_staged_plan.
 """
 
 import importlib
+import inspect
 import json
+import math
 import re
 
 import skrub  # eager: needed for choose_* nodes (sklearn stays lazy)
@@ -239,9 +246,85 @@ def _build_choice(choice_name, llm_rule, rule):
     return None
 
 
+# Params whose tuning would break the determinism invariant (seeded centrally
+# in `_ensure_seeded`), so they are never exposed as search dimensions.
+_RNG_PARAMS = frozenset({"random_state"})
+
+
+def _accepts_param(cls, pname) -> bool:
+    """True if ``cls.__init__`` accepts ``pname`` (or has ``**kwargs``).
+
+    Lets an arbitrary LLM-proposed hyperparameter be dropped *individually* when
+    the operator has no such constructor argument, instead of failing the whole
+    ``cls(**kwargs)`` and losing the operator. Permissive if the signature can't
+    be introspected (the try/except in ``_make`` remains the final guard).
+
+    Example:
+        _accepts_param(RandomForestRegressor, "n_estimators")   # -> True
+        _accepts_param(RandomForestRegressor, "learning_rate")  # -> False
+    """
+    try:
+        params = inspect.signature(cls.__init__).parameters
+    except (TypeError, ValueError):
+        return True
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return True
+    return pname in params
+
+
+def _build_free_choice(choice_name, llm_rule):
+    """Build a skrub choose_* node from the LLM's OWN rule (no curated bounds).
+
+    Used when the LLM tunes a hyperparameter that has no ``REGISTRY`` entry: the
+    range is taken AS GIVEN (the safety envelope is the import allow-list, not
+    per-param clipping), with only structural sanity — two finite numeric bounds
+    with ``low < high``, and log scales need ``low > 0``. The rule self-describes
+    its type: ``{"int": [lo, hi]}``, ``{"float": [lo, hi], "log": true}`` (or the
+    ``{"type": "int"|"float", "range": [...]}`` form), or ``{"choice": [...]}``.
+    Returns None for a malformed rule (the param is then simply omitted).
+
+    Example:
+        _build_free_choice("model__Lasso__alpha", {"float": [1e-4, 10], "log": True})
+        # -> skrub.choose_float(1e-4, 10, log=True, name="model__Lasso__alpha")
+    """
+    if not isinstance(llm_rule, dict):
+        return None
+    for typ in ("int", "float"):
+        rng = llm_rule.get(typ)
+        if rng is None and llm_rule.get("type") == typ:
+            rng = llm_rule.get("range")
+        if not isinstance(rng, (list, tuple)) or len(rng) != 2:
+            continue
+        try:
+            low, high = float(rng[0]), float(rng[1])
+        except (TypeError, ValueError):
+            return None
+        if not (math.isfinite(low) and math.isfinite(high)) or low >= high:
+            return None
+        log = bool(llm_rule.get("log", False))
+        if log and low <= 0:
+            return None
+        if typ == "int":
+            return skrub.choose_int(int(low), int(high), log=log, name=choice_name)
+        return skrub.choose_float(low, high, log=log, name=choice_name)
+    opts = llm_rule.get("choice") or llm_rule.get("options")
+    if isinstance(opts, list) and opts:
+        return skrub.choose_from(list(opts), name=choice_name)
+    return None
+
+
 def _make(path, params, seed, context):
-    """Lazily import `path` and instantiate it, wrapping tuned params in
-    skrub choose_* nodes. Returns None if the class can't be imported/built."""
+    """Lazily import `path` and instantiate it, wrapping tuned params in skrub
+    choose_* nodes. Returns None only if the class can't be imported/built.
+
+    Hyperparameters may be *curated* (a ``REGISTRY`` tunable rule -> range
+    clipped to vetted bounds) or *arbitrary* (no registry rule -> the LLM's own
+    range is used as-is via ``_build_free_choice``; the safety envelope is the
+    import allow-list, not per-param clipping). Two kinds of param are dropped
+    *individually*, never dropping the operator: one the class does not accept
+    (``_accepts_param``) and any RNG-identity param (``_RNG_PARAMS``, seeded
+    centrally for determinism).
+    """
     cls = _load_class(path)
     if cls is None:
         return None
@@ -249,10 +332,15 @@ def _make(path, params, seed, context):
     tunable = entry.get("tunable", {})
     kwargs = dict(entry.get("defaults", {}))
     for pname, llm_rule in (params or {}).items():
+        if pname in _RNG_PARAMS or not _accepts_param(cls, pname):
+            continue  # omit this param, keep building the operator
+        name = f"{context}__{cls.__name__}__{pname}"
         rule = tunable.get(pname)
-        if rule is None:
-            continue  # not a curated tunable for this operator -> ignored
-        choice = _build_choice(f"{context}__{cls.__name__}__{pname}", llm_rule, rule)
+        choice = (
+            _build_choice(name, llm_rule, rule)
+            if rule is not None
+            else _build_free_choice(name, llm_rule)
+        )
         if choice is not None:
             kwargs[pname] = choice
     try:
@@ -584,10 +672,19 @@ def format_allowed_for_prompt() -> str:
         '"sklearn.preprocessing.RobustScaler"). An operator is either a bare '
         'path, or {"name": <path>, "params": {...}} to tune hyperparameters. '
         'Param rules: {"int":[lo,hi]}, {"float":[lo,hi],"log":true}, '
-        '{"choice":[...]}. For an optional stage use "skip". Choose the '
-        "task-appropriate class (Regressor for regression, Classifier for "
-        "classification). Only sklearn.* and skrub.* paths are allowed. These "
-        "have curated, searchable hyperparameters:",
+        '{"choice":[...]}. You may tune ANY constructor hyperparameter of an '
+        "allowed class (not only the ones listed below), and you choose the "
+        "ranges yourself — they are used AS GIVEN (only the import is "
+        "allow-listed; ranges are NOT clipped). So keep ranges sensible and, "
+        "IMPORTANTLY, avoid values that make a single fit extremely slow: the "
+        "search cross-validates many configs under a wall-clock budget, so an "
+        "oversized upper bound (e.g. n_estimators or max_iter in the tens of "
+        "thousands, very large n_components, a high polynomial degree) wastes "
+        "the whole budget on one config. Keep upper bounds to what trains in a "
+        'few seconds on a subsample. For an optional stage use "skip". Choose '
+        "the task-appropriate class (Regressor for regression, Classifier for "
+        "classification). Only sklearn.* and skrub.* paths are allowed. The "
+        "following have curated known-good ranges you can use as a guide:",
         "Transformers:",
     ]
     for path in sorted(p for p, e in REGISTRY.items() if e["kind"] == "transformer"):

@@ -14,9 +14,19 @@ instead of restarting. Two refinements layer on top:
   targeted stage, validate + inject them into the spec, **rebuild the plan**
   (skrub has no mid-run splice), and continue on the same tree — so a run can
   keep an option that was not in the original plan.
+- **HP-refinement bonus phase (no LLM):** after the whole budget is spent, run
+  one final `ceil(total / 4)` slice that starts selection at the incumbent
+  node and restricts expansion to the incumbent model's *active, still-untested*
+  gated hyperparameters (`_incumbent_hp_targets`). This is the deterministic,
+  variance-free realization of what stage-targeting was originally for —
+  biased HP exploration around the best config — using UCT's own "untested ⇒
+  ∞" rule to prioritize the never-tried HP values. It is a strict no-op when
+  the incumbent has no untested HP space (e.g. a bare, non-tuned plan). Off
+  switch: `hp_refine=False`.
 
 The `propose` callable is injected (tests pass a fake); the LLM never enters the
-inner search loop — at most `outer_steps - 1` calls total.
+inner search loop — at most `outer_steps - 1` calls total. The bonus phase adds
+zero LLM calls.
 """
 
 import inspect
@@ -173,6 +183,32 @@ def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=N
     return new, kept
 
 
+def _incumbent_hp_targets(best_state, action_space, gating, ledger) -> list[str]:
+    """The incumbent model's *active, still-untested* hyperparameter dims.
+
+    A model-gated HP (`gating`: name -> (parent, activating_label)) is *active*
+    when the incumbent sits at its parent's activating outcome, and *untested*
+    when at least one of its discretized options never appears in the
+    tree-mined `ledger`. These are exactly the hyperparameters the bonus phase
+    should expand around the best config: gating guarantees they belong to the
+    incumbent's own model, so the extra budget can never tune the wrong model.
+
+    Example:
+        _incumbent_hp_targets(
+            {"model": "RF"}, {"rf_trees": [100, 300, 500]},
+            {"rf_trees": ("model", "RF")}, {"rf_trees": {100: 0.8}})
+        # -> ["rf_trees"]   (300 and 500 never tried)
+    """
+    targets = []
+    for key, (parent, activating) in (gating or {}).items():
+        if best_state.get(parent) != activating:
+            continue  # inactive: this HP's model isn't the one we settled on
+        tried = ledger.get(key, {})
+        if any(opt not in tried for opt in action_space.get(key, [])):
+            targets.append(key)
+    return targets
+
+
 def run_search_loop(
     spec: dict,
     df,
@@ -190,6 +226,8 @@ def run_search_loop(
     priors: dict | None = None,
     context_text: str | None = None,
     stratify: bool = False,
+    hp_refine: bool = True,
+    timeout_s: float | None = 45.0,
 ) -> dict:
     """Run the persisted, optionally-refined search and return a results dict.
 
@@ -215,13 +253,27 @@ def run_search_loop(
     seeded `StratifiedKFold` instead of skrub's plain-`KFold` default, so a
     subsampled fold can't silently land on zero positives (see
     `skrub_ops._cv_kwarg`).
+
+    `hp_refine=True` (default) appends a final HP-refinement bonus phase after
+    the main budget is spent: `ceil(total / 4)` extra rollouts that start
+    selection at the incumbent node and restrict expansion to the incumbent
+    model's still-untested hyperparameters (`_incumbent_hp_targets`), UCT and
+    backprop unchanged. This is the targeting the design originally aimed at —
+    focused HP exploration around the best config. It is a no-op when the
+    incumbent's model exposes no untested tunable HPs (e.g. a plan with only
+    bare, non-tuned operators), so it never runs unless there is real HP space
+    left to explore. The refined HP dims are returned in `hp_refined`.
+
+    `timeout_s` (default 45s) caps each rollout's wall clock: a config whose CV
+    runs longer scores 0.0, so a free-form HP range that makes one fit
+    pathologically slow can't stall the search (see `skrub_ops._time_limit`).
     """
 
     def _build(current_spec):
         plan = build_staged_plan(current_spec, df, target=target, aux_tables=aux_tables)
         rollout = make_rollout_fn(
             plan, df, seed=seed, scoring=scoring, aux=aux_tables, main_var="data",
-            stratify=stratify, target=target,
+            stratify=stratify, target=target, timeout_s=timeout_s,
         )
         return plan, get_action_space(plan), get_choice_gating(plan), rollout
 
@@ -237,6 +289,7 @@ def run_search_loop(
     best_state, best_score = start, float("-inf")
     target_key = None
     injected: list[str] = []
+    hp_refined: list[str] = []
 
     def _proposal_path(p) -> str:
         return p if isinstance(p, str) else p.get("name")
@@ -303,6 +356,35 @@ def run_search_loop(
                 except Exception:
                     target_key = None
 
+    # HP-refinement bonus phase: spend ceil(total/4) extra rollouts biasing
+    # expansion toward the incumbent model's still-untested hyperparameters,
+    # starting selection at the incumbent node (local exploration; UCT and
+    # backprop are unchanged). No-op when there is no untested HP space.
+    if hp_refine:
+        hp_targets = _incumbent_hp_targets(
+            best_state, action_space, gating, tree_action_values(root)
+        )
+        best_node = mcts.find_state_node(root, best_state) if hp_targets else None
+        if best_node is not None:
+            bonus = -(-max(1, outer_steps) * budget_per_step // 4)  # ceil(total/4)
+            bstate, bscore, root = mcts.mcts_search(
+                start,
+                action_space,
+                rollout,
+                budget=bonus,
+                c=c,
+                root=root,
+                tried_states=tried,
+                prior_fn=prior_fn,
+                gating=gating,
+                target_key=set(hp_targets),
+                score_cache=cache,
+                start_node=best_node,
+            )
+            if bscore > best_score:
+                best_state, best_score = bstate, bscore
+            hp_refined = hp_targets
+
     return {
         "best_state": best_state,
         "best_score": best_score,
@@ -313,6 +395,7 @@ def run_search_loop(
         "score_cache": cache,
         "target_key": target_key,
         "injected_options": injected,
+        "hp_refined": hp_refined,
     }
 
 

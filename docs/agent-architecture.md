@@ -1,74 +1,68 @@
-# Agent architecture — two provider-native stacks, one shared logic layer
+# Agent architecture — one ADK stack, provider switched by env
 
-The project deliberately has **two LLM clients**, not one. Different team members
-hold different API keys (a free Google AI Studio / Gemini key, or an OpenAI key),
-and the two web-search capabilities are provider-native and cannot be merged into
-a single client. So instead of a unifying *client*, we unify the **logic layer**
-and keep the clients thin and provider-native.
+The project has **one** agent stack: the Google ADK graph in
+[`adk_agent.py`](../machine_learning_engineering/adk_agent.py)
+(`data_analyst → plan_author`). It drives **native Gemini** *or* an **OpenAI /
+OpenAI-compatible** endpoint, chosen purely by environment variables — no code
+change to switch providers. Underneath, the whole logic layer (MCTS + skrub)
+imports no LLM client at all.
 
 ```
-        ┌─────────────────────────┐        ┌──────────────────────────────┐
-        │  ADK / Gemini stack      │       │  OpenAI stack                 │
-        │  adk_agent.py            │       │  agent.py (ManagerAgent)      │
-        │  LlmAgent + google_search│       │  raw openai client +          │
-        │  (native Gemini)         │       │  Responses-API web_search     │
-        └────────────┬────────────┘        └──────────────┬───────────────┘
-                     │      thin, provider-native clients  │
-                     └──────────────────┬──────────────────┘
-                                        ▼
+                    ┌──────────────────────────────────────────────┐
+                    │  ADK agent graph — adk_agent.py               │
+                    │  data_analyst → plan_author                   │
+                    │  model resolved by ROOT_AGENT_MODEL:          │
+                    │   • gemini-*      → native Gemini (+ search)  │
+                    │   • anything else → LiteLlm(OpenAI/compat)    │
+                    └───────────────────────┬──────────────────────┘
+                                            │  rich JSON plan
+                                            ▼
               SHARED, CLIENT-AGNOSTIC LOGIC LAYER (imports no LLM client)
-              mcts.py · skrub_ops.py · (future) data-read + skrub-spec handoff
+              spec_resolver.py · skrub_ops.py · search_loop.py · mcts.py
 ```
 
 ## The rule
 
-**Clients may differ per provider; the logic layer never imports a client.**
+**The logic layer never imports an LLM client.** `mcts.py` / `skrub_ops.py` /
+`spec_resolver.py` / `search_loop.py` stay import-clean and offline-testable;
+the only lazy provider imports are inside `search_loop.make_llm_proposer`
+(`google.genai`) and `adk_agent._resolve_model` (`LiteLlm`, only on the
+non-Gemini path).
 
-`machine_learning_engineering/__init__.py` stays side-effect-free on import: the
-OpenAI `client` is built lazily via PEP 562 `__getattr__`, so
-`import machine_learning_engineering.mcts` / `skrub_ops` constructs nothing and
-needs no credentials. Do **not** re-add an import-time client to `__init__.py` —
-that would re-couple the pure MCTS/skrub layer to an LLM key.
+## Choosing a provider (env only)
 
-## Which stack do I use?
+Set the model + key in `.env` (see [`.env.example`](../.env.example)); the model
+id is the switch (`adk_agent._resolve_model`):
 
-| You hold… | Use | Web search |
-|---|---|---|
-| Google AI Studio (Gemini) key | **ADK stack** — `adk_agent.py` (`root_agent`) | Native `google_search` (free, Gemini-only) |
-| Real OpenAI key (`api.openai.com`) | **OpenAI stack** — `agent.py` (`ManagerAgent`) | Native Responses-API `web_search` |
+| `ROOT_AGENT_MODEL` | Routes to | Key(s) | Web search |
+|---|---|---|---|
+| `gemini-2.5-flash` (any `gemini-*`) | **native Gemini** | `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI=FALSE` | ✅ `google_search` (Gemini-only) |
+| `openai/gpt-4o` (any non-`gemini`) | **LiteLlm** (real OpenAI, a university proxy, or an OpenAI-compat base) | `API_KEY` (+ `API_BASE`) | ❌ (see below) |
 
-Set the model/keys in `.env` (see `.env.example`):
-- ADK / Gemini: `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI=FALSE`,
-  `ROOT_AGENT_MODEL=gemini-2.5-flash`.
-- OpenAI: `API_KEY` + `API_BASE` (pointing at OpenAI) and `ROOT_AGENT_MODEL` set
-  to a real OpenAI model (e.g. `gpt-4o`).
+`_resolve_model` returns `(model, is_gemini)`; `build_root_agent` attaches
+`google_search` only when `is_gemini` is true, so requesting `with_search=True`
+on an OpenAI model silently drops the tool instead of raising.
 
-## Web search is provider-native (two implementations, by design)
+## Web search is Gemini-native
 
-- **Gemini stack** — `data_analyst_agent` in `adk_agent.py` carries
-  `tools=[google_search]`. The built-in tool is **Gemini-only**: ADK raises
-  `ValueError` if `google_search` is attached to a non-Gemini model
-  (`google/adk/tools/google_search_tool.py`). `gemini-2.5-flash` is a Gemini 2.x
-  model, so it may use `google_search` alongside other tools (the Gemini 1.x
-  single-tool restriction does not apply — keep the model on 2.x).
-- **OpenAI stack** — `SubAgent(use_web_search=True)` in `agent.py` routes through
-  the OpenAI **Responses API** with `tools=[{"type": "web_search"}]`. Default is
-  `use_web_search=False`, preserving the original `chat.completions` flow.
+`google_search` is a built-in Gemini tool — ADK raises `ValueError` if it is
+attached to a non-Gemini model (`google/adk/tools/google_search_tool.py`).
+`gemini-2.5-flash` is a Gemini 2.x model, so it may use `google_search`
+alongside other tools (the Gemini 1.x single-tool restriction does not apply —
+keep the model on 2.x). On the OpenAI/LiteLlm path there is no equivalent
+built-in tool, so the analyst simply runs without web search: an OpenAI-only
+contributor still gets the full analyst → plan_author → MCTS pipeline, just
+without the SOTA-lookup step.
 
-  ⚠️ **Caveat:** OpenAI's native `web_search` only works against the **real**
-  OpenAI endpoint with a real key and model. It is **not** available through AI
-  Studio's OpenAI-compatible endpoint. A Gemini-only contributor should use the
-  ADK stack, not the OpenAI stack with search enabled.
+## Deprecated: the standalone OpenAI `ManagerAgent`
 
-## Why not one unifying client?
-
-Because the web-search capabilities are bound to their providers: Google Search
-grounding is a Gemini-native feature and OpenAI web search is an OpenAI-native
-feature — neither is reachable from the other's client. A "merged" client would
-reimplement provider routing (which ADK's model layer already does) and still
-could not offer Google Search on the OpenAI path. Unifying the **logic** (the
-MCTS engine and the skrub layer) is what keeps the team working from a single
-source of truth, regardless of which key each member holds.
+The earlier design carried a **second** stack — a hand-rolled OpenAI
+`ManagerAgent` in `agent.py` with its own client built in
+`machine_learning_engineering/__init__.py` (plus `sub_agents/`, `eval/`). Now
+that OpenAI runs *through ADK* (LiteLlm), that stack is **deprecated and off the
+MCTS path**, retained only for merge/reference history; new work targets the ADK
+graph. Do **not** re-add an import-time client to `__init__.py` — that would
+re-couple the pure MCTS/skrub layer to an LLM key.
 
 See also: [pipeline-stages.md](pipeline-stages.md) (the skrub search space the
 plan author targets) and [mcts-uct.md](mcts-uct.md) (the engine the plan is

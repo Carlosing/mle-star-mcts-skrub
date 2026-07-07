@@ -157,6 +157,55 @@ def test_score_cache_bounds_cv_calls_across_slices():
     assert len(res["score_cache"]) <= 3 * 4 + 1
 
 
+# A single HP-tuned model: the only searchable dims are its hyperparameters,
+# so the incumbent always has untested HP space left after a small main budget.
+_HP_RAW = {
+    "encoder_options": ["skrub.GapEncoder"],
+    "model": [
+        {
+            "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+            "params": {
+                "learning_rate": {"float": [0.01, 0.3], "log": True},
+                "max_iter": {"int": [100, 600]},
+                "max_depth": {"int": [2, 16]},
+            },
+        }
+    ],
+}
+
+
+def test_hp_bonus_phase_refines_incumbent_after_main_budget():
+    spec = spec_resolver.resolve_spec(_HP_RAW, task_type="regression")
+    b = 6
+    res = run_search_loop(
+        spec, _california(), TARGET, scoring="r2", budget_per_step=b
+    )
+    # the bonus phase ran ceil(b/4) extra rollouts on the SAME persisted root
+    assert res["root"].N == b + -(-b // 4)
+    # it targeted the incumbent model's (gated) hyperparameters
+    gating = get_choice_gating(res["plan"])
+    assert res["hp_refined"] and all(k in gating for k in res["hp_refined"])
+    # HP space was actually explored: some evaluated config sets a gated HP
+    assert any(k in gating for key in res["score_cache"] for k in dict(key))
+
+
+def test_hp_bonus_phase_is_noop_and_off_switch(monkeypatch):
+    from machine_learning_engineering import search_loop as sl
+
+    # bare spec -> no tunable HP -> no gated dims -> bonus is a no-op
+    res = sl.run_search_loop(
+        _spec(), _california(), TARGET, scoring="r2", budget_per_step=5
+    )
+    assert res["root"].N == 5 and res["hp_refined"] == []
+
+    # even with HP space, hp_refine=False skips the bonus phase entirely
+    spec = spec_resolver.resolve_spec(_HP_RAW, task_type="regression")
+    off = sl.run_search_loop(
+        spec, _california(), TARGET, scoring="r2", budget_per_step=6, hp_refine=False
+    )
+    assert off["root"].N == 6 and off["hp_refined"] == []
+
+
 def test_run_states_are_model_gated_canonical():
     res = run_search_loop(
         _spec(), _california(), TARGET, scoring="r2", outer_steps=2, budget_per_step=8

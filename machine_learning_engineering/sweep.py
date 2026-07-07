@@ -9,14 +9,14 @@ once per *task* (the raw spec is captured and reused across every point via
 task (a c-grid, a retarget A/B, a propose-dosage block, 3 seeds each) — at
 ~14 LLM calls per task, ~42/day for three tasks: comfortably inside the
 gemini-2.5-flash free tier (~10 req/min, ~250 req/day). The binding
-constraint is wall-clock CV time (~2-5 min per run at budget 15), not quota.
+constraint is wall-clock CV time (~2-5 min per run at budget 20), not quota.
 
 Spec format — ``defaults`` merged under every entry of ``runs``; list-valued
 fields cartesian-expand *within* their entry; ``n_proposes: N`` is the CLI
 sugar (``outer_steps = N + 1``, ``refine = N > 0``):
 
 Example:
-    {"defaults": {"task": "credit-fraud", "budget": 15, "seed": 42},
+    {"defaults": {"task": "credit-fraud", "budget": 20, "seed": 42},
      "runs": [{"c": [0.3, 0.5, 0.7], "seed": [42, 43]},
               {"n_proposes": 3, "top_k": 3}]}
     # -> 7 runs, 2 agent calls (one spec fetch) + 3 proposer calls
@@ -38,7 +38,7 @@ from machine_learning_engineering.search_loop import make_llm_proposer
 _DEFAULTS = {
     "task": None,
     "c": 0.5,
-    "budget": 15,
+    "budget": 20,
     "outer_steps": 1,
     "refine": False,
     "retarget": True,
@@ -64,7 +64,7 @@ def load_sweep_spec(path: str) -> list[dict]:
 
     Example:
         load_sweep_spec("sweeps/example.json")
-        # -> [{"task": "credit-fraud", "c": 0.3, "budget": 15, ...}, ...]
+        # -> [{"task": "credit-fraud", "c": 0.3, "budget": 20, ...}, ...]
     """
     with open(path, encoding="utf-8") as f:
         spec = json.load(f)
@@ -94,9 +94,9 @@ def slug(cfg: dict, with_task: bool = False) -> str:
     """A filesystem-safe, human-scannable name for one grid point.
 
     Example:
-        slug({"c": 0.5, "budget": 15, "outer_steps": 3, "refine": True,
+        slug({"c": 0.5, "budget": 20, "outer_steps": 3, "refine": True,
               "retarget": True, "top_k": 3, "seed": 42})
-        # -> "c0.5_b15_os3_ref1_rt1_tk3_s42"
+        # -> "c0.5_b20_os3_ref1_rt1_tk3_s42"
     """
     s = (
         f"c{cfg['c']}_b{cfg['budget']}_os{cfg['outer_steps']}"

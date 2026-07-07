@@ -41,6 +41,23 @@ def state_key(state: dict) -> tuple:
     return tuple(sorted(state.items()))
 
 
+def find_state_node(root: "MCTSNode", state: dict) -> Optional["MCTSNode"]:
+    """Return the tree node whose state matches `state`, or None.
+
+    `tried_states` dedups states globally, so at most one node ever carries a
+    given state — this is how the outer loop turns its tracked incumbent
+    (`best_state`) back into the node to start a local (bonus) phase from.
+
+    Example:
+        find_state_node(root, {"model": "RF"})  # -> the RF node, or None
+    """
+    key = state_key(state)
+    for node in _iter_nodes(root):
+        if state_key(node.state) == key:
+            return node
+    return None
+
+
 def select(node: MCTSNode, c: float = 0.5) -> MCTSNode:
     """Descend the tree by UCT until a leaf is reached."""
     # If node is not expanded (i.e., has no children), return it as the selected node
@@ -73,7 +90,7 @@ def expand(
     action_space: dict[str, list],
     tried_states: set[tuple],
     gating: Optional[dict] = None,
-    target_key: Optional[str] = None,
+    target_key=None,
 ) -> list[MCTSNode]:
     """Generate children by swapping one choice value at a time.
 
@@ -84,14 +101,16 @@ def expand(
     `gating` (model-gated HPs): a conditional key is only edited when its parent
     is at the activating outcome in this node, and new states are canonicalized
     so inactive HPs are dropped. `target_key`, if given, restricts expansion to
-    that single choice (Option 1 — lock all other stages).
+    a single choice (Option 1 — lock all other stages) or, as a set/list of
+    names, to that group of choices (the HP-refinement bonus phase targets the
+    incumbent model's untested hyperparameters this way).
     """
     children = []
-    items = (
-        action_space.items()
-        if target_key is None
-        else [(target_key, action_space.get(target_key, []))]
-    )
+    if target_key is None:
+        items = list(action_space.items())
+    else:
+        keys = [target_key] if isinstance(target_key, str) else list(target_key)
+        items = [(k, action_space.get(k, [])) for k in keys]
     for choice_name, options in items:
         # skip a gated child whose parent isn't active in this node
         if gating and choice_name in gating:
@@ -126,8 +145,9 @@ def mcts_search(
     tried_states: Optional[set[tuple]] = None,
     prior_fn: Optional[Callable[[list[MCTSNode]], None]] = None,
     gating: Optional[dict] = None,
-    target_key: Optional[str] = None,
+    target_key=None,
     score_cache: Optional[dict] = None,
+    start_node: Optional[MCTSNode] = None,
 ) -> tuple[dict, float, MCTSNode]:
     """Run `budget` MCTS iterations and return (best_state, best_score, root).
 
@@ -145,8 +165,13 @@ def mcts_search(
     make the rated ones *less* attractive than their unseeded siblings.
     The first rollout after an expansion goes to the highest-UCT child.
     `gating`/`target_key` are forwarded to `expand` (model-gated HPs / stage
-    locking). `score_cache` memoizes `state_key -> reward`; deterministic
+    locking; `target_key` may be a set of names for the HP-refinement bonus
+    phase). `score_cache` memoizes `state_key -> reward`; deterministic
     rollouts make this exact, so a config is evaluated at most once.
+    `start_node`, if given, is where selection begins each iteration instead of
+    the root — a descendant node lets a bonus phase explore *locally* around
+    the incumbent while backprop still updates the whole path up to the root,
+    so UCT statistics stay globally consistent.
     """
     root_state = canonicalize(root_state, gating)
     # First call: create the root node and initialize tried_states with it
@@ -167,9 +192,10 @@ def mcts_search(
     best_state, best_score = root_state, scored(root_state)
 
     # MCTS main loop
+    descent_root = start_node if start_node is not None else root
     for _ in range(budget):
-        # Select a unexpanded node
-        leaf = select(root, c)
+        # Select a unexpanded node (from `start_node` for a local bonus phase)
+        leaf = select(descent_root, c)
 
         # Expand it if it's not a terminal state (cannot be expanded)
         if leaf.N > 0 or leaf is root:
