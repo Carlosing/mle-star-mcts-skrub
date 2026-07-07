@@ -112,6 +112,51 @@ def test_run_keeps_an_option_not_in_the_plan():
     assert calls["n"] <= 3
 
 
+def test_interleaved_propose_fires_between_every_slice():
+    calls = []
+
+    def fake_propose(stage_key, ledger, vocab):
+        calls.append(stage_key)
+        return []
+
+    run_search_loop(
+        _spec(), _california(), TARGET, scoring="r2",
+        outer_steps=4, budget_per_step=3, propose=fake_propose,
+    )
+    # search 3 -> propose -> 3 -> propose -> 3 -> propose -> 3
+    assert len(calls) == 3
+
+
+def test_retargeting_reruns_each_slice_and_can_be_disabled(monkeypatch):
+    from machine_learning_engineering import search_loop as sl
+
+    picks = {"n": 0}
+    orig = sl.pick_target_node
+
+    def counting_pick(ledger):
+        picks["n"] += 1
+        return orig(ledger)
+
+    monkeypatch.setattr(sl, "pick_target_node", counting_pick)
+    sl.run_search_loop(_spec(), _california(), TARGET, scoring="r2",
+                       outer_steps=3, budget_per_step=4)
+    assert picks["n"] == 2  # after slice 0 and slice 1, never after the last
+    picks["n"] = 0
+    sl.run_search_loop(_spec(), _california(), TARGET, scoring="r2",
+                       outer_steps=3, budget_per_step=4, retarget=False)
+    assert picks["n"] == 1  # the first pick is kept for the whole run
+
+
+def test_score_cache_bounds_cv_calls_across_slices():
+    res = run_search_loop(
+        _spec(), _california(), TARGET, scoring="r2",
+        outer_steps=3, budget_per_step=4,
+    )
+    # each MCTS iteration evaluates at most one NEW state; the persisted cache
+    # is exact dedup, so distinct CV evaluations never exceed the total budget
+    assert len(res["score_cache"]) <= 3 * 4 + 1
+
+
 def test_run_states_are_model_gated_canonical():
     res = run_search_loop(
         _spec(), _california(), TARGET, scoring="r2", outer_steps=2, budget_per_step=8

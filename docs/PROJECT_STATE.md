@@ -5,12 +5,13 @@ LLM agents read the data and author a *rich JSON plan* (a menu of operators +
 hyperparameter ranges per stage); a pure-code MCTS engine then searches that
 space — structure **and** hyperparameters — over a fixed evaluation budget. The
 LLM never does the search; it only proposes the space (**O(1) LLM calls per
-task**, plus at most one call per outer step for Option 3 — never inside the
-inner search loop).
+task**, plus at most one call between search slices for Option 3 — never inside
+the inner search loop).
 
-_Last updated: 2026-07-05 (Week 2, feature work done except the harness). Offline
-suite: **105 passed, 2 skipped** (`uv run python -m pytest tests/ -q`, ~4.5 min; the
-2 skipped are the gated live Gemini smoke tests)._
+_Last updated: 2026-07-07 (Week 2 complete: sweep harness + imbalance-safe rollouts
+landed; next = live re-baseline + Week-3 evaluation). Offline suite: **127 passed,
+2 skipped** (`uv run python -m pytest tests/ -q`, ~6 min; the 2 skipped are the
+gated live Gemini smoke tests)._
 
 ## Architecture — three layers
 
@@ -33,7 +34,7 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 3. **ADK agents** → `data_analyst` (web search) → `plan_author` → JSON plan in state.
 4. **resolve_spec** → JSON names/HP-ranges → seeded estimators + `choose_*` nodes (allowed-list, no `eval`).
 5. **build_staged_plan** → skrub DataOps plan; **get_action_space** → the MCTS search space; **get_choice_gating** → model→HP gate.
-6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` adds ablation targeting (Option 1) and, with a proposer, per-stage option injection (Option 3).
+6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to re-target a stage (Option 1, `retarget=`) and, with a proposer, injecting new options for it before each subsequent slice (Option 3 — `search → propose → search → …`).
 7. **report** → score the incumbent on the competition metric (RMSE, etc.); write `runs/<task>_<ts>/{result.json,summary.md}`.
 
 ## Module map
@@ -42,7 +43,7 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
 |---|---|
 | `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook, DOT/ASCII viz) |
 | `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble`), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`), `run_ablation`, `pick_target_node` |
-| `search_loop.py` | **outer loop**: persisted MCTS across steps; `tree_action_values` (tree-mined ablation), Option 1 targeting + non-target locking, Option 3 option injection (`_inject`/`_augment_spec`), `make_llm_proposer` (one Gemini call/outer step) |
+| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 option injection between slices (`_inject`/`_augment_spec`), `make_llm_proposer` (≤ one Gemini call between slices) |
 | `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; curated allowed-list registry; clips HP ranges; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `google_search`; `build_root_agent` factory |
@@ -140,6 +141,28 @@ LLM client.** See [agent-architecture.md](agent-architecture.md).
   `outcomes[0]`, verified against `_choosing.py`), never from the describe_defaults()
   string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_encoder_options_have_tuned_hps`.)
 
+**Week 2 — follow-ups (landed 2026-07-07, all offline-tested)**
+- ✅ **Scoped groups v2: position + additive** — `scoped_encodings` entries take
+  `"position": "pre_encode"|"post_encode"` (post-encode groups apply after the
+  TableVectorizer — numeric passthrough names only) and `"additive": true`
+  (the operator runs on a selected copy and its output — suffixed
+  `__<group>` — is concatenated back by row index, so originals survive; skip
+  is `SelectCols([])`, an empty frame, since `None`-passthrough would duplicate
+  columns). The LLM declares *intent* (in-place vs additive) in the plan;
+  the concat/rename structure is code-owned — names never enter the LLM
+  contract. Resolver validates both flags; Option-3 scoped proposals may carry
+  them, so an injected group can be additive/post-encode. `skrub.DatetimeEncoder`
+  added to the registry (the "extract date parts additively" case).
+  (`tests/test_scope_stage.py` — v2 section.)
+- ✅ **Interleaved propose between fixed-budget slices** — `run_search_loop` now
+  re-mines the tree and re-targets after *every* slice (`retarget=False` keeps
+  the first pick, A/B-able in sweeps), and with a proposer fires one call
+  before each slice after the first: `outer_steps=4, budget_per_step=15` =
+  `search 15 → propose → 15 → propose → 15 → propose → 15` on one persisted
+  tree (≤ `outer_steps-1` LLM calls; the invariant holds). CLI sugar
+  `--n-proposes N` / `make run-live N_PROPOSES=N` = `outer_steps N+1` + refine.
+  (`tests/test_search_loop.py` — interleave section.)
+
 Run all: `uv run python -m pytest tests/ -q`  (or `make test`)
 Run live pipeline: `make run-live BUDGET=15` · with targeting+injection: `make run-refine`
 
@@ -161,7 +184,8 @@ axis without moving the LLM into the inner loop.*
 | **`prior_fn` warm-start (free form)** | Medium | ✅ **done Jul 5** | Wed (Jul 5) |
 | **Top-k ensemble** | Medium | ✅ **done Jul 5** (`ensemble.py`) | Thu (Jul 6) |
 | **Richer Option-3 proposer** (evidence context + scoped proposals) | Medium | ✅ **done Jul 5** | — |
-| **Experimentation harness + sweeps** | **High** (A-grade) | **Not started — the remaining Week-2 item** | Fri + weekend (Jul 7–9) |
+| **Experimentation harness + sweeps** | **High** (A-grade) | ✅ **done Jul 7** (`sweep.py`, JSON specs, spec reuse) | Fri + weekend (Jul 7–9) |
+| **Imbalance-safe rollouts** (stratified subsample + minority floor) | High (fixes noisy credit-fraud rewards) | ✅ **done Jul 7** | — |
 
 Remaining notes:
 - **AggTarget** (target-based aggregation as a guarded assemble option) was the explicit
@@ -180,12 +204,28 @@ Remaining notes:
   scorer does). `pandas.Series.mean()` skips the NaN'd fold so it doesn't zero the
   run, but it deserves a closer look before the Week-3 write-up.
 
-4. **Experimentation harness + sweeps (the A-grade differentiator).** No harness exists yet
-   (`eval/` is the legacy ADK template, off the MCTS path). Build a small driver that runs the
-   pipeline across seeds/datasets and produces: **`c`-sweep** {0.3, 0.5, 0.7, 1.0}, **ablation-loop
-   on/off** (Option 1), **outer-step budget split**, **Option 3 dosage**, and now also
-   **priors on/off** and **top-k dosage**. *Done when:* 2–3 sweep figures each with a
-   one-sentence finding.
+4. ~~**Experimentation harness + sweeps (the A-grade differentiator).**~~ ✅ done Jul 7:
+   `machine_learning_engineering/sweep.py` runs a JSON sweep spec (`sweeps/example.json`;
+   `defaults` + `runs`, list values cartesian-expand per entry, `n_proposes` sugar) via
+   `make sweep SWEEP=<file>` → `runs/sweep_<ts>/{sweep.csv,sweep.md,<slug>/}`. Key design:
+   **agents run once per task** — the raw spec is captured and reused across every point
+   (`run_pipeline(spec_raw=...)`), so LLM calls stay O(tasks) not O(runs) (the checked-in
+   example: 24 runs, 14 calls — free tier is ~250/day; wall-clock CV is the binding
+   constraint). `--spec-cache` shares fetches across sweep invocations; quota errors get
+   one retry, other failures become `status="failed"` rows and the sweep continues.
+   `c`, `retarget`, `seed` are now also plumbed through `run_pipeline` and the pipeline
+   CLI (`--c`, `--no-retarget`, `--seed`). *Still owed for Week 3:* the 2–3 sweep
+   figures with one-sentence findings, generated from `sweep.csv`.
+
+5. **Imbalance-safe rollouts (done Jul 7).** The live credit-fraud scores (~0.585) were
+   near-noise: a plain 500-row subsample of a 1.25%-positive table holds ~6 positives, so
+   StratifiedKFold(5) tested on 1–2 per fold and bad draws degenerated folds
+   (roc_auc → NaN). `make_rollout_fn(target=...)` now uses `_stratified_subsample`
+   (per-class seeded sampling with a minority floor of 10 real rows, never duplicated —
+   duplication would leak across folds), shrinks `n_splits` when the subsampled minority
+   is still smaller than the fold count, and averages folds with `_fold_mean`
+   (NaN-skipping, all-NaN → 0.0). The ensemble holdout is likewise stratified for
+   classification. Re-run credit-fraud live to re-baseline before the Week-3 figures.
 
 > **Hard feature freeze: end of Week 2 (Sun Jul 9).** After this — evaluation, debugging, writing only.
 

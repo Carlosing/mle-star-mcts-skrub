@@ -55,6 +55,9 @@ _ANALYST_INSTRUCTION = (
     "or numeric;\n"
     "  - candidate encoders (e.g. GapEncoder vs MinHashEncoder), cleaning "
     "steps, scaling/feature-engineering, and 2-3 candidate model families;\n"
+    "  - any SPECIFIC column that deserves its own operator: a date column to "
+    "expand into parts (keeping the raw date), a free-text/dirty column needing "
+    "a dedicated encoder, or a numeric column to rescale after encoding;\n"
     "  - any relational/auxiliary-table opportunity (aggregate joins). If the "
     "summary lists auxiliary tables, name the join keys (the summary lists "
     "candidates) and which aux columns/aggregations look predictive.\n"
@@ -70,8 +73,9 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "searches this menu with MCTS, so offer 2-3 real options per stage wherever "
     "it is reasonable.\n\n"
     "Pipeline stages, in order: assemble (relational, optional) -> clean "
-    "(optional) -> encode (required) -> scale/feature-eng (optional) -> model "
-    "(required). For optional stages, include a 'skip' option.\n\n"
+    "(optional) -> scoped operators pre-encode (optional) -> encode (required) "
+    "-> scoped operators post-encode (optional) -> scale/feature-eng (optional) "
+    "-> model (required). For optional stages, include a 'skip' option.\n\n"
     "An operator is a FULL DOTTED IMPORT PATH (bare, for defaults) OR an object "
     '{"name": <path>, "params": {...}} to ALSO search its hyperparameters — '
     "prefer tuning the model's key hyperparameters, and give GENEROUS, "
@@ -106,15 +110,25 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "Use EXACT table and column names from the data summary (join-key "
     "candidates are listed there); sum/median/mean/std only on numeric "
     'columns. A "skip" option is added automatically.\n\n'
-    "SCOPED ENCODING (optional, at most 3 groups): when a SPECIFIC column "
-    "deserves its own encoder (a dirty high-cardinality categorical, free "
-    "text, ...) instead of the one shared high-cardinality encoder, add\n"
+    "SCOPED OPERATORS (optional, at most 3 groups): when SPECIFIC columns "
+    "deserve their own operator (a dirty high-cardinality categorical, free "
+    "text, a date to expand, a numeric column to rescale, ...), add\n"
     '  "scoped_encodings": [{"name": <short label>, '
     '"cols": [<exact column names from the data summary>], '
-    '"options": [<encoder paths to search, e.g. "skrub.GapEncoder">]}]\n'
+    '"options": [<operator paths to search, e.g. "skrub.GapEncoder">], '
+    '"position": "pre_encode"|"post_encode", "additive": true|false}]\n'
     "The engine searches each group independently (a 'skip' option is added "
     "automatically) and the default vectorizer still handles all unscoped "
-    "columns. Use exact column names; invented names are dropped.\n\n"
+    "columns. Use exact column names; invented names are dropped.\n"
+    '"position" (default "pre_encode") says WHERE the operator runs: '
+    '"pre_encode" = on the raw columns before vectorization (encoders, date '
+    'expansion); "post_encode" = on the vectorized table (e.g. scaling — only '
+    "NUMERIC columns keep their names through the vectorizer, so post_encode "
+    'only works on numeric columns). Set "additive": true when the operation '
+    "is NOT in-place — i.e. the original columns must be KEPT alongside the "
+    "derived output (e.g. extracting month from a date while keeping the raw "
+    "date). The engine concatenates the derived columns by row index "
+    "automatically; leave false (default) to replace the columns.\n\n"
     + format_allowed_for_prompt()
 )
 

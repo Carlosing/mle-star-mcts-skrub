@@ -80,6 +80,11 @@ REGISTRY = {
         "tunable": {"n_components": _int(20, 80)},
     },
     "skrub.StringEncoder": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    "skrub.DatetimeEncoder": {
+        "kind": "transformer",
+        "defaults": {},
+        "tunable": {"resolution": _choice(["month", "day", "hour"])},
+    },
     # sklearn transformers
     "sklearn.preprocessing.StandardScaler": {
         "kind": "transformer",
@@ -318,13 +323,17 @@ def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> 
     Keeps a group only if at least one of its columns exists in the main table
     and at least one option resolves through the allowlist. Column names the
     LLM invented are dropped (build_staged_plan re-checks against the actual
-    dataframe, and the runtime selector is missing-tolerant on top).
+    dataframe, and the runtime selector is missing-tolerant on top). Two
+    optional flags pass through: ``"position": "post_encode"`` (apply after
+    the vectorizer; anything else falls back to the pre_encode default) and
+    ``"additive": true`` (keep the original columns, concatenate the output).
 
     Example:
         _resolve_scoped(
-            [{"name": "title enc", "cols": ["title", "ghost"],
+            [{"name": "title enc", "cols": ["title", "ghost"], "additive": True,
               "options": ["skip", "skrub.GapEncoder"]}], 42, ["title", "x"])
-        # -> [{"name": "title_enc", "cols": ["title"], "options": [<GapEncoder>]}]
+        # -> [{"name": "title_enc", "cols": ["title"], "options": [<GapEncoder>],
+        #      "additive": True}]
     """
     out, seen = [], set()
     for cfg in entries or []:
@@ -354,7 +363,12 @@ def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> 
         if not options:
             continue
         seen.add(name)
-        out.append({"name": name, "cols": cols, "options": options})
+        group = {"name": name, "cols": cols, "options": options}
+        if cfg.get("position") == "post_encode":
+            group["position"] = "post_encode"
+        if cfg.get("additive") is True:
+            group["additive"] = True
+        out.append(group)
         if priors is not None and group_priors:
             priors[f"scope_{name}"] = group_priors
     return out

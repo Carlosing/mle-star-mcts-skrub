@@ -152,15 +152,26 @@ def run_pipeline(
     propose=None,
     data_dir: str | None = None,
     top_k: int = 1,
+    c: float = 0.5,
+    retarget: bool = True,
+    spec_raw: str | None = None,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
     ``model``/``with_search`` are forwarded to ``build_root_agent`` (tests pass a
     fake model + with_search=False to run fully offline). The search itself runs
     through ``search_loop.run_search_loop`` with model-gated HP search and a score
-    cache; ``outer_steps > 1`` enables ablation targeting (Option 1) and, with a
-    ``propose`` callable, LLM per-stage option injection (Option 3). If ``out_dir``
-    is set, the run is persisted there.
+    cache; ``outer_steps > 1`` runs the budget as fixed-size slices on one
+    persisted tree, re-targeting a stage between slices (Option 1) and, with a
+    ``propose`` callable, injecting new options for it before each subsequent
+    slice (Option 3 — the CLI's ``--n-proposes N`` is sugar for this). If
+    ``out_dir`` is set, the run is persisted there.
+
+    ``c``/``retarget`` are forwarded to ``run_search_loop`` (UCT exploration
+    constant; whether Option 1 re-picks the target stage between slices).
+    ``spec_raw`` skips the analyst/plan-author agents entirely and resolves the
+    given raw plan instead — the sweep harness fetches the spec once per task
+    and reuses it across points, so LLM calls stay O(tasks), not O(runs).
     """
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
@@ -170,10 +181,13 @@ def run_pipeline(
     )
     summary = make_data_summary(df, target, aux_tables=aux_tables)
 
-    root = build_root_agent(model=model, with_search=with_search, log_dir=log_dir)
-    session = asyncio.run(_run_agents(root, summary))
-
-    raw = session.state.get("skrub_spec_raw", "")
+    if spec_raw is None:
+        root = build_root_agent(model=model, with_search=with_search, log_dir=log_dir)
+        session = asyncio.run(_run_agents(root, summary))
+        raw = session.state.get("skrub_spec_raw", "")
+        analysis = session.state.get("dataset_analysis", "")
+    else:
+        raw, analysis = spec_raw, ""  # reused spec: no agent turns, no analysis
     spec, used_fallback = _safe_resolve(
         raw,
         task_type,
@@ -188,8 +202,10 @@ def run_pipeline(
         scoring=metrics.search_scorer(task_type, metric),
         outer_steps=outer_steps,
         budget_per_step=budget,
+        c=c,
         seed=seed,
         propose=propose,
+        retarget=retarget,
         aux_tables=aux_tables or None,
         context_text=summary,
         stratify=(task_type == "classification"),
@@ -221,8 +237,11 @@ def run_pipeline(
             search, df, target, task_type, metric, aux_tables, top_k, seed
         ),
         "used_fallback_spec": used_fallback,
+        "reused_spec": spec_raw is not None,
+        "llm_calls": (0 if spec_raw is not None else 2)
+        + ((outer_steps - 1) if propose is not None else 0),
         "data_summary": summary,  # the data report fed to the analyst
-        "analysis": session.state.get("dataset_analysis", ""),  # report -> planner
+        "analysis": analysis,  # report -> planner
         "spec_raw": raw,  # the plan the planner generated
     }
     if out_dir is not None:
@@ -367,24 +386,47 @@ def _main() -> None:
         help="enable LLM per-stage option injection (Option 3); needs --outer-steps>1",
     )
     parser.add_argument(
+        "--n-proposes",
+        type=int,
+        default=None,
+        help="interleave N proposer calls between fixed-budget slices "
+        "(sugar for --refine --outer-steps N+1: search BUDGET -> propose -> "
+        "search BUDGET -> ...)",
+    )
+    parser.add_argument(
         "--top-k",
         type=int,
         default=1,
         help="ensemble the top-k incumbents from the score cache (1 = off)",
     )
+    parser.add_argument(
+        "--c", type=float, default=0.5, help="UCT exploration constant"
+    )
+    parser.add_argument(
+        "--no-retarget",
+        action="store_true",
+        help="keep the first Option-1 target stage for the whole run",
+    )
+    parser.add_argument("--seed", type=int, default=42, help="global random seed")
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
     out_dir = args.out or default_out_dir(task)
-    propose = make_llm_proposer() if args.refine else None
+    outer_steps, refine = args.outer_steps, args.refine
+    if args.n_proposes is not None:  # sugar: N propose calls between slices
+        outer_steps, refine = args.n_proposes + 1, args.n_proposes > 0
+    propose = make_llm_proposer() if refine else None
     result = run_pipeline(
         task_name=args.task,
         target=args.target,
         budget=args.budget,
         out_dir=out_dir,
-        outer_steps=args.outer_steps,
+        seed=args.seed,
+        outer_steps=outer_steps,
         propose=propose,
         top_k=args.top_k,
+        c=args.c,
+        retarget=not args.no_retarget,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"

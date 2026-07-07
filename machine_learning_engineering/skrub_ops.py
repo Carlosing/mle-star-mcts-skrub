@@ -17,10 +17,12 @@ Determinism requirements (UCT values never converge otherwise):
   is NOT seeded in 0.9.
 """
 
+import functools
 import re
 from typing import Callable
 
 import numpy as np
+import pandas as pd
 import skrub
 from skrub import selectors as _selectors
 from skrub._data_ops import _evaluation as _ev
@@ -278,6 +280,69 @@ def _scoped_options(options: list) -> dict:
     return labeled
 
 
+def _suffix_column(col: str, suffix: str) -> str:
+    """Rename helper for additive scope groups (module-level so it pickles).
+
+    Example:
+        _suffix_column("signup_month", "date_feats")  # -> "signup_month__date_feats"
+    """
+    return f"{col}__{suffix}"
+
+
+def _additive_scoped_options(options: list) -> dict:
+    """Label additive-group options; 'skip' emits ZERO columns (not passthrough).
+
+    An additive group's output is concatenated back onto the table, so its
+    skip outcome cannot be None — None means passthrough, which would
+    duplicate the scoped columns. SelectCols([]) yields an empty frame, so
+    skip degrades the concat to a no-op.
+
+    Example:
+        _additive_scoped_options([DatetimeEncoder()])
+        # -> {"skip": SelectCols(cols=[]), "DatetimeEncoder": ...}
+    """
+    labeled = _scoped_options(options)
+    labeled["skip"] = skrub.SelectCols([])  # replaces None, keeps first position
+    return labeled
+
+
+def _apply_scope_group(node, group: dict, cols: list[str]):
+    """Insert one scoped-encoding group into the DAG at the current node.
+
+    Replace mode (default): the chosen operator's output SUBSTITUTES the
+    scoped columns (`.skb.apply(cols=...)`). Additive mode
+    (``group["additive"]``): the operator runs on a selected copy of the
+    columns and its output — suffixed ``__<group name>`` against collisions —
+    is concatenated back by row index, so the originals survive. 'skip' is
+    the default no-op in both modes; the selector is missing-tolerant.
+
+    Example:
+        node = _apply_scope_group(
+            node, {"name": "date_feats", "additive": True,
+                   "options": [DatetimeEncoder()]}, ["signup"])
+        # -> node with 'signup' kept AND signup_*__date_feats appended
+    """
+    name = group["name"]
+    if group.get("additive"):
+        sub = node.skb.apply(skrub.SelectCols(_scope_selector(cols)))
+        derived = sub.skb.apply(
+            skrub.choose_from(
+                _additive_scoped_options(list(group["options"])),
+                name=f"scope_{name}",
+            )
+        )
+        renamed = derived.rename(
+            columns=functools.partial(_suffix_column, suffix=name)
+        )
+        return node.skb.concat([renamed], axis=1)
+    return node.skb.apply(
+        skrub.choose_from(
+            _scoped_options(list(group["options"])), name=f"scope_{name}"
+        ),
+        cols=_scope_selector(cols),
+    )
+
+
 def build_staged_plan(
     spec: dict, df, target: str = "target", aux_tables: dict | None = None
 ):
@@ -292,8 +357,9 @@ def build_staged_plan(
     search the *construction* of the pipeline, not just hyperparameters.
 
     Stages are applied in canonical pipeline order:
-    assemble (relational) -> clean -> scoped encodings -> encode ->
-    post-encoding stages -> model. See docs/pipeline-stages.md for the taxonomy.
+    assemble (relational) -> clean -> scoped encodings (pre_encode) ->
+    encode -> scoped encodings (post_encode) -> post-encoding stages ->
+    model. See docs/pipeline-stages.md for the taxonomy.
 
     `spec` shape (operators are real estimator instances, not strings —
     translating LLM text to instances is a separate concern):
@@ -308,13 +374,23 @@ def build_staged_plan(
           ],
           # optional: cleaning / type coercion before encoding
           "clean_options": [None, Cleaner()],
-          # optional: scope — apply a searchable encoder to SPECIFIC columns
-          # (before the TableVectorizer, which still handles the rest). Column
-          # names are validated against df and matched missing-tolerantly at
-          # runtime (see _scope_selector); a 'skip' default is added.
+          # optional: scope — apply a searchable operator to SPECIFIC columns.
+          # Column names are validated against df and matched
+          # missing-tolerantly at runtime (see _scope_selector); a 'skip'
+          # default is added. Two optional axes per group:
+          #   "position": "pre_encode" (default; before the TableVectorizer)
+          #     or "post_encode" (after it — only names the vectorizer
+          #     passes through unchanged, i.e. numeric columns, still match);
+          #   "additive": True to KEEP the original columns and concatenate
+          #     the operator's output (suffixed __<name>) by row index,
+          #     instead of replacing them (see _apply_scope_group).
           "scoped_encodings": [
             {"name": "title_enc", "cols": ["job_title"],
              "options": [GapEncoder(), MinHashEncoder()]},
+            {"name": "date_feats", "cols": ["signup"], "additive": True,
+             "options": [DatetimeEncoder()]},
+            {"name": "num_scale", "cols": ["age"], "position": "post_encode",
+             "options": [StandardScaler()]},
           ],
           # optional: encoder choice inside the TableVectorizer
           "encoder_options": [GapEncoder(), MinHashEncoder()],
@@ -369,17 +445,22 @@ def build_staged_plan(
             skrub.choose_from(_skip_first(spec["clean_options"]), name="clean")
         )
 
-    # --- scope: searchable encoder on an explicit column subset ---
-    for group in spec.get("scoped_encodings", []) or []:
-        cols = [c for c in group.get("cols", []) if c in df.columns and c != target]
-        if not cols:
-            continue  # nothing valid to scope over -> group dropped
-        node = node.skb.apply(
-            skrub.choose_from(
-                _scoped_options(list(group["options"])), name=f"scope_{group['name']}"
-            ),
-            cols=_scope_selector(cols),
-        )
+    # --- scope: searchable operator on an explicit column subset ---
+    scoped_groups = spec.get("scoped_encodings", []) or []
+
+    def _scope_pass(node, position: str):
+        for group in scoped_groups:
+            if group.get("position", "pre_encode") != position:
+                continue
+            cols = [
+                c for c in group.get("cols", []) if c in df.columns and c != target
+            ]
+            if not cols:
+                continue  # nothing valid to scope over -> group dropped
+            node = _apply_scope_group(node, group, cols)
+        return node
+
+    node = _scope_pass(node, "pre_encode")
 
     # --- encode / vectorize ---
     enc_opts = spec.get("encoder_options")
@@ -390,6 +471,9 @@ def build_staged_plan(
     else:
         vectorizer = skrub.TableVectorizer()
     node = node.skb.apply(vectorizer)
+
+    # --- scope, post-encode: e.g. scale specific (passthrough-named) columns ---
+    node = _scope_pass(node, "post_encode")
 
     # --- post-encoding numeric stages (scale, feature-eng, select) ---
     for stage in spec.get("stages", []):
@@ -456,7 +540,7 @@ def _single_var_name(plan) -> str:
     #          (raises for a relational plan with >1 input var)
 
 
-def _cv_kwarg(stratify: bool, seed: int) -> dict:
+def _cv_kwarg(stratify: bool, seed: int, n_splits: int = 5) -> dict:
     """A `cross_validate(cv=...)` kwarg, stratified when the target is rare.
 
     skrub's `cross_validate` calls `check_cv(cv)` **without** `y`/`classifier`,
@@ -467,12 +551,73 @@ def _cv_kwarg(stratify: bool, seed: int) -> dict:
     NaN rewards then poison the score cache without ever crashing. Passing an
     explicit `StratifiedKFold` (which skrub forwards straight to `cv.split`)
     fixes this; `stratify=False` keeps the old (regression) behavior.
+
+    `n_splits` lets callers shrink the fold count when even a stratified
+    subsample holds fewer minority rows than folds (see `make_rollout_fn`).
+
+    Example:
+        _cv_kwarg(True, 42, n_splits=3)  # -> {"cv": StratifiedKFold(3, ...)}
+        _cv_kwarg(False, 42)             # -> {}
     """
     if not stratify:
         return {}
     from sklearn.model_selection import StratifiedKFold
 
-    return {"cv": StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)}
+    return {"cv": StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)}
+
+
+def _stratified_subsample(df, target: str, n: int, seed: int, floor: int = 10):
+    """A seeded per-class subsample of `n` rows with a minority floor.
+
+    On extreme imbalance (credit-fraud is ~1.25% positive) a plain
+    `df.sample(n=500)` captures only ~6 minority rows; StratifiedKFold(5)
+    then tests on 1–2 positives per fold, so rewards are near-noise and a
+    bad draw degenerates folds to a single class (roc_auc -> NaN). Sampling
+    per class with `quota = min(count, max(floor, proportional share))`
+    guarantees each class at least `floor` real rows (all of them when the
+    data has fewer) — **without replacement, never duplicated**, since a
+    duplicated row landing in both a train and a test fold would leak.
+    The floor slightly shifts prevalence vs the full data; that is harmless
+    for rank-based scorers (roc_auc) and negligible for accuracy at
+    floor=10. Same `(df, target, n, seed)` -> identical frame.
+
+    Example:
+        small = _stratified_subsample(df, "fraud", n=500, seed=42)
+        small["fraud"].value_counts().min()  # >= 10 (or all minority rows)
+    """
+    counts = df[target].value_counts()
+    labels = sorted(counts.index, key=lambda c: (counts[c], str(c)))
+    quotas = {
+        c: min(int(counts[c]), max(floor, round(n * counts[c] / len(df))))
+        for c in labels
+    }
+    # Trim overshoot from the largest classes first, never below the floor.
+    for c in reversed(labels):
+        excess = sum(quotas.values()) - n
+        if excess <= 0:
+            break
+        quotas[c] = max(min(int(counts[c]), floor), quotas[c] - excess)
+    parts = [
+        df[df[target] == c].sample(n=quotas[c], random_state=seed) for c in labels
+    ]
+    return pd.concat(parts).sample(frac=1.0, random_state=seed)
+
+
+def _fold_mean(scores) -> float:
+    """Mean over per-fold CV scores, skipping scorer-failed (NaN) folds.
+
+    A degenerate fold (e.g. single-class under roc_auc) yields NaN, not an
+    exception; averaging over the remaining folds keeps an otherwise-fine
+    config alive. All folds failed -> 0.0 (worst bounded reward).
+
+    Example:
+        _fold_mean([0.8, float("nan")])  # -> 0.8
+        _fold_mean([float("nan")] * 5)   # -> 0.0
+    """
+    arr = np.asarray(scores, dtype=float)
+    if np.all(np.isnan(arr)):
+        return 0.0
+    return float(np.nanmean(arr))
 
 
 def make_rollout_fn(
@@ -484,6 +629,7 @@ def make_rollout_fn(
     main_var: str | None = None,
     scoring: str | None = None,
     stratify: bool = False,
+    target: str | None = None,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -506,7 +652,12 @@ def make_rollout_fn(
 
     `stratify=True` (pass for classification, especially imbalanced targets)
     uses a seeded `StratifiedKFold` instead of skrub's plain-`KFold` default —
-    see `_cv_kwarg` for why this matters.
+    see `_cv_kwarg` for why this matters. Passing `target` as well upgrades
+    the *subsample* to a stratified one with a minority floor
+    (`_stratified_subsample`) and shrinks `n_splits` when the subsampled
+    minority is smaller than the fold count; without `target` the subsample
+    stays the plain seeded `df.sample` of before. Per-fold NaNs (degenerate
+    folds) are skipped via `_fold_mean` instead of failing the config.
 
     Input:  plan + training df; returns a closure rollout(state) -> float.
 
@@ -518,19 +669,27 @@ def make_rollout_fn(
         rollout = make_rollout_fn(plan, main_df, aux={"aux": aux_df}, main_var="data")
     """
     n = min(len(df), max(min_rows, int(0.01 * len(df))))
-    small = df.sample(n=n, random_state=seed)
+    if stratify and target is not None and target in df.columns:
+        small = _stratified_subsample(df, target, n, seed)
+        minority = int(small[target].value_counts().min())
+        n_splits = int(min(5, max(2, minority)))
+    else:
+        small = df.sample(n=n, random_state=seed)
+        n_splits = 5
     var_name = main_var or _single_var_name(plan)
 
     def rollout(state: dict) -> float:
         try:
             apply_state(plan, state)
             environment = {var_name: small, **(aux or {})}
-            cv_kwargs = {"environment": environment, **_cv_kwarg(stratify, seed)}
+            cv_kwargs = {
+                "environment": environment,
+                **_cv_kwarg(stratify, seed, n_splits=n_splits),
+            }
             if scoring is not None:
                 cv_kwargs["scoring"] = scoring
             result = plan.skb.cross_validate(**cv_kwargs)
-            score = float(result["test_score"].mean())
-            return score if score == score else 0.0  # NaN (a scorer-failed fold) -> 0.0
+            return _fold_mean(result["test_score"])
         except Exception:
             return 0.0
 

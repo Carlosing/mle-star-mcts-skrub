@@ -187,6 +187,61 @@ def test_stratified_rollout_avoids_nan_on_rare_target():
     assert 0.0 <= score <= 1.0 and score == score  # finite, never NaN-derived
 
 
+def test_stratified_subsample_floor_no_duplicates_deterministic():
+    df = _imbalanced_df(n=5000, pos_rate=0.01, seed=1)
+    small = skrub_ops._stratified_subsample(df, "target", n=500, seed=0)
+    assert len(small) == 500
+    assert small["target"].value_counts().min() >= 10  # the minority floor
+    assert small.index.is_unique  # sampled without replacement, never duplicated
+    again = skrub_ops._stratified_subsample(df, "target", n=500, seed=0)
+    assert small.equals(again)
+
+
+def test_stratified_subsample_takes_all_scarce_minority():
+    df = _imbalanced_df(n=1000, pos_rate=0.0, seed=2)
+    df.loc[df.index[:6], "target"] = 1  # exactly 6 positives in the data
+    small = skrub_ops._stratified_subsample(df, "target", n=200, seed=0)
+    assert int((small["target"] == 1).sum()) == 6  # all of them, never more
+
+
+def test_cv_kwarg_adaptive_n_splits():
+    assert skrub_ops._cv_kwarg(True, seed=42, n_splits=3)["cv"].n_splits == 3
+    assert skrub_ops._cv_kwarg(False, seed=42, n_splits=3) == {}
+
+
+def test_fold_mean_skips_nan_folds():
+    nan = float("nan")
+    assert skrub_ops._fold_mean([0.8, nan]) == pytest.approx(0.8)
+    assert skrub_ops._fold_mean([nan, nan, nan]) == 0.0
+
+
+def test_rollout_nonzero_and_deterministic_on_extreme_imbalance():
+    """The credit-fraud failure ladder: a plain 500-row subsample of ~0.2%
+    positives holds ~1 positive, so StratifiedKFold(5) degenerates and roc_auc
+    NaNs folds. Passing target= turns on the stratified subsample (minority
+    floor) + adaptive n_splits — the reward must be informative and repeat
+    exactly across fresh closures."""
+    rng = np.random.default_rng(3)
+    n = 4000
+    y = np.zeros(n, dtype=int)
+    y[:8] = 1  # 8 informative positives in the whole table
+    x = rng.normal(size=n) + 3.0 * y
+    df = pd.DataFrame({"x": x, "target": y}).sample(frac=1.0, random_state=3)
+    from sklearn.linear_model import LogisticRegression
+
+    def fresh_rollout():
+        spec = {"model": {"LogReg": LogisticRegression(max_iter=500)}}
+        plan = skrub_ops.build_staged_plan(spec, df)
+        return skrub_ops.make_rollout_fn(
+            plan, df, min_rows=400, scoring="roc_auc",
+            stratify=True, target="target",
+        )
+
+    score = fresh_rollout()({"model": "LogReg"})
+    assert 0.0 < score <= 1.0 and score == score
+    assert fresh_rollout()({"model": "LogReg"}) == score  # seeded determinism
+
+
 # --- end-to-end (agents mocked) --------------------------------------------------
 
 _REL_ANALYSIS = """\

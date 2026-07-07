@@ -4,16 +4,19 @@ Wraps repeated `mcts.mcts_search` calls with a persisted tree (`root`,
 `tried_states`) and a `score_cache`, so the search refines across outer steps
 instead of restarting. Two refinements layer on top:
 
-- **Option 1 (no LLM):** after a broad first phase, mine per-stage action values
-  from the tree, `pick_target_node`, then run a phase with `target_key` set so
-  expansion focuses on that one stage (the rest stay at the incumbent's values).
-- **Option 3 (one LLM call / outer step):** ask a `propose` callable for new
-  operator paths for the targeted stage, validate + inject them into the spec,
-  **rebuild the plan** (skrub has no mid-run splice), and continue on the same
-  tree — so a run can keep an option that was not in the original plan.
+- **Option 1 (no LLM):** after every fixed-budget slice, mine per-stage action
+  values from the tree, `pick_target_node`, then run the next slice with
+  `target_key` set so expansion focuses on that one stage (the rest stay at
+  the incumbent's values). Re-targeting happens between slices by default
+  (`retarget=False` keeps the first pick).
+- **Option 3 (one LLM call between slices):** before each slice after the
+  first, ask a `propose` callable for new operator paths for the currently
+  targeted stage, validate + inject them into the spec, **rebuild the plan**
+  (skrub has no mid-run splice), and continue on the same tree — so a run can
+  keep an option that was not in the original plan.
 
 The `propose` callable is injected (tests pass a fake); the LLM never enters the
-inner search loop — at most `outer_steps` calls total.
+inner search loop — at most `outer_steps - 1` calls total.
 """
 
 import inspect
@@ -120,18 +123,21 @@ def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=N
 
     Returns (new_spec, kept_paths). A proposal is a dotted path, or
     ``{"name": path, "cols": [...]}`` to *scope* the operator to specific
-    columns: when the target is the shared ``encoder`` stage, a scoped
-    proposal becomes a NEW scoped-encoding group (a new search dimension);
-    when the target is already a ``scope_*`` group the operator joins that
-    group (its columns are fixed). ``cols`` are validated against
-    ``valid_columns``; a proposal is dropped if its path isn't importable /
-    allowlisted (``_make`` returns None) or its label is already an option in
+    columns (optionally with ``"additive": true`` and/or
+    ``"position": "post_encode"``, which carry onto the new group): when the
+    target is the shared ``encoder`` stage, a scoped proposal becomes a NEW
+    scoped-encoding group (a new search dimension); when the target is already
+    a ``scope_*`` group the operator joins that group (its columns are fixed).
+    ``cols`` are validated against ``valid_columns``; a proposal is dropped if
+    its path isn't importable / allowlisted (``_make`` returns None) or its
+    label is already an option in
     the stage (no duplicate outcomes).
     """
     current = set(current_labels)
     group_names = {g["name"] for g in spec.get("scoped_encodings", [])}
     instances, new_groups, kept = [], [], []
     for prop in proposals:
+        extra = prop if isinstance(prop, dict) else {}
         path, cols = (prop, None) if isinstance(prop, str) else (
             prop.get("name"), prop.get("cols")
         )
@@ -145,7 +151,12 @@ def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=N
             if name in group_names:
                 continue
             group_names.add(name)
-            new_groups.append({"name": name, "cols": cols, "options": [inst]})
+            group = {"name": name, "cols": cols, "options": [inst]}
+            if extra.get("position") == "post_encode":
+                group["position"] = "post_encode"
+            if extra.get("additive") is True:
+                group["additive"] = True
+            new_groups.append(group)
             kept.append(path)
             continue
         label = _label(inst, stage_key)
@@ -174,6 +185,7 @@ def run_search_loop(
     seed: int = 42,
     propose=None,
     n_propose: int = 3,
+    retarget: bool = True,
     aux_tables: dict | None = None,
     priors: dict | None = None,
     context_text: str | None = None,
@@ -181,12 +193,18 @@ def run_search_loop(
 ) -> dict:
     """Run the persisted, optionally-refined search and return a results dict.
 
-    `outer_steps == 1` is a plain (gated) single MCTS phase. With more steps it
-    targets a stage (Option 1) and, if `propose` is given, injects new options
-    into that stage each subsequent step (Option 3). Returns the (possibly
-    rebuilt) plan so the caller can score the incumbent on it. For relational
-    tasks pass `aux_tables={name: df}` — auxiliary tables join whole (never
-    subsampled) and survive the Option-3 plan rebuild.
+    `outer_steps == 1` is a plain (gated) single MCTS phase. With more steps
+    the search runs as fixed-budget SLICES on the same persisted tree,
+    interleaved with refinement: after every slice the tree is re-mined and a
+    stage is (re-)targeted (Option 1; `retarget=False` keeps the first pick
+    for the whole run), and, if `propose` is given, one proposer call injects
+    new options into the current target before each subsequent slice
+    (Option 3) — so `outer_steps=4, budget_per_step=15` means
+    `search 15 → propose → 15 → propose → 15 → propose → 15`, at most
+    `outer_steps - 1` LLM calls total. Returns the (possibly rebuilt) plan so
+    the caller can score the incumbent on it. For relational tasks pass
+    `aux_tables={name: df}` — auxiliary tables join whole (never subsampled)
+    and survive the Option-3 plan rebuild.
 
     `priors` (default: `spec["priors"]`, collected by the resolver from the
     plan's per-option confidence weights) warm-starts freshly expanded
@@ -203,7 +221,7 @@ def run_search_loop(
         plan = build_staged_plan(current_spec, df, target=target, aux_tables=aux_tables)
         rollout = make_rollout_fn(
             plan, df, seed=seed, scoring=scoring, aux=aux_tables, main_var="data",
-            stratify=stratify,
+            stratify=stratify, target=target,
         )
         return plan, get_action_space(plan), get_choice_gating(plan), rollout
 
@@ -272,8 +290,10 @@ def run_search_loop(
         if bscore > best_score:
             best_state, best_score = bstate, bscore
 
-        # Option 1: after the broad first phase, pick a stage to focus on.
-        if step == 0 and outer_steps > 1:
+        # Option 1: after each slice, (re-)pick the stage to focus next on.
+        # `retarget=False` keeps the first pick for the whole run (the old
+        # fixed-target behavior, kept A/B-able for the sweep harness).
+        if outer_steps > 1 and step < outer_steps - 1 and (retarget or target_key is None):
             ledger = {
                 k: v for k, v in tree_action_values(root).items() if "__" not in k
             }
@@ -296,7 +316,7 @@ def run_search_loop(
     }
 
 
-# --- the real LLM proposer (one Gemini call per outer step) -------------------
+# --- the real LLM proposer (one Gemini call between search slices) ------------
 
 import json as _json  # noqa: E402
 import re as _re  # noqa: E402
@@ -332,7 +352,12 @@ def _parse_proposals(text: str) -> list:
                     out.append(x)
                 elif isinstance(x, dict) and isinstance(x.get("name"), str):
                     cols = [c for c in (x.get("cols") or []) if isinstance(c, str)]
-                    out.append({"name": x["name"], "cols": cols})
+                    item = {"name": x["name"], "cols": cols}
+                    if x.get("position") == "post_encode":
+                        item["position"] = "post_encode"
+                    if x.get("additive") is True:
+                        item["additive"] = True
+                    out.append(item)
             return out
     except Exception:
         pass
@@ -362,15 +387,17 @@ def make_llm_proposer(model: str | None = None, n: int = 3, temperature: float =
     """Return a `propose(stage_key, ledger, vocab, context) -> [proposals]`
     backed by Gemini.
 
-    One synchronous `google.genai` call per outer step (the LLM never enters the
-    inner search loop). The `context` dict (built by `run_search_loop`) grounds
-    the proposal in search evidence: the cross-stage tree-mined ledger, the
-    incumbent config + score, the data digest, and the real column names — so
-    the model proposes against what was actually measured, not blind. For
-    encoder/scope stages a proposal may be `{"name": path, "cols": [...]}` to
-    scope an encoder to specific columns. On any failure (quota, parse) it
-    returns `[]`, so the search just continues without injection. genai is
-    imported lazily so this module stays importable offline.
+    One synchronous `google.genai` call between search slices (the LLM never
+    enters the inner search loop). The `context` dict (built by
+    `run_search_loop`) grounds the proposal in search evidence: the cross-stage
+    tree-mined ledger, the incumbent config + score, the data digest, and the
+    real column names — so the model proposes against what was actually
+    measured, not blind. For encoder/scope stages a proposal may be
+    `{"name": path, "cols": [...]}` to scope an operator to specific columns,
+    optionally with `"additive": true` (keep the originals) and
+    `"position": "post_encode"` (run after vectorization). On any failure
+    (quota, parse) it returns `[]`, so the search just continues without
+    injection. genai is imported lazily so this module stays importable offline.
     """
     from google import genai  # lazy
 
@@ -387,7 +414,11 @@ def make_llm_proposer(model: str | None = None, n: int = 3, temperature: float =
         if stage_key == "encoder" or stage_key.startswith("scope_"):
             scoped_hint = (
                 'An item may also be {"name": <path>, "cols": [<exact column '
-                "names>]} to scope an encoder to specific columns. Known "
+                "names>]} to scope an operator to specific columns; add "
+                '"additive": true when the ORIGINAL columns must be kept '
+                "alongside the derived output (e.g. date-part extraction), "
+                'and "position": "post_encode" to run after vectorization '
+                "(numeric columns only). Known "
                 f"columns: {ctx.get('columns', [])}.\n"
             )
         digest = ctx.get("digest")

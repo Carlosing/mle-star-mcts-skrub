@@ -5,7 +5,8 @@ calls): options may carry `"prior": 0.0-1.0`, the resolver collects them into
 `spec["priors"]`, and the search loop turns that into a pure-lookup `prior_fn`
 that seeds every fresh child's Q/N. The proposer side: `run_search_loop` hands
 the proposer an evidence context (cross-stage ledger, incumbent, digest,
-columns) and accepts scoped proposals `{"name": path, "cols": [...]}`.
+columns) and accepts scoped proposals `{"name": path, "cols": [...]}`,
+optionally flagged `"additive": true` / `"position": "post_encode"`.
 """
 
 import os
@@ -128,6 +129,19 @@ def test_parse_proposals_accepts_paths_and_scoped_objects():
     assert _parse_proposals(text) == [
         "skrub.MinHashEncoder",
         {"name": "skrub.GapEncoder", "cols": ["color"]},  # non-str col dropped
+    ]
+
+
+def test_parse_proposals_carries_additive_and_position_flags():
+    text = ('[{"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": true}, '
+            '{"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"], '
+            '"position": "post_encode"}, '
+            '{"name": "skrub.GapEncoder", "cols": ["t"], "position": "bogus"}]')
+    assert _parse_proposals(text) == [
+        {"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": True},
+        {"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"],
+         "position": "post_encode"},
+        {"name": "skrub.GapEncoder", "cols": ["t"]},  # invalid position dropped
     ]
 
 

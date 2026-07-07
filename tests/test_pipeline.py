@@ -111,3 +111,45 @@ def test_run_pipeline_classification_offline():
     assert isinstance(result["best_search_score"], float)
     assert result["report"] is not None
     assert result["report"]["scorer"] == "accuracy"
+
+
+def test_run_pipeline_reuses_provided_spec_offline(monkeypatch):
+    # spec_raw= skips the agents entirely (the sweep harness fetches the spec
+    # once per task); proving it by making any agent run blow up the test.
+    def _boom(*a, **k):
+        raise AssertionError("agents must not run when spec_raw is provided")
+
+    monkeypatch.setattr(pipeline, "_run_agents", _boom)
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices", budget=4, spec_raw=SPEC_JSON
+    )
+    assert result["reused_spec"] is True
+    assert result["llm_calls"] == 0
+    assert not result["used_fallback_spec"]
+    assert result["analysis"] == ""  # degrades gracefully without the analyst
+    assert isinstance(result["best_search_score"], float)
+
+
+def test_run_pipeline_forwards_c_and_retarget(monkeypatch):
+    captured = {}
+
+    def fake_search_loop(spec, df, target, **kwargs):
+        captured.update(kwargs)
+        return {
+            "best_state": {}, "best_score": 0.5, "plan": None,
+            "action_space": {}, "target_key": None, "injected_options": [],
+            "score_cache": {},
+        }
+
+    monkeypatch.setattr(pipeline, "run_search_loop", fake_search_loop)
+    pipeline.run_pipeline(
+        task_name="california-housing-prices",
+        budget=4,
+        spec_raw=SPEC_JSON,
+        c=0.9,
+        retarget=False,
+        seed=7,
+    )
+    assert captured["c"] == 0.9
+    assert captured["retarget"] is False
+    assert captured["seed"] == 7

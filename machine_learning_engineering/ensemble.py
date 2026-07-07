@@ -83,7 +83,14 @@ def evaluate_top_k(
     """
     if scoring not in _METRIC_FNS:
         raise ValueError(f"unsupported scoring for ensembling: {scoring!r}")
-    holdout = df.sample(frac=holdout_frac, random_state=seed)
+    if task_type == "classification":
+        # stratified holdout: on an imbalanced target a random 25% draw can
+        # land far from the class ratio (or miss a class), inflating variance
+        holdout = df.groupby(df[target], group_keys=False).sample(
+            frac=holdout_frac, random_state=seed
+        )
+    else:
+        holdout = df.sample(frac=holdout_frac, random_state=seed)
     train = df.drop(index=holdout.index)
     train_env = {main_var: train, **(aux or {})}
     # the plan's X node drops the target itself, so the holdout keeps the

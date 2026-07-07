@@ -10,7 +10,7 @@ installed library.
 ## Stage order
 
 ```
-assemble (relational) → clean → scope (scoped encodings) → encode → feature-eng/scale → select → model → hyperparameters → post-process
+assemble (relational) → clean → scope (pre_encode) → encode → scope (post_encode) → feature-eng/scale → select → model → hyperparameters → post-process
 ```
 
 A plan is built top-down in this order; MCTS decides one stage at a time
@@ -25,7 +25,7 @@ with **skip as its default outcome**, so an undecided stage means
 | 0 | **Assemble** (relational) | `AggJoiner`, `MultiAggJoiner`, `AggTarget`, `Joiner`, `InterpolationJoiner`, `fuzzy_join` | ✅ (`AggJoiner`) | Build the feature table from multiple tables. Highest-leverage stage for relational data — the skrub differentiator vs. flat-table AutoML |
 | 1 | **Clean / coerce** | `Cleaner`, `DropUninformative`, `deduplicate`, `ToDatetime`/`ToFloat`, `SquashingScaler` | ✅ (`clean_options`) | Parse nulls/dates, drop bad columns, dedupe categories, robust scaling |
 | 2 | **Encode / vectorize** | `TableVectorizer` + `GapEncoder`/`MinHashEncoder`/`StringEncoder`/`TextEncoder`/`SimilarityEncoder`/`DatetimeEncoder`/`ToCategorical` | ✅ (`encoder_options`) | Per-column-type encoding; the encoder is a searchable choice |
-| 3 | **Scope** | `.skb.apply(estimator, cols=<selector>)`; selectors: `regex`, `cols`, `numeric`, `cardinality_below`, … | ✅ (`scoped_encodings`) | Apply a *searchable* encoder to an explicit column subset (before the TableVectorizer, which still handles the rest). Column names are validated at resolve/build time; the runtime selector is a union of exact-match regexes, so a column dropped upstream degrades the group to a no-op (`skrub_ops._scope_selector` — `selectors.cols()` would raise) |
+| 3 | **Scope** | `.skb.apply(estimator, cols=<selector>)`; selectors: `regex`, `cols`, `numeric`, `cardinality_below`, …; additive: `SelectCols` sub-select + `.skb.concat(axis=1)` | ✅ (`scoped_encodings`) | Apply a *searchable* operator to an explicit column subset. Per group: `"position"` `pre_encode` (default, before the TableVectorizer) or `post_encode` (after it — only numeric passthrough names survive vectorization); `"additive": true` KEEPS the originals and concatenates the operator's output by row index, suffixed `__<group>` (skip = `SelectCols([])`, an empty frame — `None` would passthrough-duplicate). Column names are validated at resolve/build time; the runtime selector is a union of exact-match regexes, so a column dropped upstream degrades the group to a no-op (`skrub_ops._scope_selector` — `selectors.cols()` would raise) |
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
 | 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
@@ -51,10 +51,17 @@ spec = {
     ],
     # 1. clean
     "clean_options": [None, Cleaner()],
-    # 3. scope — searchable encoder on an explicit column subset (skip default)
+    # 3. scope — searchable operator on an explicit column subset (skip default).
+    #    Optional per group: "position": "pre_encode"|"post_encode" (where it
+    #    runs relative to the TableVectorizer) and "additive": True (keep the
+    #    originals, concatenate the derived output by row index).
     "scoped_encodings": [
         {"name": "title_enc", "cols": ["job_title"],
          "options": [GapEncoder(), MinHashEncoder()]},
+        {"name": "date_feats", "cols": ["signup"], "additive": True,
+         "options": [DatetimeEncoder()]},
+        {"name": "num_scale", "cols": ["age"], "position": "post_encode",
+         "options": [StandardScaler()]},
     ],
     # 2. encode (the TableVectorizer still handles all unscoped columns)
     "encoder_options": [GapEncoder(), MinHashEncoder()],
@@ -91,7 +98,8 @@ table). Every other optional stage uses `None` = skip as its default.
 Built and tested (see [test_staged.py](../tests/test_staged.py),
 [test_scope_stage.py](../tests/test_scope_stage.py),
 [test_spec_resolver.py](../tests/test_spec_resolver.py)): assemble
-(`AggJoiner`), clean, **scope** (`scoped_encodings`), encode, scale,
+(`AggJoiner`), clean, **scope** (`scoped_encodings`, incl. `pre_encode`/
+`post_encode` placement and `additive` concat groups), encode, scale,
 feature-eng, model, **hyperparameter search** (per-operator `choose_*` from
 the JSON plan), and **conditional (model-gated) HP nesting**. The relational
 assemble stage is demonstrated to lift a near-chance score when the target
