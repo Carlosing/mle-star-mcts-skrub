@@ -67,10 +67,14 @@ def make_prompt_logging_callbacks(out_dir: str):
     def _write(agent: str, phase: str, record: dict) -> None:
         key = f"{agent}_{phase}"
         groups.setdefault(key, []).append(record)
-        with open(os.path.join(out_dir, f"{key}.json"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(out_dir, f"{key}.json"), "w", encoding="utf-8"
+        ) as f:
             json.dump(groups[key], f, ensure_ascii=False, indent=2)
 
-    def before_model(callback_context: CallbackContext, llm_request: LlmRequest):
+    def before_model(
+        callback_context: CallbackContext, llm_request: LlmRequest
+    ):
         agent = callback_context.agent_name
         _write(
             agent,
@@ -85,7 +89,9 @@ def make_prompt_logging_callbacks(out_dir: str):
         )
         return None  # do not override the outgoing request
 
-    def after_model(callback_context: CallbackContext, llm_response: LlmResponse):
+    def after_model(
+        callback_context: CallbackContext, llm_response: LlmResponse
+    ):
         agent = callback_context.agent_name
         _write(
             agent,

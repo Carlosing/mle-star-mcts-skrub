@@ -20,7 +20,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 skrub = pytest.importorskip("skrub")
 
 
-_BASE = os.path.join(os.path.dirname(__file__), "..", "machine_learning_engineering")
+_BASE = os.path.join(
+    os.path.dirname(__file__), "..", "machine_learning_engineering"
+)
 _spec = importlib.util.spec_from_file_location(
     "skrub_ops", os.path.join(_BASE, "skrub_ops.py")
 )
@@ -102,6 +104,18 @@ def test_rollout_distinguishes_states(plan, df):
 def test_rollout_swallows_bad_configs(plan, df):
     rollout = skrub_ops.make_rollout_fn(plan, df)
     assert rollout({"model": "DoesNotExist"}) == 0.0
+
+
+def test_roc_auc_scores_a_proba_only_classifier(plan, df):
+    # RandomForest exposes predict_proba but NOT decision_function. skrub's
+    # learner reports as a transformer, so sklearn's built-in roc_auc scorer
+    # never reduces the 2-column proba to the positive class -> every fold used
+    # to fail (0.0). _resolve_scoring fixes it (regression test for that).
+    rollout = skrub_ops.make_rollout_fn(
+        plan, df, scoring="roc_auc", stratify=True, target="target"
+    )
+    score = rollout({**skrub_ops.get_state(plan), "model": "RF"})
+    assert 0.5 < score <= 1.0
 
 
 def test_evaluate_full_scores_on_all_rows(plan, df):

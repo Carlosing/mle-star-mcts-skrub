@@ -39,7 +39,11 @@ def _plan_and_df():
             "target": (rng.normal(size=n) > 0).astype(int),
         }
     )
-    spec = {"model": {"RF": RandomForestClassifier(n_estimators=300, random_state=42)}}
+    spec = {
+        "model": {
+            "RF": RandomForestClassifier(n_estimators=300, random_state=42)
+        }
+    }
     return build_staged_plan(spec, df, target="target"), df
 
 
@@ -54,7 +58,9 @@ def test_time_limit_raises_on_overrun_and_passes_when_generous():
     assert time.monotonic() - t0 < 1.0  # returned promptly, not after 2s
 
     ran = False
-    with skrub_ops._time_limit(5.0):  # generous: block completes, timer disarmed
+    with skrub_ops._time_limit(
+        5.0
+    ):  # generous: block completes, timer disarmed
         ran = True
     assert ran
 

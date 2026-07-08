@@ -43,7 +43,9 @@ def toy_search():
         },
         task_type="classification",
     )
-    result = run_search_loop(spec, df, "target", scoring="accuracy", budget_per_step=8)
+    result = run_search_loop(
+        spec, df, "target", scoring="accuracy", budget_per_step=8
+    )
     return result, df
 
 
@@ -51,7 +53,12 @@ def test_evaluate_top_k_classification(toy_search):
     result, df = toy_search
     states = ensemble.top_k_states(result["score_cache"], k=3)
     report = ensemble.evaluate_top_k(
-        result["plan"], states, df, "target", "classification", scoring="accuracy"
+        result["plan"],
+        states,
+        df,
+        "target",
+        "classification",
+        scoring="accuracy",
     )
     assert report["k"] == len(states)
     assert len(report["individual_scores"]) == report["k"]
@@ -60,7 +67,12 @@ def test_evaluate_top_k_classification(toy_search):
     assert report["ensemble_score"] >= min(report["individual_scores"]) - 0.05
     # deterministic: same states, same split, same result
     again = ensemble.evaluate_top_k(
-        result["plan"], states, df, "target", "classification", scoring="accuracy"
+        result["plan"],
+        states,
+        df,
+        "target",
+        "classification",
+        scoring="accuracy",
     )
     assert again["ensemble_score"] == report["ensemble_score"]
 
@@ -69,7 +81,12 @@ def test_evaluate_top_k_roc_auc_uses_probabilities(toy_search):
     result, df = toy_search
     states = ensemble.top_k_states(result["score_cache"], k=2)
     report = ensemble.evaluate_top_k(
-        result["plan"], states, df, "target", "classification", scoring="roc_auc"
+        result["plan"],
+        states,
+        df,
+        "target",
+        "classification",
+        scoring="roc_auc",
     )
     assert 0.0 <= report["ensemble_score"] <= 1.0
 

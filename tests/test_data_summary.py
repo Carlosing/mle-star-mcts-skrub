@@ -4,7 +4,10 @@ import os
 
 import pandas as pd
 
-from machine_learning_engineering.data_summary import infer_task_type, make_data_summary
+from machine_learning_engineering.data_summary import (
+    infer_task_type,
+    make_data_summary,
+)
 
 
 def _california() -> tuple[pd.DataFrame, str]:
@@ -45,7 +48,9 @@ def test_summary_includes_head_rows():
 
 
 def test_summary_shows_examples_for_categoricals():
-    df = pd.DataFrame({"city": ["NYC", "LA", "NYC", "SF"], "target": [1, 0, 1, 0]})
+    df = pd.DataFrame(
+        {"city": ["NYC", "LA", "NYC", "SF"], "target": [1, 0, 1, 0]}
+    )
     s = make_data_summary(df, target="target")
     assert "examples=" in s  # categorical column lists example values
     assert "'NYC'" in s

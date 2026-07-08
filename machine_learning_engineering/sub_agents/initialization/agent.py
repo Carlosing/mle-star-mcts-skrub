@@ -144,11 +144,17 @@ def skip_data_use_check(
     )
     if check_data_use_finish:
         return llm_response_module.LlmResponse()
-    result_dict = callback_context.state.get(f"train_code_exec_result_0_{task_id}", {})
-    callback_context.state[f"check_data_use_skip_data_leakage_check_{task_id}"] = True
+    result_dict = callback_context.state.get(
+        f"train_code_exec_result_0_{task_id}", {}
+    )
+    callback_context.state[
+        f"check_data_use_skip_data_leakage_check_{task_id}"
+    ] = True
     if result_dict:
         return llm_response_module.LlmResponse()
-    callback_context.state[f"check_data_use_skip_data_leakage_check_{task_id}"] = False
+    callback_context.state[
+        f"check_data_use_skip_data_leakage_check_{task_id}"
+    ] = False
     return None
 
 
@@ -164,7 +170,9 @@ def rank_candidate_solutions(
     performance_results = []
     for k in range(num_model_candidates):
         model_id = k + 1
-        init_code = callback_context.state.get(f"init_code_{task_id}_{model_id}", "")
+        init_code = callback_context.state.get(
+            f"init_code_{task_id}_{model_id}", ""
+        )
         init_code_exec_result = callback_context.state.get(
             f"init_code_exec_result_{task_id}_{model_id}", {}
         )
@@ -184,13 +192,17 @@ def rank_candidate_solutions(
     base_solution = (
         performance_results[0][1].replace("```python", "").replace("```", "")
     )
-    callback_context.state[f"performance_results_{task_id}"] = performance_results
+    callback_context.state[f"performance_results_{task_id}"] = (
+        performance_results
+    )
     callback_context.state[f"best_score_{task_id}"] = best_score
     callback_context.state[f"base_solution_{task_id}"] = base_solution
     callback_context.state[f"best_idx_{task_id}"] = 0
     with open(f"{run_cwd}/train0_0.py", "w", encoding="utf-8") as f:
         f.write(base_solution)
-    callback_context.state[f"merger_code_{task_id}_0"] = performance_results[0][1]
+    callback_context.state[f"merger_code_{task_id}_0"] = performance_results[0][
+        1
+    ]
     callback_context.state[f"merger_code_exec_result_{task_id}_0"] = (
         performance_results[0][2]
     )
@@ -206,7 +218,9 @@ def select_best_solution(
     task_id = callback_context.agent_name.split("_")[-1]
     run_cwd = os.path.join(workspace_dir, task_name, task_id)
     best_idx = callback_context.state.get(f"best_idx_{task_id}", 0)
-    response = callback_context.state.get(f"merger_code_{task_id}_{best_idx}", "")
+    response = callback_context.state.get(
+        f"merger_code_{task_id}_{best_idx}", ""
+    )
     result_dict = callback_context.state.get(
         f"merger_code_exec_result_{task_id}_{best_idx}", {}
     )
@@ -239,7 +253,9 @@ def update_merger_states(
     if lower:
         if score <= best_score:
             best_score = score
-            base_solution = merged_code.replace("```python", "").replace("```", "")
+            base_solution = merged_code.replace("```python", "").replace(
+                "```", ""
+            )
             best_idx = int(reference_idx)
     elif score >= best_score:
         best_score = score
@@ -283,7 +299,9 @@ def create_workspace(
         shutil.rmtree(run_cwd)
     # make required directories
     os.makedirs(os.path.join(workspace_dir, task_name, task_id), exist_ok=True)
-    os.makedirs(os.path.join(workspace_dir, task_name, task_id, "input"), exist_ok=True)
+    os.makedirs(
+        os.path.join(workspace_dir, task_name, task_id, "input"), exist_ok=True
+    )
     os.makedirs(
         os.path.join(workspace_dir, task_name, task_id, "model_candidates"),
         exist_ok=True,
@@ -339,7 +357,9 @@ def get_merger_agent_instruction(
     """Gets the integrate agent instruction."""
     reference_idx = int(context.agent_name.split("_")[-1])
     task_id = context.agent_name.split("_")[-2]
-    performance_results = context.state.get(f"performance_results_{task_id}", [])
+    performance_results = context.state.get(
+        f"performance_results_{task_id}", []
+    )
     base_solution = context.state.get(f"base_solution_{task_id}", "")
     if reference_idx < len(performance_results):
         reference_solution = (

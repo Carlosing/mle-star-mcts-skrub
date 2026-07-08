@@ -29,7 +29,9 @@ class ManagerAgent:
 
             agent_response = response.choices[0].message.content
 
-            self.history.append({"role": "assistant", "content": agent_response})
+            self.history.append(
+                {"role": "assistant", "content": agent_response}
+            )
 
             self.total_tokens_spent += response.usage.total_tokens
 
@@ -88,7 +90,10 @@ class SubAgent:
             return agent_response, token_cost
 
         except Exception as e:
-            return f"There was a problem {e} with the execution of the subagent", 0
+            return (
+                f"There was a problem {e} with the execution of the subagent",
+                0,
+            )
 
     def _work_with_search(self, Manager_history):
         """Answer with native OpenAI web search (Responses API).
@@ -177,4 +182,6 @@ if __name__ == "__main__":
 
     # 6. Auditoría Final
     print("=" * 60)
-    print(f"💰 Final session balance: {Manager.total_tokens_spent} tokens spent.")
+    print(
+        f"💰 Final session balance: {Manager.total_tokens_spent} tokens spent."
+    )

@@ -1,20 +1,13 @@
 """skrub DataOps introspection and evaluation wrappers (Track A + Track B glue).
 
-Everything that touches the skrub API lives here, so the MCTS engine
-(mcts.py) stays pure and the extractor logic has one home.
+Everything that touches the skrub API lives here, so the MCTS engine (mcts.py) stays pure and the extractor logic has one home.
 
-Verified against skrub 0.9.0 (run tests/test_skrub_ops.py inside Docker).
-The public .skb API has no structured param-grid accessor and
-make_learner() takes no params argument, so this module uses the internal
-`skrub._data_ops._evaluation` helpers (`choices`, `set_params`) — they are
-what make_grid_search itself is built on. If a skrub upgrade breaks
-anything, it breaks here and nowhere else.
+Verified against skrub 0.9.0 (run tests/test_skrub_ops.py inside Docker). The public .skb API has no structured param-grid accessor and
+make_learner() takes no params argument, so this module uses the internal `skrub._data_ops._evaluation` helpers (`choices`, `set_params`) — they are what make_grid_search itself is built on. If a skrub upgrade breaks anything, it breaks here and nowhere else.
 
 Determinism requirements (UCT values never converge otherwise):
 - estimators inside the plan must be seeded (random_state=42 in the fixture);
-- rollout subsampling is done by passing a seeded df.sample() through
-  cross_validate(environment=...) — skrub's own .skb.subsample(how="random")
-  is NOT seeded in 0.9.
+- rollout subsampling is done by passing a seeded df.sample() through cross_validate(environment=...) — skrub's own .skb.subsample(how="random" is NOT seeded in 0.9.
 """
 
 import functools
@@ -174,7 +167,9 @@ def get_choice_gating(plan) -> dict[str, tuple[str, str]]:
     """
     graph = _ev.choice_graph(plan)
     choices = graph["choices"]  # {id: Choice}
-    children = graph["children"]  # {(parent_id, outcome_idx): [child_ids], None: [...]}
+    children = graph[
+        "children"
+    ]  # {(parent_id, outcome_idx): [child_ids], None: [...]}
 
     def name_of(cid: int) -> str:
         c = choices[cid]
@@ -355,7 +350,9 @@ def _additive_scoped_options(options: list) -> dict:
         # -> {"skip": SelectCols(cols=[]), "DatetimeEncoder": ...}
     """
     labeled = _scoped_options(options)
-    labeled["skip"] = skrub.SelectCols([])  # replaces None, keeps first position
+    labeled["skip"] = skrub.SelectCols(
+        []
+    )  # replaces None, keeps first position
     return labeled
 
 
@@ -472,7 +469,9 @@ def build_staged_plan(
         # -> {"encoder": ["GapEncoder()", "MinHashEncoder()"], "model": ["GBM", "RF"]}
     """
     data = skrub.var("data", df)
-    aux_vars = {name: skrub.var(name, adf) for name, adf in (aux_tables or {}).items()}
+    aux_vars = {
+        name: skrub.var(name, adf) for name, adf in (aux_tables or {}).items()
+    }
     X = data.drop(columns=target).skb.mark_as_X()
     y = data[target].skb.mark_as_y()
     node = X
@@ -481,7 +480,10 @@ def build_staged_plan(
     if spec.get("assemble"):
         joiners = {"skip": None}
         for cfg in spec["assemble"]:
-            label = cfg.get("name") or f"{cfg['table']}_{'_'.join(cfg['operations'])}"
+            label = (
+                cfg.get("name")
+                or f"{cfg['table']}_{'_'.join(cfg['operations'])}"
+            )
             joiners[label] = skrub.AggJoiner(
                 aux_vars[cfg["table"]],
                 cfg["operations"],
@@ -506,7 +508,9 @@ def build_staged_plan(
             if group.get("position", "pre_encode") != position:
                 continue
             cols = [
-                c for c in group.get("cols", []) if c in df.columns and c != target
+                c
+                for c in group.get("cols", [])
+                if c in df.columns and c != target
             ]
             if not cols:
                 continue  # nothing valid to scope over -> group dropped
@@ -531,7 +535,9 @@ def build_staged_plan(
     # --- post-encoding numeric stages (scale, feature-eng, select) ---
     for stage in spec.get("stages", []):
         node = node.skb.apply(
-            skrub.choose_from(_skip_first(list(stage["options"])), name=stage["name"])
+            skrub.choose_from(
+                _skip_first(list(stage["options"])), name=stage["name"]
+            )
         )
 
     # --- model ---
@@ -616,7 +622,11 @@ def _cv_kwarg(stratify: bool, seed: int, n_splits: int = 5) -> dict:
         return {}
     from sklearn.model_selection import StratifiedKFold
 
-    return {"cv": StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)}
+    return {
+        "cv": StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=seed
+        )
+    }
 
 
 def _stratified_subsample(df, target: str, n: int, seed: int, floor: int = 10):
@@ -651,7 +661,8 @@ def _stratified_subsample(df, target: str, n: int, seed: int, floor: int = 10):
             break
         quotas[c] = max(min(int(counts[c]), floor), quotas[c] - excess)
     parts = [
-        df[df[target] == c].sample(n=quotas[c], random_state=seed) for c in labels
+        df[df[target] == c].sample(n=quotas[c], random_state=seed)
+        for c in labels
     ]
     return pd.concat(parts).sample(frac=1.0, random_state=seed)
 
@@ -671,6 +682,58 @@ def _fold_mean(scores) -> float:
     if np.all(np.isnan(arr)):
         return 0.0
     return float(np.nanmean(arr))
+
+
+# Ranking scorers that consume class *probabilities*. skrub's learner reports
+# `_estimator_type == "transformer"`, so sklearn's built-in scorer never reduces
+# a binary `predict_proba` to its positive column — a classifier that lacks
+# `decision_function` (RandomForest, LightGBM, XGBoost) then hands a 2-column
+# array straight to `roc_auc_score` and every fold fails (NaN -> 0.0). Only
+# `HistGradientBoosting`/linear models dodged it via `decision_function`. We
+# swap the scorer name for a callable that does the reduction itself.
+_PROBA_SCORERS = ("roc_auc", "average_precision")
+
+
+def _resolve_scoring(scoring):
+    """Map a scorer name to a skrub-learner-safe scorer (callable or the name).
+
+    Probability-ranking metrics (`roc_auc`, `average_precision`) become a
+    callable that pulls the positive-class column out of `predict_proba` before
+    scoring, so a classifier exposing only `predict_proba` (no
+    `decision_function`) scores correctly through skrub's transformer-typed
+    learner. Every other scorer name (and callables / None) passes through
+    unchanged — `predict`-based metrics (accuracy, f1, r2) already work.
+
+    Example:
+        _resolve_scoring("accuracy")  # -> "accuracy"  (unchanged)
+        _resolve_scoring("roc_auc")   # -> <callable positive-column roc_auc>
+    """
+    if scoring not in _PROBA_SCORERS:
+        return scoring
+    from sklearn import metrics as skmetrics
+
+    score_func = {
+        "roc_auc": skmetrics.roc_auc_score,
+        "average_precision": skmetrics.average_precision_score,
+    }[scoring]
+
+    def _scorer(estimator, X, y):
+        proba = np.asarray(estimator.predict_proba(X))
+        if proba.ndim == 2 and proba.shape[1] == 2:
+            return float(score_func(y, proba[:, 1]))
+        if scoring == "roc_auc" and proba.ndim == 2 and proba.shape[1] > 2:
+            return float(
+                score_func(
+                    y,
+                    proba,
+                    multi_class="ovr",
+                    labels=getattr(estimator, "classes_", None),
+                )
+            )
+        return float(score_func(y, proba))
+
+    _scorer.__name__ = scoring
+    return _scorer
 
 
 def make_rollout_fn(
@@ -738,6 +801,7 @@ def make_rollout_fn(
         small = df.sample(n=n, random_state=seed)
         n_splits = 5
     var_name = main_var or _single_var_name(plan)
+    scorer = _resolve_scoring(scoring)
 
     def rollout(state: dict) -> float:
         try:
@@ -747,13 +811,15 @@ def make_rollout_fn(
                 "environment": environment,
                 **_cv_kwarg(stratify, seed, n_splits=n_splits),
             }
-            if scoring is not None:
-                cv_kwargs["scoring"] = scoring
+            if scorer is not None:
+                cv_kwargs["scoring"] = scorer
             with _time_limit(timeout_s):
                 result = plan.skb.cross_validate(**cv_kwargs)
             return _fold_mean(result["test_score"])
         except _RolloutTimeout:
-            return 0.0  # BaseException — not covered by `except Exception` below
+            return (
+                0.0  # BaseException — not covered by `except Exception` below
+            )
         except Exception:
             return 0.0
 
@@ -786,8 +852,9 @@ def evaluate_full(
     if df is not None:
         var_name = main_var or _single_var_name(plan)
         cv_kwargs["environment"] = {var_name: df, **(aux or {})}
-    if scoring is not None:
-        cv_kwargs["scoring"] = scoring
+    scorer = _resolve_scoring(scoring)
+    if scorer is not None:
+        cv_kwargs["scoring"] = scorer
     result = plan.skb.cross_validate(**cv_kwargs)
     return float(result["test_score"].mean())
 
@@ -797,7 +864,9 @@ def evaluate_full(
 # ---------------------------------------------------------------------------
 
 
-def run_ablation(plan, node_name: str, df, base_state: dict | None = None) -> dict:
+def run_ablation(
+    plan, node_name: str, df, base_state: dict | None = None
+) -> dict:
     """Score every option of one named choice node, all else held fixed.
 
     Returns {option: score}. This replaces MLE-STAR's code-block ablation:
@@ -809,7 +878,9 @@ def run_ablation(plan, node_name: str, df, base_state: dict | None = None) -> di
     base_state = base_state if base_state is not None else get_state(plan)
     options = get_action_space(plan)[node_name]
     rollout = make_rollout_fn(plan, df)
-    return {option: rollout({**base_state, node_name: option}) for option in options}
+    return {
+        option: rollout({**base_state, node_name: option}) for option in options
+    }
 
 
 def pick_target_node(ablation_results: dict[str, dict]) -> str:
@@ -835,4 +906,6 @@ def pick_target_node(ablation_results: dict[str, dict]) -> str:
         mean = sum(values) / len(values)
         return sum((v - mean) ** 2 for v in values) / len(values)
 
-    return max(ablation_results, key=lambda name: variance(ablation_results[name]))
+    return max(
+        ablation_results, key=lambda name: variance(ablation_results[name])
+    )

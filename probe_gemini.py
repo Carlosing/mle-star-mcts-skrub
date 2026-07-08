@@ -35,7 +35,9 @@ PING_DELAY_S = 3.0
 
 def main() -> None:
     load_dotenv()
-    if not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
+    if not (
+        os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    ):
         raise SystemExit("Set GOOGLE_API_KEY in .env first.")
 
     client = genai.Client()  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI

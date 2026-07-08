@@ -39,15 +39,21 @@ def main() -> None:
     bunch = fetch_credit_fraud()
     baskets, products = bunch.baskets, bunch.products
 
-    target = "fraud_flag" if "fraud_flag" in baskets.columns else baskets.columns[-1]
+    target = (
+        "fraud_flag" if "fraud_flag" in baskets.columns else baskets.columns[-1]
+    )
     # Keep the class balance representative: plain seeded row sample.
     small = baskets.sample(n=min(N_BASKETS, len(baskets)), random_state=SEED)
     small_products = products[products["basket_ID"].isin(small["ID"])]
 
     os.makedirs(OUT_DIR, exist_ok=True)
     small.to_csv(os.path.join(OUT_DIR, "train.csv"), index=False)
-    small_products.to_csv(os.path.join(OUT_DIR, "aux_products.csv"), index=False)
-    with open(os.path.join(OUT_DIR, "task_description.txt"), "w", encoding="utf-8") as f:
+    small_products.to_csv(
+        os.path.join(OUT_DIR, "aux_products.csv"), index=False
+    )
+    with open(
+        os.path.join(OUT_DIR, "task_description.txt"), "w", encoding="utf-8"
+    ) as f:
         f.write(DESCRIPTION)
 
     print(

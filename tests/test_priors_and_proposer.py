@@ -9,6 +9,7 @@ columns) and accepts scoped proposals `{"name": path, "cols": [...]}`,
 optionally flagged `"additive": true` / `"position": "post_encode"`.
 """
 
+import json
 import os
 import sys
 
@@ -22,6 +23,7 @@ from machine_learning_engineering import mcts, spec_resolver
 from machine_learning_engineering.search_loop import (
     _make_prior_fn,
     _parse_proposals,
+    make_llm_proposer,
     run_search_loop,
 )
 
@@ -38,11 +40,17 @@ def test_resolver_collects_priors_across_stages():
             "skrub.MinHashEncoder",
         ],
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color"],
-             "options": [{"name": "skrub.StringEncoder", "prior": 0.7}]}
+            {
+                "name": "color_enc",
+                "cols": ["color"],
+                "options": [{"name": "skrub.StringEncoder", "prior": 0.7}],
+            }
         ],
         "model": [
-            {"name": "sklearn.ensemble.HistGradientBoostingClassifier", "prior": 0.8},
+            {
+                "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+                "prior": 0.8,
+            },
             {"name": "sklearn.linear_model.LogisticRegression", "prior": 2.5},
         ],
     }
@@ -77,7 +85,10 @@ def test_prior_fn_seeds_all_children_and_orders_by_prior():
     unrated = mcts.MCTSNode(state={"model": "C"}, parent=parent)
     _make_prior_fn({"model": {"B": 0.9}})([rated, unrated])
     assert (rated.Q, rated.N) == (0.9, 1)
-    assert (unrated.Q, unrated.N) == (0.5, 1)  # neutral default, NOT left at inf
+    assert (unrated.Q, unrated.N) == (
+        0.5,
+        1,
+    )  # neutral default, NOT left at inf
     assert rated.uct(0.5) > unrated.uct(0.5)
 
 
@@ -109,12 +120,17 @@ def test_run_search_loop_uses_spec_priors_offline():
     df = make_toy_df()
     raw = {
         "model": [
-            {"name": "sklearn.ensemble.HistGradientBoostingClassifier", "prior": 0.9},
+            {
+                "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+                "prior": 0.9,
+            },
             {"name": "sklearn.linear_model.LogisticRegression", "prior": 0.2},
         ],
     }
     spec = spec_resolver.resolve_spec(raw, task_type="classification")
-    result = run_search_loop(spec, df, "target", scoring="accuracy", budget_per_step=4)
+    result = run_search_loop(
+        spec, df, "target", scoring="accuracy", budget_per_step=4
+    )
     assert isinstance(result["best_score"], float)
     assert result["best_score"] > 0.0
 
@@ -123,9 +139,11 @@ def test_run_search_loop_uses_spec_priors_offline():
 
 
 def test_parse_proposals_accepts_paths_and_scoped_objects():
-    text = ('["skrub.MinHashEncoder", '
-            '{"name": "skrub.GapEncoder", "cols": ["color", 3]}, '
-            '{"cols": ["x"]}, 42]')
+    text = (
+        '["skrub.MinHashEncoder", '
+        '{"name": "skrub.GapEncoder", "cols": ["color", 3]}, '
+        '{"cols": ["x"]}, 42]'
+    )
     assert _parse_proposals(text) == [
         "skrub.MinHashEncoder",
         {"name": "skrub.GapEncoder", "cols": ["color"]},  # non-str col dropped
@@ -133,14 +151,19 @@ def test_parse_proposals_accepts_paths_and_scoped_objects():
 
 
 def test_parse_proposals_carries_additive_and_position_flags():
-    text = ('[{"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": true}, '
-            '{"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"], '
-            '"position": "post_encode"}, '
-            '{"name": "skrub.GapEncoder", "cols": ["t"], "position": "bogus"}]')
+    text = (
+        '[{"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": true}, '
+        '{"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"], '
+        '"position": "post_encode"}, '
+        '{"name": "skrub.GapEncoder", "cols": ["t"], "position": "bogus"}]'
+    )
     assert _parse_proposals(text) == [
         {"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": True},
-        {"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"],
-         "position": "post_encode"},
+        {
+            "name": "sklearn.preprocessing.StandardScaler",
+            "cols": ["age"],
+            "position": "post_encode",
+        },
         {"name": "skrub.GapEncoder", "cols": ["t"]},  # invalid position dropped
     ]
 
@@ -164,8 +187,13 @@ def test_proposer_receives_evidence_context_and_scoped_proposals_inject():
         return []
 
     result = run_search_loop(
-        spec, df, "target", scoring="accuracy",
-        outer_steps=3, budget_per_step=6, propose=fake_propose,
+        spec,
+        df,
+        "target",
+        scoring="accuracy",
+        outer_steps=3,
+        budget_per_step=6,
+        propose=fake_propose,
         context_text="DIGEST SENTINEL",
     )
     ctx = seen["context"]
@@ -193,7 +221,86 @@ def test_old_three_arg_proposers_still_work():
         return []
 
     result = run_search_loop(
-        spec, df, "target", scoring="accuracy",
-        outer_steps=2, budget_per_step=5, propose=legacy_propose,
+        spec,
+        df,
+        "target",
+        scoring="accuracy",
+        outer_steps=2,
+        budget_per_step=5,
+        propose=legacy_propose,
     )
     assert isinstance(result["best_score"], float)
+
+
+# --- proposer logging + symmetric search retry (make_llm_proposer) --------------
+
+
+def _fake_genai_client(script):
+    """A stand-in genai client whose generate_content follows `script(mode)`,
+    where mode is 'search' when tools are attached else 'nosearch'."""
+
+    class _Resp:
+        def __init__(self, text):
+            self.text = text
+
+    class _Models:
+        def __init__(self):
+            self.calls = []
+
+        def generate_content(self, model, contents, config):
+            mode = "search" if config.tools else "nosearch"
+            self.calls.append(mode)
+            return _Resp(script(mode))
+
+    class _Client:
+        def __init__(self, *a, **k):
+            self.models = _Models()
+
+    return _Client
+
+
+def test_proposer_retries_without_search_and_logs_by_call(tmp_path, monkeypatch):
+    from google import genai
+
+    # grounded (search) call returns nothing; the search-off retry returns a path
+    client_cls = _fake_genai_client(
+        lambda mode: "" if mode == "search" else '["sklearn.preprocessing.RobustScaler"]'
+    )
+    monkeypatch.setattr(genai, "Client", client_cls)
+
+    propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
+    out = propose(
+        "scale",
+        {"StandardScaler()": 0.5},
+        {"transformers": ["sklearn.preprocessing.StandardScaler"]},
+        {"digest": "d"},
+    )
+    # the search-off retry recovered the proposal the grounded call dropped
+    assert out == ["sklearn.preprocessing.RobustScaler"]
+
+    # first call logged under number 1, request + a two-record response
+    assert (tmp_path / "proposer_1_request.json").exists()
+    req = json.load(open(tmp_path / "proposer_1_request.json"))
+    assert req[0]["call"] == 1 and req[0]["search"] is True
+    resp = json.load(open(tmp_path / "proposer_1_response.json"))
+    assert [r["search"] for r in resp] == [True, False]  # grounded, then retry
+    assert resp[1]["retry"] is True
+
+    # a second call is numbered 2
+    propose("model", {}, {"models": []}, {})
+    assert (tmp_path / "proposer_2_request.json").exists()
+
+
+def test_proposer_no_retry_when_grounded_call_succeeds(tmp_path, monkeypatch):
+    from google import genai
+
+    client_cls = _fake_genai_client(lambda mode: '["skrub.MinHashEncoder"]')
+    monkeypatch.setattr(genai, "Client", client_cls)
+
+    propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
+    out = propose("encoder", {}, {"transformers": []}, {"columns": ["a"]})
+
+    assert out == ["skrub.MinHashEncoder"]
+    resp = json.load(open(tmp_path / "proposer_1_response.json"))
+    assert len(resp) == 1  # grounded success -> no retry record
+    assert not any("retry" in r for r in resp)

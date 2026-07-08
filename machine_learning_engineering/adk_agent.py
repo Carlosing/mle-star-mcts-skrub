@@ -38,7 +38,9 @@ import os
 from google.adk import agents
 from google.adk.tools.google_search_tool import google_search
 
-from machine_learning_engineering.run_logging import make_prompt_logging_callbacks
+from machine_learning_engineering.run_logging import (
+    make_prompt_logging_callbacks,
+)
 from machine_learning_engineering.shared_libraries import config
 from machine_learning_engineering.spec_resolver import format_allowed_for_prompt
 
@@ -116,6 +118,11 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "operators to search over (not a single choice). The downstream engine "
     "searches this menu with MCTS, so offer 2-3 real options per stage wherever "
     "it is reasonable.\n\n"
+    "When the google_search tool is available, use it to check for current "
+    "state-of-the-art operators and sensible hyperparameter ranges for this kind "
+    "of tabular task before you finalize the menu (e.g. gradient-boosting "
+    "settings, encoders) — but only propose operators on the allowed list "
+    "below.\n\n"
     "Pipeline stages, in order: assemble (relational, optional) -> clean "
     "(optional) -> scoped operators pre-encode (optional) -> encode (required) "
     "-> scoped operators post-encode (optional) -> scale/feature-eng (optional) "
@@ -183,7 +190,9 @@ _PLAN_AUTHOR_INSTRUCTION = (
 )
 
 
-def build_root_agent(model=None, log_dir: str | None = None, with_search: bool = True):
+def build_root_agent(
+    model=None, log_dir: str | None = None, with_search: bool = True
+):
     """Build the analyze -> author plan graph.
 
     Args:
@@ -191,10 +200,10 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
         (``config.CONFIG.agent_model``). Tests pass a fake model here.
       log_dir: if given, prompts + outputs of every LLM turn are appended to
         ``<log_dir>/<agent>_<phase>.json`` for sanity inspection (see run_logging).
-      with_search: *request* the Gemini-only ``google_search`` tool on the
-        analyst. It is attached only when the resolved model is native Gemini
-        (`_resolve_model`); on an OpenAI/compatible model it is silently
-        dropped, since ``google_search`` is Gemini-native. Set False for
+      with_search: *request* the Gemini-only ``google_search`` tool on both the
+        analyst and the plan_author. It is attached only when the resolved model
+        is native Gemini (`_resolve_model`); on an OpenAI/compatible model it is
+        silently dropped, since ``google_search`` is Gemini-native. Set False for
         offline/mocked runs.
 
     Returns:
@@ -225,6 +234,7 @@ def build_root_agent(model=None, log_dir: str | None = None, with_search: bool =
     plan_author = agents.LlmAgent(
         name="plan_author",
         model=resolved,
+        tools=[google_search] if use_search else [],
         before_model_callback=before_cb,
         after_model_callback=after_cb,
         description="Turns the analyst's findings into a rich, per-stage menu of "

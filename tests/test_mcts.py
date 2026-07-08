@@ -19,7 +19,10 @@ import importlib.util
 _spec = importlib.util.spec_from_file_location(
     "mcts",
     os.path.join(
-        os.path.dirname(__file__), "..", "machine_learning_engineering", "mcts.py"
+        os.path.dirname(__file__),
+        "..",
+        "machine_learning_engineering",
+        "mcts.py",
     ),
 )
 mcts = importlib.util.module_from_spec(_spec)
@@ -98,7 +101,12 @@ def test_tree_persists_across_outer_steps():
     )
     n_after_first = root.N
     _, _, root2 = mcts.mcts_search(
-        start, ACTION_SPACE, fake_reward, budget=10, root=root, tried_states=tried
+        start,
+        ACTION_SPACE,
+        fake_reward,
+        budget=10,
+        root=root,
+        tried_states=tried,
     )
     assert root2 is root
     assert root.N == n_after_first + 10  # statistics accumulated, not reset
@@ -106,7 +114,11 @@ def test_tree_persists_across_outer_steps():
 
 # --- score cache + conditional-HP gating + target-key locking ----------------
 
-GATED_SPACE = {"model": ["GBM", "RF"], "gbm_lr": [0.1, 0.2], "rf_trees": [50, 100]}
+GATED_SPACE = {
+    "model": ["GBM", "RF"],
+    "gbm_lr": [0.1, 0.2],
+    "rf_trees": [50, 100],
+}
 GATING = {"gbm_lr": ("model", "GBM"), "rf_trees": ("model", "RF")}
 
 
@@ -137,7 +149,9 @@ def test_gating_skips_inactive_hp_and_canonicalizes():
 
     # switching model to RF drops the now-inactive gbm_lr (canonical states)
     n2 = mcts.MCTSNode(state={"model": "GBM", "gbm_lr": 0.1})
-    kids = mcts.expand(n2, GATED_SPACE, {mcts.state_key(n2.state)}, gating=GATING)
+    kids = mcts.expand(
+        n2, GATED_SPACE, {mcts.state_key(n2.state)}, gating=GATING
+    )
     rf_kids = [c for c in kids if c.state.get("model") == "RF"]
     assert rf_kids and all("gbm_lr" not in c.state for c in rf_kids)
 
@@ -154,7 +168,9 @@ def test_target_key_restricts_expansion():
     # only gbm_lr is edited; every other key is locked at the node's value
     assert children
     assert all(set(c.state) == set(node.state) for c in children)
-    assert all(c.state["model"] == "GBM" and c.state["gbm_lr"] != 0.1 for c in children)
+    assert all(
+        c.state["model"] == "GBM" and c.state["gbm_lr"] != 0.1 for c in children
+    )
 
 
 def test_failed_rollouts_do_not_crash_search():
@@ -163,7 +179,9 @@ def test_failed_rollouts_do_not_crash_search():
         return 0.0 if raise_it else 0.5
 
     start = {"encoder": "GapEncoder", "model": "GBM", "n_trees": 50}
-    best_state, best_score, _ = mcts.mcts_search(start, ACTION_SPACE, flaky, budget=20)
+    best_state, best_score, _ = mcts.mcts_search(
+        start, ACTION_SPACE, flaky, budget=20
+    )
     assert best_score >= 0.0
 
 

@@ -20,7 +20,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 pytest.importorskip("skrub")
 
 from machine_learning_engineering import spec_resolver
-from machine_learning_engineering.skrub_ops import build_staged_plan, get_action_space
+from machine_learning_engineering.skrub_ops import (
+    build_staged_plan,
+    get_action_space,
+)
 
 from fixtures.arbitrary_hp_agent_io import SKRUB_SPEC_RAW
 
@@ -84,7 +87,9 @@ def test_arbitrary_ranges_used_as_given_not_clipped():
     assert min(pca) == 2 and max(pca) == 6
 
     alpha = space["model__Lasso__alpha"]  # LLM asked float[1e-4, 10] log
-    assert min(alpha) == pytest.approx(1e-4) and max(alpha) == pytest.approx(10.0)
+    assert min(alpha) == pytest.approx(1e-4) and max(alpha) == pytest.approx(
+        10.0
+    )
 
 
 # --- unit tests for the safety nets ------------------------------------------
@@ -93,7 +98,10 @@ def test_arbitrary_ranges_used_as_given_not_clipped():
 def test_make_keeps_operator_when_a_param_is_invalid():
     inst = spec_resolver._make(
         "sklearn.ensemble.RandomForestRegressor",
-        {"n_estimators": {"int": [50, 200]}, "learning_rate": {"float": [0.1, 0.5]}},
+        {
+            "n_estimators": {"int": [50, 200]},
+            "learning_rate": {"float": [0.1, 0.5]},
+        },
         seed=42,
         context="model",
     )
@@ -118,7 +126,9 @@ def test_accepts_param_reads_the_constructor_signature():
     from sklearn.ensemble import RandomForestRegressor
 
     assert spec_resolver._accepts_param(RandomForestRegressor, "n_estimators")
-    assert not spec_resolver._accepts_param(RandomForestRegressor, "learning_rate")
+    assert not spec_resolver._accepts_param(
+        RandomForestRegressor, "learning_rate"
+    )
 
 
 def test_build_free_choice_structural_sanity():
@@ -128,6 +138,8 @@ def test_build_free_choice_structural_sanity():
     assert bc("n", {"choice": ["a", "b"]}) is not None
     assert bc("n", {"type": "int", "range": [1, 9]}) is not None  # aliased form
     assert bc("n", {"float": [1.0, 1.0]}) is None  # low == high
-    assert bc("n", {"float": [-1.0, 1.0], "log": True}) is None  # log needs low > 0
+    assert (
+        bc("n", {"float": [-1.0, 1.0], "log": True}) is None
+    )  # log needs low > 0
     assert bc("n", {"int": ["x", "y"]}) is None  # non-numeric bounds
     assert bc("n", "not-a-dict") is None

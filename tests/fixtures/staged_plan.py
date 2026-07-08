@@ -48,7 +48,10 @@ def staged_spec() -> dict:
             {"name": "scale", "options": [None, StandardScaler()]},
             {
                 "name": "feature_eng",
-                "options": [None, PolynomialFeatures(degree=2, include_bias=False)],
+                "options": [
+                    None,
+                    PolynomialFeatures(degree=2, include_bias=False),
+                ],
             },
         ],
         "model": {
@@ -84,13 +87,16 @@ def make_relational_data(n_ids: int = 400, seed: int = 0):
     aux = pd.DataFrame(rows, columns=["id", "v"])
 
     threshold = np.median(list(per_id_mean.values()))
-    main = pd.DataFrame({
-        "id": ids,
-        "noise": rng.normal(size=n_ids),  # a non-informative feature
-        "target": [
-            int(per_id_mean[i] + rng.normal(scale=0.3) > threshold) for i in ids
-        ],
-    })
+    main = pd.DataFrame(
+        {
+            "id": ids,
+            "noise": rng.normal(size=n_ids),  # a non-informative feature
+            "target": [
+                int(per_id_mean[i] + rng.normal(scale=0.3) > threshold)
+                for i in ids
+            ],
+        }
+    )
     return main, {"aux": aux}
 
 
@@ -104,10 +110,20 @@ def relational_spec() -> dict:
 
     return {
         "assemble": [
-            {"name": "aux_mean", "table": "aux", "operations": ["mean"],
-             "key": "id", "cols": ["v"]},
-            {"name": "aux_mean_max_min", "table": "aux",
-             "operations": ["mean", "max", "min"], "key": "id", "cols": ["v"]},
+            {
+                "name": "aux_mean",
+                "table": "aux",
+                "operations": ["mean"],
+                "key": "id",
+                "cols": ["v"],
+            },
+            {
+                "name": "aux_mean_max_min",
+                "table": "aux",
+                "operations": ["mean", "max", "min"],
+                "key": "id",
+                "cols": ["v"],
+            },
         ],
         "model": {
             "GBM": GradientBoostingClassifier(random_state=42),

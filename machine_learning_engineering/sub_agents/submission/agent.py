@@ -33,7 +33,9 @@ def get_submission_and_debug_agent_instruction(
     final_solution = ""
     best_score = None
     for task_id in range(1, num_solutions + 1):
-        curr_code = context.state.get(f"train_code_{outer_loop_round}_{task_id}", "")
+        curr_code = context.state.get(
+            f"train_code_{outer_loop_round}_{task_id}", ""
+        )
         curr_exec_result = context.state.get(
             f"train_code_exec_result_{outer_loop_round}_{task_id}", ""
         )

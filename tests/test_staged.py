@@ -19,7 +19,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 skrub = pytest.importorskip("skrub")
 
-_BASE = os.path.join(os.path.dirname(__file__), "..", "machine_learning_engineering")
+_BASE = os.path.join(
+    os.path.dirname(__file__), "..", "machine_learning_engineering"
+)
 _spec = importlib.util.spec_from_file_location(
     "skrub_ops", os.path.join(_BASE, "skrub_ops.py")
 )

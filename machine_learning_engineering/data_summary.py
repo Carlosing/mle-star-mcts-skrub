@@ -47,20 +47,26 @@ def _join_key_candidates(
         if not a_vals:
             continue
         for mc, m_vals in main_vals.items():
-            if pd.api.types.is_numeric_dtype(main[mc]) != pd.api.types.is_numeric_dtype(
-                aux[ac]
-            ):
+            if pd.api.types.is_numeric_dtype(
+                main[mc]
+            ) != pd.api.types.is_numeric_dtype(aux[ac]):
                 continue
             overlap = len(a_vals & m_vals) / len(a_vals)
             if overlap >= 0.5 or (mc == ac and overlap > 0):
-                pairs.append((mc, ac, round(overlap + (0.01 if mc == ac else 0), 3)))
+                pairs.append(
+                    (mc, ac, round(overlap + (0.01 if mc == ac else 0), 3))
+                )
     pairs.sort(key=lambda p: -p[2])
     return [(mc, ac, min(ov, 1.0)) for mc, ac, ov in pairs[:max_pairs]]
 
 
-def _aux_table_digest(name: str, adf: pd.DataFrame, main: pd.DataFrame) -> list[str]:
+def _aux_table_digest(
+    name: str, adf: pd.DataFrame, main: pd.DataFrame
+) -> list[str]:
     """Compact per-aux-table digest lines (schema + join-key candidates)."""
-    lines = [f"Auxiliary table {name!r}: {adf.shape[0]} rows x {adf.shape[1]} columns."]
+    lines = [
+        f"Auxiliary table {name!r}: {adf.shape[0]} rows x {adf.shape[1]} columns."
+    ]
     lines.append("  Columns:")
     for col in adf.columns:
         s = adf[col]
@@ -69,7 +75,9 @@ def _aux_table_digest(name: str, adf: pd.DataFrame, main: pd.DataFrame) -> list[
         )
     candidates = _join_key_candidates(main, adf)
     if candidates:
-        lines.append("  Join-key candidates (main column <-> aux column, overlap):")
+        lines.append(
+            "  Join-key candidates (main column <-> aux column, overlap):"
+        )
         for mc, ac, ov in candidates:
             lines.append(f"    - {mc} <-> {ac} (overlap={ov:.0%})")
     return lines
@@ -104,7 +112,9 @@ def make_data_summary(
         card = int(s.nunique(dropna=True))
         tag = " (TARGET)" if col == target else ""
         if pd.api.types.is_numeric_dtype(s):
-            desc = f"min={_fmt(s.min())} max={_fmt(s.max())} mean={_fmt(s.mean())}"
+            desc = (
+                f"min={_fmt(s.min())} max={_fmt(s.max())} mean={_fmt(s.mean())}"
+            )
         else:
             vals = list(s.dropna().unique()[:n_example_values])
             desc = "examples=" + ", ".join(repr(str(v)) for v in vals)

@@ -118,7 +118,9 @@ def expand(
             if node.state.get(parent) != activating:
                 continue
         for option in options:
-            new_state = canonicalize({**node.state, choice_name: option}, gating)
+            new_state = canonicalize(
+                {**node.state, choice_name: option}, gating
+            )
             key = state_key(new_state)
             if key not in tried_states and new_state != node.state:
                 children.append(MCTSNode(state=new_state, parent=node))
@@ -199,7 +201,9 @@ def mcts_search(
 
         # Expand it if it's not a terminal state (cannot be expanded)
         if leaf.N > 0 or leaf is root:
-            children = expand(leaf, action_space, tried_states, gating, target_key)
+            children = expand(
+                leaf, action_space, tried_states, gating, target_key
+            )
             if children:  #
                 if prior_fn is not None:
                     prior_fn(children)
@@ -287,7 +291,11 @@ def to_dot(root, c: float = 0.5, max_edge_label: int = 40) -> str:
     for node in nodes:
         tag = "ROOT" if node.parent is None else "node"
         label = f"{tag}\\n{_stats(node, c)}".replace('"', "'")
-        style = ', style=filled, fillcolor="lightgray"' if node.parent is None else ""
+        style = (
+            ', style=filled, fillcolor="lightgray"'
+            if node.parent is None
+            else ""
+        )
         lines.append(f'  {ids[id(node)]} [label="{label}"{style}];')
         for child in node.children:
             elabel = edge_change(node, child)

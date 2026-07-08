@@ -4,11 +4,7 @@ Wraps repeated `mcts.mcts_search` calls with a persisted tree (`root`,
 `tried_states`) and a `score_cache`, so the search refines across outer steps
 instead of restarting. Two refinements layer on top:
 
-- **Option 1 (no LLM):** after every fixed-budget slice, mine per-stage action
-  values from the tree, `pick_target_node`, then run the next slice with
-  `target_key` set so expansion focuses on that one stage (the rest stay at
-  the incumbent's values). Re-targeting happens between slices by default
-  (`retarget=False` keeps the first pick).
+- After every fixed-budget slice, mine per-stage action values from the tree, `pick_target_node`, then run the next slice with `target_key` set so expansion focuses on that one stage (the rest stay at the incumbent's values). Re-targeting happens between slices by default (`retarget=False` keeps the first pick).
 - **Option 3 (one LLM call between slices):** before each slice after the
   first, ask a `propose` callable for new operator paths for the currently
   targeted stage, validate + inject them into the spec, **rebuild the plan**
@@ -55,7 +51,10 @@ def tree_action_values(root) -> dict[str, dict]:
         if node.parent is None or node.N == 0:
             continue
         for key in set(node.state) | set(node.parent.state):
-            if node.state.get(key) != node.parent.state.get(key) and key in node.state:
+            if (
+                node.state.get(key) != node.parent.state.get(key)
+                and key in node.state
+            ):
                 agg[key][node.state[key]].append(node.Q / node.N)
     return {
         key: {opt: sum(vals) / len(vals) for opt, vals in opts.items()}
@@ -99,7 +98,9 @@ def _augment_spec(spec: dict, stage_key: str, instances: list) -> dict:
         for inst in instances:
             new["model"][type(inst).__name__] = inst
     elif stage_key == "encoder":
-        new["encoder_options"] = list(spec.get("encoder_options", [])) + instances
+        new["encoder_options"] = (
+            list(spec.get("encoder_options", [])) + instances
+        )
     elif stage_key == "clean":
         new["clean_options"] = list(spec.get("clean_options", [])) + instances
     elif stage_key.startswith("scope_"):  # a scoped-encoding group
@@ -128,7 +129,9 @@ def _label(inst, stage_key: str) -> str:
     return repr(inst)
 
 
-def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=None):
+def _inject(
+    spec, stage_key, proposals, seed, current_labels=(), valid_columns=None
+):
     """Resolve allowed-list proposals to instances, skipping any already present.
 
     Returns (new_spec, kept_paths). A proposal is a dotted path, or
@@ -148,16 +151,26 @@ def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=N
     instances, new_groups, kept = [], [], []
     for prop in proposals:
         extra = prop if isinstance(prop, dict) else {}
-        path, cols = (prop, None) if isinstance(prop, str) else (
-            prop.get("name"), prop.get("cols")
+        path, cols = (
+            (prop, None)
+            if isinstance(prop, str)
+            else (prop.get("name"), prop.get("cols"))
         )
-        inst = spec_resolver._make(path, {}, seed, stage_key)  # constructible + allowlisted
+        inst = spec_resolver._make(
+            path, {}, seed, stage_key
+        )  # constructible + allowlisted
         if inst is None:
             continue
-        cols = [c for c in (cols or []) if valid_columns is None or c in valid_columns]
+        cols = [
+            c
+            for c in (cols or [])
+            if valid_columns is None or c in valid_columns
+        ]
         if cols and not stage_key.startswith("scope_"):
             # scoped proposal on the shared encoder stage -> a new scope group
-            name = spec_resolver._sanitize_name(f"{cols[0]}_{type(inst).__name__}")
+            name = spec_resolver._sanitize_name(
+                f"{cols[0]}_{type(inst).__name__}"
+            )
             if name in group_names:
                 continue
             group_names.add(name)
@@ -179,11 +192,15 @@ def _inject(spec, stage_key, proposals, seed, current_labels=(), valid_columns=N
         return spec, []
     new = _augment_spec(spec, stage_key, instances) if instances else dict(spec)
     if new_groups:
-        new["scoped_encodings"] = list(new.get("scoped_encodings", [])) + new_groups
+        new["scoped_encodings"] = (
+            list(new.get("scoped_encodings", [])) + new_groups
+        )
     return new, kept
 
 
-def _incumbent_hp_targets(best_state, action_space, gating, ledger) -> list[str]:
+def _incumbent_hp_targets(
+    best_state, action_space, gating, ledger
+) -> list[str]:
     """The incumbent model's *active, still-untested* hyperparameter dims.
 
     A model-gated HP (`gating`: name -> (parent, activating_label)) is *active*
@@ -270,10 +287,19 @@ def run_search_loop(
     """
 
     def _build(current_spec):
-        plan = build_staged_plan(current_spec, df, target=target, aux_tables=aux_tables)
+        plan = build_staged_plan(
+            current_spec, df, target=target, aux_tables=aux_tables
+        )
         rollout = make_rollout_fn(
-            plan, df, seed=seed, scoring=scoring, aux=aux_tables, main_var="data",
-            stratify=stratify, target=target, timeout_s=timeout_s,
+            plan,
+            df,
+            seed=seed,
+            scoring=scoring,
+            aux=aux_tables,
+            main_var="data",
+            stratify=stratify,
+            target=target,
+            timeout_s=timeout_s,
         )
         return plan, get_action_space(plan), get_choice_gating(plan), rollout
 
@@ -296,24 +322,36 @@ def run_search_loop(
 
     for step in range(max(1, outer_steps)):
         # Option 3: inject new options for the targeted stage, then rebuild.
-        if step >= 1 and propose is not None and target_key and "__" not in target_key:
+        if (
+            step >= 1
+            and propose is not None
+            and target_key
+            and "__" not in target_key
+        ):
             values = tree_action_values(root)
             context = {
-                "stage_values": {k: v for k, v in values.items() if "__" not in k},
+                "stage_values": {
+                    k: v for k, v in values.items() if "__" not in k
+                },
                 "incumbent": best_state,
                 "incumbent_score": best_score,
                 "digest": context_text,
                 "columns": feature_columns,
             }
-            proposals = _call_propose(
-                propose,
-                target_key,
-                values.get(target_key, {}),
-                spec_resolver.allowed_operators(),
-                context,
-            ) or []
+            proposals = (
+                _call_propose(
+                    propose,
+                    target_key,
+                    values.get(target_key, {}),
+                    spec_resolver.allowed_operators(),
+                    context,
+                )
+                or []
+            )
             proposals = [
-                p for p in proposals[:n_propose] if _proposal_path(p) not in injected
+                p
+                for p in proposals[:n_propose]
+                if _proposal_path(p) not in injected
             ]
             spec, kept = _inject(
                 spec,
@@ -346,9 +384,15 @@ def run_search_loop(
         # Option 1: after each slice, (re-)pick the stage to focus next on.
         # `retarget=False` keeps the first pick for the whole run (the old
         # fixed-target behavior, kept A/B-able for the sweep harness).
-        if outer_steps > 1 and step < outer_steps - 1 and (retarget or target_key is None):
+        if (
+            outer_steps > 1
+            and step < outer_steps - 1
+            and (retarget or target_key is None)
+        ):
             ledger = {
-                k: v for k, v in tree_action_values(root).items() if "__" not in k
+                k: v
+                for k, v in tree_action_values(root).items()
+                if "__" not in k
             }
             if ledger:
                 try:
@@ -364,9 +408,13 @@ def run_search_loop(
         hp_targets = _incumbent_hp_targets(
             best_state, action_space, gating, tree_action_values(root)
         )
-        best_node = mcts.find_state_node(root, best_state) if hp_targets else None
+        best_node = (
+            mcts.find_state_node(root, best_state) if hp_targets else None
+        )
         if best_node is not None:
-            bonus = -(-max(1, outer_steps) * budget_per_step // 4)  # ceil(total/4)
+            bonus = -(
+                -max(1, outer_steps) * budget_per_step // 4
+            )  # ceil(total/4)
             bstate, bscore, root = mcts.mcts_search(
                 start,
                 action_space,
@@ -404,7 +452,9 @@ def run_search_loop(
 import json as _json  # noqa: E402
 import re as _re  # noqa: E402
 
-_PATH_RE = _re.compile(r"\b(?:sklearn|skrub)(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b")
+_PATH_RE = _re.compile(
+    r"\b(?:sklearn|skrub|lightgbm|xgboost)(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b"
+)
 
 
 def _parse_paths(text: str) -> list[str]:
@@ -425,7 +475,12 @@ def _parse_proposals(text: str) -> list:
     """
     if not text:
         return []
-    s = _re.sub(r"^```[a-zA-Z0-9]*", "", text.strip()).strip().strip("`").strip()
+    s = (
+        _re.sub(r"^```[a-zA-Z0-9]*", "", text.strip())
+        .strip()
+        .strip("`")
+        .strip()
+    )
     try:
         data = _json.loads(s)
         if isinstance(data, list):
@@ -434,7 +489,9 @@ def _parse_proposals(text: str) -> list:
                 if isinstance(x, str):
                     out.append(x)
                 elif isinstance(x, dict) and isinstance(x.get("name"), str):
-                    cols = [c for c in (x.get("cols") or []) if isinstance(c, str)]
+                    cols = [
+                        c for c in (x.get("cols") or []) if isinstance(c, str)
+                    ]
                     item = {"name": x["name"], "cols": cols}
                     if x.get("position") == "post_encode":
                         item["position"] = "post_encode"
@@ -466,30 +523,98 @@ def _call_propose(propose, stage_key, ledger, vocab, context):
     return propose(stage_key, ledger, vocab)
 
 
-def make_llm_proposer(model: str | None = None, n: int = 3, temperature: float = 0.4):
+def make_llm_proposer(
+    model: str | None = None,
+    n: int = 3,
+    temperature: float = 0.4,
+    log_dir: str | None = None,
+):
     """Return a `propose(stage_key, ledger, vocab, context) -> [proposals]`
     backed by Gemini.
 
-    One synchronous `google.genai` call between search slices (the LLM never
-    enters the inner search loop). The `context` dict (built by
-    `run_search_loop`) grounds the proposal in search evidence: the cross-stage
-    tree-mined ledger, the incumbent config + score, the data digest, and the
-    real column names — so the model proposes against what was actually
-    measured, not blind. For encoder/scope stages a proposal may be
-    `{"name": path, "cols": [...]}` to scope an operator to specific columns,
-    optionally with `"additive": true` (keep the originals) and
-    `"position": "post_encode"` (run after vectorization). On any failure
-    (quota, parse) it returns `[]`, so the search just continues without
-    injection. genai is imported lazily so this module stays importable offline.
+    One `google.genai` call between search slices (the LLM never enters the
+    inner search loop). The `context` dict (built by `run_search_loop`) grounds
+    the proposal in search evidence: the cross-stage tree-mined ledger, the
+    incumbent config + score, the data digest, and the real column names — so
+    the model proposes against what was actually measured, not blind. For
+    encoder/scope stages a proposal may be `{"name": path, "cols": [...]}` to
+    scope an operator to specific columns, optionally with `"additive": true`
+    (keep the originals) and `"position": "post_encode"` (run after
+    vectorization). On any failure (quota, parse) it returns `[]`, so the search
+    just continues without injection. genai is imported lazily so this module
+    stays importable offline.
+
+    Web search is attached (Gemini-native) with the SAME safety net as the
+    analyst / plan_author, now symmetric across both directions: search is tried
+    first, and if a grounded call yields no usable proposals (google_search
+    grounding intermittently eats the output), the call is retried once with
+    search OFF before giving up.
+
+    `log_dir`: if given, each proposer call's prompt + output is written to
+    `<log_dir>/proposer_<k>_request.json` / `_response.json`, numbered by call
+    order (first call -> 1), mirroring the ADK agents' `<agent>_<phase>.json`
+    logs. A response file holds one record, or two when the search-off retry
+    fires (the grounded attempt, then the retry).
     """
+    import json
+    import os
+    from datetime import datetime, timezone
+
     from google import genai  # lazy
+    from google.genai import types as genai_types  # lazy
 
     from machine_learning_engineering.shared_libraries import config
 
     client = genai.Client()  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI
     model = model or config.CONFIG.agent_model
+    # `google_search` is a Gemini-native tool (same safety net as the analyst /
+    # plan_author): attach it only on the Gemini path, so an OpenAI/compatible
+    # model id silently runs without search instead of erroring.
+    use_search = isinstance(model, str) and "gemini" in model.lower()
+    search_tools = (
+        [genai_types.Tool(google_search=genai_types.GoogleSearch())]
+        if use_search
+        else None
+    )
+    call_count = [0]  # proposer-call counter; first call is logged as 1
+
+    def _log(call_num: int, phase: str, record: dict) -> None:
+        """Append a record to `<log_dir>/proposer_<call_num>_<phase>.json`."""
+        if log_dir is None:
+            return
+        os.makedirs(log_dir, exist_ok=True)
+        path = os.path.join(log_dir, f"proposer_{call_num}_{phase}.json")
+        records: list = []
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    records = json.load(f)
+            except (OSError, ValueError):
+                records = []
+        records.append(record)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(records, f, ensure_ascii=False, indent=2)
+
+    def _attempt(prompt: str, tools):
+        """One genai call -> (raw_text, parsed_proposals); ("", []) on failure."""
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=512,
+                    tools=tools,
+                ),
+            )
+            text = resp.text or ""
+            return text, _parse_proposals(text)
+        except Exception:
+            return "", []
 
     def propose(stage_key, ledger, vocab, context=None):
+        call_count[0] += 1
+        call_num = call_count[0]
         kind = "models" if stage_key == "model" else "transformers"
         allowed = vocab.get(kind, [])
         ctx = context or {}
@@ -517,18 +642,67 @@ def make_llm_proposer(model: str | None = None, n: int = 3, temperature: float =
             f"Current best config (reward {ctx.get('incumbent_score')}): "
             f"{ctx.get('incumbent')}.\n"
             + (f"Data digest:\n{digest}\n" if digest else "")
-            + f"Propose only NEW sklearn.* or skrub.* operators (not already tried) "
-            f"that are likely to beat what was tried, suited to this stage. "
+            + (
+                "Use the google_search tool to check for current SOTA operators "
+                "and good hyperparameter choices for this stage before you "
+                "answer.\n"
+                if use_search
+                else ""
+            )
+            + f"Propose only NEW sklearn.*, skrub.*, lightgbm.* or xgboost.* "
+            f"operators (not already tried) that are likely to beat what was "
+            f"tried, suited to this stage. "
             f"Prefer these known-good ones: {allowed}."
         )
-        try:
-            resp = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config={"temperature": temperature, "max_output_tokens": 512},
+
+        def _stamp() -> str:
+            return datetime.now(timezone.utc).isoformat()
+
+        _log(
+            call_num,
+            "request",
+            {
+                "ts": _stamp(),
+                "agent": "proposer",
+                "call": call_num,
+                "phase": "request",
+                "stage": stage_key,
+                "search": use_search,
+                "prompt": prompt,
+            },
+        )
+        text, proposals = _attempt(prompt, search_tools)
+        _log(
+            call_num,
+            "response",
+            {
+                "ts": _stamp(),
+                "agent": "proposer",
+                "call": call_num,
+                "phase": "response",
+                "search": use_search,
+                "output": text,
+                "proposals": proposals,
+            },
+        )
+        # Symmetric safety net (mirrors plan_author): a grounded call can return
+        # nothing usable; retry once with search OFF before giving up.
+        if use_search and not proposals:
+            text, proposals = _attempt(prompt, None)
+            _log(
+                call_num,
+                "response",
+                {
+                    "ts": _stamp(),
+                    "agent": "proposer",
+                    "call": call_num,
+                    "phase": "response",
+                    "search": False,
+                    "retry": True,
+                    "output": text,
+                    "proposals": proposals,
+                },
             )
-            return _parse_proposals(resp.text)
-        except Exception:
-            return []
+        return proposals
 
     return propose

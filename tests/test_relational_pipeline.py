@@ -82,29 +82,60 @@ def _resolve(entries):
 
 def test_assemble_validation_keeps_a_good_entry():
     kept = _resolve(
-        [{"name": "aux_mean", "table": "aux", "key": "id",
-          "operations": ["mean", "bogus"], "cols": ["v", "nope"]}]
+        [
+            {
+                "name": "aux_mean",
+                "table": "aux",
+                "key": "id",
+                "operations": ["mean", "bogus"],
+                "cols": ["v", "nope"],
+            }
+        ]
     )
     assert kept == [
-        {"name": "aux_mean", "table": "aux", "operations": ["mean"],
-         "key": "id", "cols": ["v"]}
+        {
+            "name": "aux_mean",
+            "table": "aux",
+            "operations": ["mean"],
+            "key": "id",
+            "cols": ["v"],
+        }
     ]
 
 
 def test_assemble_validation_drops_bad_entries():
-    assert _resolve([{"table": "nope", "key": "id", "operations": ["mean"]}]) == []
-    assert _resolve([{"table": "aux", "key": "missing", "operations": ["mean"]}]) == []
-    assert _resolve([{"table": "aux", "key": "id", "operations": ["bogus"]}]) == []
+    assert (
+        _resolve([{"table": "nope", "key": "id", "operations": ["mean"]}]) == []
+    )
+    assert (
+        _resolve([{"table": "aux", "key": "missing", "operations": ["mean"]}])
+        == []
+    )
+    assert (
+        _resolve([{"table": "aux", "key": "id", "operations": ["bogus"]}]) == []
+    )
     assert _resolve([{"table": "aux", "operations": ["mean"]}]) == []  # no key
     # single-table run (no aux schemas): the whole stage is dropped
-    assert spec_resolver._resolve_assemble(
-        [{"table": "aux", "key": "id", "operations": ["mean"]}], None, _MAIN_COLS
-    ) == []
+    assert (
+        spec_resolver._resolve_assemble(
+            [{"table": "aux", "key": "id", "operations": ["mean"]}],
+            None,
+            _MAIN_COLS,
+        )
+        == []
+    )
 
 
 def test_assemble_validation_supports_main_aux_key_pair():
     kept = _resolve(
-        [{"table": "aux", "main_key": "id", "aux_key": "id", "operations": ["max"]}]
+        [
+            {
+                "table": "aux",
+                "main_key": "id",
+                "aux_key": "id",
+                "operations": ["max"],
+            }
+        ]
     )
     assert kept[0]["main_key"] == "id" and kept[0]["aux_key"] == "id"
     assert "key" not in kept[0]
@@ -113,13 +144,21 @@ def test_assemble_validation_supports_main_aux_key_pair():
 def test_resolve_spec_validates_assemble_and_names_unnamed_entries():
     raw = {
         "assemble": [
-            {"table": "aux", "key": "id", "operations": ["mean"], "cols": ["v"]},
+            {
+                "table": "aux",
+                "key": "id",
+                "operations": ["mean"],
+                "cols": ["v"],
+            },
             {"table": "hallucinated", "key": "id", "operations": ["mean"]},
         ],
         "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
     }
     spec = spec_resolver.resolve_spec(
-        raw, task_type="classification", aux_schemas=_AUX_SCHEMAS, main_columns=_MAIN_COLS
+        raw,
+        task_type="classification",
+        aux_schemas=_AUX_SCHEMAS,
+        main_columns=_MAIN_COLS,
     )
     assert [e["name"] for e in spec["assemble"]] == ["aux_mean"]
 
@@ -130,8 +169,12 @@ def test_resolve_spec_validates_assemble_and_names_unnamed_entries():
 def test_run_search_loop_with_aux_tables():
     main, aux = make_relational_data()
     result = run_search_loop(
-        relational_spec(), main, "target",
-        scoring="accuracy", budget_per_step=6, aux_tables=aux,
+        relational_spec(),
+        main,
+        "target",
+        scoring="accuracy",
+        budget_per_step=6,
+        aux_tables=aux,
     )
     assert "assemble" in result["action_space"]
     assert isinstance(result["best_score"], float)
@@ -147,7 +190,9 @@ def test_search_scorer_prefers_bounded_report_metric():
     assert metrics.search_scorer("classification", "roc_auc") == "roc_auc"
     assert metrics.search_scorer("classification", "accuracy") == "accuracy"
     # unbounded report metrics stay report-only; search keeps the default
-    assert metrics.search_scorer("regression", "root_mean_squared_error") == "r2"
+    assert (
+        metrics.search_scorer("regression", "root_mean_squared_error") == "r2"
+    )
     assert metrics.search_scorer("classification") == "accuracy"
 
 
@@ -176,9 +221,13 @@ def test_stratified_rollout_avoids_nan_on_rare_target():
     positives; sklearn's scorer then silently NaNs that fold. stratify=True
     must keep every rollout a finite score in [0, 1]."""
     df = _imbalanced_df()
-    spec = {"model": {"LogReg": __import__(
-        "sklearn.linear_model", fromlist=["x"]
-    ).LogisticRegression(max_iter=500)}}
+    spec = {
+        "model": {
+            "LogReg": __import__(
+                "sklearn.linear_model", fromlist=["x"]
+            ).LogisticRegression(max_iter=500)
+        }
+    }
     plan = skrub_ops.build_staged_plan(spec, df)
     rollout = skrub_ops.make_rollout_fn(
         plan, df, min_rows=50, scoring="roc_auc", stratify=True
@@ -192,7 +241,9 @@ def test_stratified_subsample_floor_no_duplicates_deterministic():
     small = skrub_ops._stratified_subsample(df, "target", n=500, seed=0)
     assert len(small) == 500
     assert small["target"].value_counts().min() >= 10  # the minority floor
-    assert small.index.is_unique  # sampled without replacement, never duplicated
+    assert (
+        small.index.is_unique
+    )  # sampled without replacement, never duplicated
     again = skrub_ops._stratified_subsample(df, "target", n=500, seed=0)
     assert small.equals(again)
 
@@ -233,8 +284,12 @@ def test_rollout_nonzero_and_deterministic_on_extreme_imbalance():
         spec = {"model": {"LogReg": LogisticRegression(max_iter=500)}}
         plan = skrub_ops.build_staged_plan(spec, df)
         return skrub_ops.make_rollout_fn(
-            plan, df, min_rows=400, scoring="roc_auc",
-            stratify=True, target="target",
+            plan,
+            df,
+            min_rows=400,
+            scoring="roc_auc",
+            stratify=True,
+            target="target",
         )
 
     score = fresh_rollout()({"model": "LogReg"})
@@ -251,18 +306,29 @@ Task: binary classification, target 'target'. Main table has an uninformative
 (id <-> id) is the key opportunity. Models: HistGradientBoosting, LogisticRegression.
 """
 
-_REL_SPEC = json.dumps({
-    "assemble": [
-        {"name": "aux_mean", "table": "aux", "key": "id",
-         "operations": ["mean"], "cols": ["v"]},
-        {"name": "aux_stats", "table": "bogus_table", "key": "id",
-         "operations": ["mean"]},
-    ],
-    "model": [
-        "sklearn.ensemble.HistGradientBoostingClassifier",
-        "sklearn.linear_model.LogisticRegression",
-    ],
-})
+_REL_SPEC = json.dumps(
+    {
+        "assemble": [
+            {
+                "name": "aux_mean",
+                "table": "aux",
+                "key": "id",
+                "operations": ["mean"],
+                "cols": ["v"],
+            },
+            {
+                "name": "aux_stats",
+                "table": "bogus_table",
+                "key": "id",
+                "operations": ["mean"],
+            },
+        ],
+        "model": [
+            "sklearn.ensemble.HistGradientBoostingClassifier",
+            "sklearn.linear_model.LogisticRegression",
+        ],
+    }
+)
 
 
 def test_run_pipeline_relational_end_to_end_offline(rel_task_dir):

@@ -27,8 +27,14 @@ from google.genai import types
 
 from machine_learning_engineering import ensemble, metrics, skrub_ops
 from machine_learning_engineering.adk_agent import build_root_agent
-from machine_learning_engineering.data_summary import infer_task_type, make_data_summary
-from machine_learning_engineering.search_loop import make_llm_proposer, run_search_loop
+from machine_learning_engineering.data_summary import (
+    infer_task_type,
+    make_data_summary,
+)
+from machine_learning_engineering.search_loop import (
+    make_llm_proposer,
+    run_search_loop,
+)
 from machine_learning_engineering.shared_libraries import config
 from machine_learning_engineering.spec_resolver import resolve_spec
 
@@ -39,7 +45,9 @@ APP_NAME = "mle-mcts-skrub"
 
 
 def load_task(
-    task_name: str | None = None, data_dir: str | None = None, target: str | None = None
+    task_name: str | None = None,
+    data_dir: str | None = None,
+    target: str | None = None,
 ):
     """Return (df, target, task_type, metric, desc, aux_tables) for a task dir.
 
@@ -129,11 +137,16 @@ def _safe_resolve(
     """resolve_spec with a fallback; returns (spec, used_fallback)."""
     try:
         spec = resolve_spec(
-            raw, task_type=task_type, aux_schemas=aux_schemas, main_columns=main_columns
+            raw,
+            task_type=task_type,
+            aux_schemas=aux_schemas,
+            main_columns=main_columns,
         )
         return spec, False
     except Exception:
-        return resolve_spec(_fallback_spec(task_type), task_type=task_type), True
+        return resolve_spec(
+            _fallback_spec(task_type), task_type=task_type
+        ), True
 
 
 # --- the pipeline ------------------------------------------------------------
@@ -182,16 +195,32 @@ def run_pipeline(
     summary = make_data_summary(df, target, aux_tables=aux_tables)
 
     if spec_raw is None:
-        root = build_root_agent(model=model, with_search=with_search, log_dir=log_dir)
+        root = build_root_agent(
+            model=model, with_search=with_search, log_dir=log_dir
+        )
         session = asyncio.run(_run_agents(root, summary))
         raw = session.state.get("skrub_spec_raw", "")
         analysis = session.state.get("dataset_analysis", "")
+        # `google_search` grounding intermittently makes the plan_author emit an
+        # EMPTY response instead of its JSON (grounding conflicts with strict
+        # structured output). Rather than collapse to the minimal fallback spec,
+        # retry the graph once with search OFF — that path reliably returns the
+        # rich JSON plan. Only triggers on the search path, only when empty.
+        if with_search and not (raw or "").strip():
+            root = build_root_agent(
+                model=model, with_search=False, log_dir=log_dir
+            )
+            session = asyncio.run(_run_agents(root, summary))
+            raw = session.state.get("skrub_spec_raw", "") or raw
+            analysis = session.state.get("dataset_analysis", "") or analysis
     else:
         raw, analysis = spec_raw, ""  # reused spec: no agent turns, no analysis
     spec, used_fallback = _safe_resolve(
         raw,
         task_type,
-        aux_schemas={name: list(adf.columns) for name, adf in aux_tables.items()},
+        aux_schemas={
+            name: list(adf.columns) for name, adf in aux_tables.items()
+        },
         main_columns=[c for c in df.columns if c != target],
     )
 
@@ -293,7 +322,9 @@ def _result_markdown(r: dict) -> str:
         f"- search reward ({r.get('search_scorer')}): {r.get('best_search_score')}",
     ]
     if rep:
-        lines.append(f"- report metric ({rep.get('scorer')}): {rep.get('score')}")
+        lines.append(
+            f"- report metric ({rep.get('scorer')}): {rep.get('score')}"
+        )
     ens = r.get("ensemble")
     if ens:
         lines.append(
@@ -326,11 +357,15 @@ def _result_markdown(r: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _top_k_report(search, df, target, task_type, metric, aux_tables, top_k, seed):
+def _top_k_report(
+    search, df, target, task_type, metric, aux_tables, top_k, seed
+):
     """Top-k ensemble vs incumbent on a holdout (None when top_k <= 1 fails)."""
     if top_k <= 1:
         return None
-    scorer = metrics.report_scorer(metric) or metrics.search_scorer(task_type, metric)
+    scorer = metrics.report_scorer(metric) or metrics.search_scorer(
+        task_type, metric
+    )
     try:
         states = ensemble.top_k_states(search["score_cache"], top_k)
         return ensemble.evaluate_top_k(
@@ -348,7 +383,12 @@ def _top_k_report(search, df, target, task_type, metric, aux_tables, top_k, seed
 
 
 def _report(
-    plan, state: dict, df, metric: str, aux: dict | None = None, stratify: bool = False
+    plan,
+    state: dict,
+    df,
+    metric: str,
+    aux: dict | None = None,
+    stratify: bool = False,
 ):
     """Score the incumbent on the task/competition metric, for reporting only."""
     scorer = metrics.report_scorer(metric)
@@ -372,7 +412,9 @@ def _report(
 
 
 def _main() -> None:
-    parser = argparse.ArgumentParser(description="Run the agent->MCTS pipeline.")
+    parser = argparse.ArgumentParser(
+        description="Run the agent->MCTS pipeline."
+    )
     parser.add_argument("--task", default=None, help="task name under data_dir")
     parser.add_argument("--target", default=None, help="override target column")
     parser.add_argument(
@@ -383,7 +425,9 @@ def _main() -> None:
         "ceil(budget/4) HP-refinement rollouts run after)",
     )
     parser.add_argument(
-        "--out", default=None, help="artifact dir (default: runs/<task>_<timestamp>)"
+        "--out",
+        default=None,
+        help="artifact dir (default: runs/<task>_<timestamp>)",
     )
     parser.add_argument(
         "--outer-steps",
@@ -418,7 +462,9 @@ def _main() -> None:
         action="store_true",
         help="keep the first Option-1 target stage for the whole run",
     )
-    parser.add_argument("--seed", type=int, default=42, help="global random seed")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="global random seed"
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
@@ -426,7 +472,7 @@ def _main() -> None:
     outer_steps, refine = args.outer_steps, args.refine
     if args.n_proposes is not None:  # sugar: N propose calls between slices
         outer_steps, refine = args.n_proposes + 1, args.n_proposes > 0
-    propose = make_llm_proposer() if refine else None
+    propose = make_llm_proposer(log_dir=out_dir) if refine else None
     result = run_pipeline(
         task_name=args.task,
         target=args.target,
@@ -450,7 +496,9 @@ def _main() -> None:
         f"Best search score ({result['search_scorer']}): {result['best_search_score']:.4f}"
     )
     if result["report"]:
-        print(f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}")
+        print(
+            f"Report ({result['report']['scorer']}): {result['report']['score']:.4f}"
+        )
     if result.get("ensemble"):
         ens = result["ensemble"]
         print(
@@ -460,7 +508,9 @@ def _main() -> None:
     if result.get("target_key"):
         print(f"Targeted stage: {result['target_key']}")
     if result.get("injected_options"):
-        print(f"Injected options (not in original plan): {result['injected_options']}")
+        print(
+            f"Injected options (not in original plan): {result['injected_options']}"
+        )
     print(
         f"\nArtifacts written to: {out_dir}/ "
         "(summary.md, result.json, <agent>_<phase>.json)"

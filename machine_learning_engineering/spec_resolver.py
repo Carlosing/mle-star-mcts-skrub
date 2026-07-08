@@ -9,8 +9,8 @@ path string or ``{"name": <path>, "params": {...}}`` to tune hyperparameters.
 Imports are **lazy**: a class is imported (via ``importlib``) only when its path
 is actually named, so this module loads without pulling sklearn — only ``skrub``
 is needed eagerly (for the ``choose_*`` nodes). Safety: only paths under
-``ALLOWLIST_ROOTS`` (sklearn, skrub) are importable, so a hallucinated path can
-never import an arbitrary module. A path that can't be imported is simply
+``ALLOWLIST_ROOTS`` (sklearn, skrub, lightgbm, xgboost) are importable, so a
+hallucinated path can never import an arbitrary module. A path that can't be imported is simply
 dropped (no special handling, by design).
 
 The safety envelope is at the IMPORT level, not the search level: any param the
@@ -33,13 +33,16 @@ import json
 import math
 import re
 
-import skrub  # eager: needed for choose_* nodes (sklearn stays lazy)
+import skrub  # needed for choose_* nodes
 
 SEED = 42
 _SKIP_TOKENS = {"skip", "none", "null", ""}
 
 # Only paths under these roots may be imported (blocks `import os`, etc.).
-ALLOWLIST_ROOTS = ("sklearn", "skrub")
+# lightgbm/xgboost are here for their sklearn-compatible boosters (the SOTA the
+# data_analyst surfaces via web search); both seed via `random_state`, so
+# `_ensure_seeded` keeps them deterministic.
+ALLOWLIST_ROOTS = ("sklearn", "skrub", "lightgbm", "xgboost")
 
 
 # --- tunable rule constructors (the allowed HP envelope) ---------------------
@@ -70,6 +73,25 @@ _RF_TUNABLE = {
     "min_samples_leaf": _int(1, 10),
     "max_features": _choice(["sqrt", "log2", 1.0]),
 }
+# Gradient-boosting libs (sklearn-compatible). Same param names across the
+# Regressor/Classifier variants; kept modest so a single fit stays under the
+# per-rollout wall-clock cap.
+_LGBM_TUNABLE = {
+    "n_estimators": _int(100, 1000),
+    "learning_rate": _float(0.01, 0.3, log=True),
+    "num_leaves": _int(15, 255),
+    "max_depth": _int(3, 16),
+    "colsample_bytree": _float(0.5, 1.0),
+    "reg_lambda": _float(0.0, 5.0),
+}
+_XGB_TUNABLE = {
+    "n_estimators": _int(100, 1000),
+    "learning_rate": _float(0.01, 0.3, log=True),
+    "max_depth": _int(2, 12),
+    "subsample": _float(0.5, 1.0),
+    "colsample_bytree": _float(0.5, 1.0),
+    "reg_lambda": _float(0.0, 5.0),
+}
 
 # Curated registry keyed by dotted path: {kind, defaults, tunable}. `kind` only
 # groups the prompt vocabulary. Classes are imported lazily, not referenced here.
@@ -86,7 +108,11 @@ REGISTRY = {
         "defaults": {},
         "tunable": {"n_components": _int(20, 80)},
     },
-    "skrub.StringEncoder": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    "skrub.StringEncoder": {
+        "kind": "transformer",
+        "defaults": {},
+        "tunable": {},
+    },
     "skrub.DatetimeEncoder": {
         "kind": "transformer",
         "defaults": {},
@@ -108,7 +134,11 @@ REGISTRY = {
         "defaults": {"include_bias": False, "degree": 2},
         "tunable": {"degree": _int(2, 3)},
     },
-    "sklearn.decomposition.PCA": {"kind": "transformer", "defaults": {}, "tunable": {}},
+    "sklearn.decomposition.PCA": {
+        "kind": "transformer",
+        "defaults": {},
+        "tunable": {},
+    },
     # sklearn models — regression + classification variants
     "sklearn.ensemble.HistGradientBoostingRegressor": {
         "kind": "model",
@@ -144,6 +174,34 @@ REGISTRY = {
         "kind": "model",
         "defaults": {"max_iter": 1000},
         "tunable": {"C": _float(1e-3, 1e3, log=True)},
+    },
+    # Gradient-boosting libraries. `n_jobs=1` is LOAD-BEARING, not a perf knob:
+    # skrub's pipeline loads sklearn's bundled libomp, and a multi-threaded
+    # lightgbm/xgboost fit in the same process loads a SECOND OpenMP runtime;
+    # inside skrub's multi-fold CV that duplicate-libomp collision *segfaults*
+    # deterministically on macOS-ARM (crashes the whole run, uncatchable by the
+    # rollout try/except or the SIGALRM cap). Single-threaded native execution
+    # sidesteps it and is harmless elsewhere — rollouts fit tiny subsamples. The
+    # other defaults just quiet each library's per-fit logging.
+    "lightgbm.LGBMRegressor": {
+        "kind": "model",
+        "defaults": {"verbose": -1, "n_jobs": 1},
+        "tunable": _LGBM_TUNABLE,
+    },
+    "lightgbm.LGBMClassifier": {
+        "kind": "model",
+        "defaults": {"verbose": -1, "n_jobs": 1},
+        "tunable": _LGBM_TUNABLE,
+    },
+    "xgboost.XGBRegressor": {
+        "kind": "model",
+        "defaults": {"verbosity": 0, "n_jobs": 1},
+        "tunable": _XGB_TUNABLE,
+    },
+    "xgboost.XGBClassifier": {
+        "kind": "model",
+        "defaults": {"verbosity": 0, "n_jobs": 1},
+        "tunable": _XGB_TUNABLE,
     },
 }
 
@@ -236,7 +294,9 @@ def _build_choice(choice_name, llm_rule, rule):
             return None
         log = bool(llm_rule.get("log", rule.get("log", False)))
         if typ == "int":
-            return skrub.choose_int(int(low), int(high), log=log, name=choice_name)
+            return skrub.choose_int(
+                int(low), int(high), log=log, name=choice_name
+            )
         return skrub.choose_float(low, high, log=log, name=choice_name)
     if typ == "choice":
         allowed = rule["options"]
@@ -305,7 +365,9 @@ def _build_free_choice(choice_name, llm_rule):
         if log and low <= 0:
             return None
         if typ == "int":
-            return skrub.choose_int(int(low), int(high), log=log, name=choice_name)
+            return skrub.choose_int(
+                int(low), int(high), log=log, name=choice_name
+            )
         return skrub.choose_float(low, high, log=log, name=choice_name)
     opts = llm_rule.get("choice") or llm_rule.get("options")
     if isinstance(opts, list) and opts:
@@ -349,7 +411,9 @@ def _make(path, params, seed, context):
         return None
 
 
-def _resolve_options(items, seed, allow_skip, context, priors_out=None, label_fn=repr):
+def _resolve_options(
+    items, seed, allow_skip, context, priors_out=None, label_fn=repr
+):
     """Resolve option items to instances; optionally collect per-option priors.
 
     An option dict may carry ``"prior": 0.0-1.0`` (the LLM's confidence this
@@ -405,7 +469,9 @@ def _sanitize_name(name) -> str:
     return re.sub(r"_{2,}", "_", slug) or "group"
 
 
-def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> list[dict]:
+def _resolve_scoped(
+    entries, seed, main_columns, priors: dict | None = None
+) -> list[dict]:
     """Validate scoped-encoding groups (the searchable *scope* stage).
 
     Keeps a group only if at least one of its columns exists in the main table
@@ -428,7 +494,9 @@ def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> 
         if not isinstance(cfg, dict):
             continue
         cols = [
-            c for c in (cfg.get("cols") or []) if main_columns is None or c in main_columns
+            c
+            for c in (cfg.get("cols") or [])
+            if main_columns is None or c in main_columns
         ]
         if not cols:
             continue
@@ -464,7 +532,16 @@ def _resolve_scoped(entries, seed, main_columns, priors: dict | None = None) -> 
 
 # Aggregations skrub's AggJoiner supports (skrub._agg_joiner.SUPPORTED_OPS);
 # "sum"/"median"/"mean"/"std" are numeric-only, enforced by skrub at fit.
-_AGG_OPERATIONS = {"count", "mode", "min", "max", "sum", "median", "mean", "std"}
+_AGG_OPERATIONS = {
+    "count",
+    "mode",
+    "min",
+    "max",
+    "sum",
+    "median",
+    "mean",
+    "std",
+}
 
 
 def _resolve_assemble(
@@ -498,13 +575,21 @@ def _resolve_assemble(
         ]
         if not operations:
             continue
-        key, main_key, aux_key = cfg.get("key"), cfg.get("main_key"), cfg.get("aux_key")
+        key, main_key, aux_key = (
+            cfg.get("key"),
+            cfg.get("main_key"),
+            cfg.get("aux_key"),
+        )
         if key is not None:
-            if key not in aux_cols or (main_columns and key not in main_columns):
+            if key not in aux_cols or (
+                main_columns and key not in main_columns
+            ):
                 continue
             keys = {"key": key}
         elif main_key is not None and aux_key is not None:
-            if aux_key not in aux_cols or (main_columns and main_key not in main_columns):
+            if aux_key not in aux_cols or (
+                main_columns and main_key not in main_columns
+            ):
                 continue
             keys = {"main_key": main_key, "aux_key": aux_key}
         else:
@@ -573,7 +658,12 @@ def resolve_spec(
     def _options_with_priors(items, allow_skip, context, label_fn=repr):
         stage_priors: dict = {}
         opts = _resolve_options(
-            items, seed, allow_skip, context, priors_out=stage_priors, label_fn=label_fn
+            items,
+            seed,
+            allow_skip,
+            context,
+            priors_out=stage_priors,
+            label_fn=label_fn,
         )
         if stage_priors:
             priors[context] = stage_priors
@@ -650,7 +740,9 @@ def allowed_operators() -> dict:
         "transformers": sorted(
             p for p, e in REGISTRY.items() if e["kind"] == "transformer"
         ),
-        "models": sorted(p for p, e in REGISTRY.items() if e["kind"] == "model"),
+        "models": sorted(
+            p for p, e in REGISTRY.items() if e["kind"] == "model"
+        ),
     }
 
 
@@ -683,11 +775,15 @@ def format_allowed_for_prompt() -> str:
         "the whole budget on one config. Keep upper bounds to what trains in a "
         'few seconds on a subsample. For an optional stage use "skip". Choose '
         "the task-appropriate class (Regressor for regression, Classifier for "
-        "classification). Only sklearn.* and skrub.* paths are allowed. The "
+        "classification). Only sklearn.*, skrub.*, lightgbm.* and xgboost.* "
+        "paths are allowed (lightgbm/xgboost are gradient-boosting model "
+        "families — often the strongest on tabular data). The "
         "following have curated known-good ranges you can use as a guide:",
         "Transformers:",
     ]
-    for path in sorted(p for p, e in REGISTRY.items() if e["kind"] == "transformer"):
+    for path in sorted(
+        p for p, e in REGISTRY.items() if e["kind"] == "transformer"
+    ):
         tun = _fmt_tunable(REGISTRY[path]["tunable"])
         lines.append(f"  {path}" + (f" (params: {tun})" if tun else ""))
     lines.append("Models:")

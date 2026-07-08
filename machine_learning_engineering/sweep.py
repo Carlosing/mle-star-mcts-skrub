@@ -48,10 +48,25 @@ _DEFAULTS = {
 _KEYS = set(_DEFAULTS) | {"n_proposes"}
 
 _COLUMNS = [
-    "task", "seed", "c", "budget", "outer_steps", "refine", "retarget",
-    "top_k", "best_search_score", "report_scorer", "report_score",
-    "ensemble_score", "used_fallback_spec", "reused_spec", "llm_calls",
-    "wall_clock_s", "status", "error", "run_dir",
+    "task",
+    "seed",
+    "c",
+    "budget",
+    "outer_steps",
+    "refine",
+    "retarget",
+    "top_k",
+    "best_search_score",
+    "report_scorer",
+    "report_score",
+    "ensemble_score",
+    "used_fallback_spec",
+    "reused_spec",
+    "llm_calls",
+    "wall_clock_s",
+    "status",
+    "error",
+    "run_dir",
 ]
 
 
@@ -111,7 +126,9 @@ def _is_quota_error(exc: Exception) -> bool:
     return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower()
 
 
-def run_one(cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65) -> dict:
+def run_one(
+    cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65
+) -> dict:
     """Run one sweep point through ``run_pipeline`` and return a result row.
 
     Quota errors (429 / RESOURCE_EXHAUSTED) sleep ``retry_wait`` seconds and
@@ -123,8 +140,19 @@ def run_one(cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65)
         run_one({"task": "credit-fraud", "c": 0.5, ...}, spec_raw, "runs/sweep/x")
         # -> {"task": "credit-fraud", "best_search_score": 0.71, "status": "ok", ...}
     """
-    row = {k: cfg[k] for k in ("task", "seed", "c", "budget", "outer_steps",
-                               "refine", "retarget", "top_k")}
+    row = {
+        k: cfg[k]
+        for k in (
+            "task",
+            "seed",
+            "c",
+            "budget",
+            "outer_steps",
+            "refine",
+            "retarget",
+            "top_k",
+        )
+    }
     row.update({c: "" for c in _COLUMNS if c not in row})
     row["run_dir"] = out_dir
     started = time.time()
@@ -136,7 +164,9 @@ def run_one(cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65)
                 out_dir=out_dir,
                 seed=cfg["seed"],
                 outer_steps=cfg["outer_steps"],
-                propose=make_llm_proposer() if cfg["refine"] else None,
+                propose=make_llm_proposer(log_dir=out_dir)
+                if cfg["refine"]
+                else None,
                 top_k=cfg["top_k"],
                 c=cfg["c"],
                 retarget=cfg["retarget"],
@@ -153,7 +183,9 @@ def run_one(cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65)
                 reused_spec=result["reused_spec"],
                 llm_calls=result["llm_calls"],
                 status="ok",
-                spec_raw=result["spec_raw"],  # popped by the caller, not a column
+                spec_raw=result[
+                    "spec_raw"
+                ],  # popped by the caller, not a column
             )
             break
         except Exception as exc:
@@ -188,9 +220,14 @@ def write_markdown(rows: list[dict], spec_path: str, path: str) -> None:
     """
     ok = [r for r in rows if r.get("status") == "ok"]
     failed = [r for r in rows if r.get("status") != "ok"]
-    ordered = sorted(
-        ok, key=lambda r: float(r.get("best_search_score") or 0.0), reverse=True
-    ) + failed
+    ordered = (
+        sorted(
+            ok,
+            key=lambda r: float(r.get("best_search_score") or 0.0),
+            reverse=True,
+        )
+        + failed
+    )
     total_llm = sum(int(r.get("llm_calls") or 0) for r in rows)
     total_wall = sum(float(r.get("wall_clock_s") or 0.0) for r in rows)
     lines = [
@@ -203,7 +240,9 @@ def write_markdown(rows: list[dict], spec_path: str, path: str) -> None:
         "|" + "---|" * len(_COLUMNS[:-2]),
     ]
     for r in ordered:
-        lines.append("| " + " | ".join(str(r.get(c, "")) for c in _COLUMNS[:-2]) + " |")
+        lines.append(
+            "| " + " | ".join(str(r.get(c, "")) for c in _COLUMNS[:-2]) + " |"
+        )
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
@@ -211,15 +250,28 @@ def write_markdown(rows: list[dict], spec_path: str, path: str) -> None:
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Sweep over pipeline configs.")
     parser.add_argument("spec", help="JSON sweep spec (defaults + runs)")
-    parser.add_argument("--out", default=None,
-                        help="sweep dir (default: runs/sweep_<timestamp>)")
-    parser.add_argument("--retry-wait", type=int, default=65,
-                        help="seconds to wait before the one quota retry")
-    parser.add_argument("--no-reuse-spec", action="store_true",
-                        help="run the agents for every point (A/B plan variance)")
-    parser.add_argument("--spec-cache", default=None,
-                        help="JSON {task: raw_spec}; read if present, updated "
-                        "after each fetch — shares agent calls across sweeps")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="sweep dir (default: runs/sweep_<timestamp>)",
+    )
+    parser.add_argument(
+        "--retry-wait",
+        type=int,
+        default=65,
+        help="seconds to wait before the one quota retry",
+    )
+    parser.add_argument(
+        "--no-reuse-spec",
+        action="store_true",
+        help="run the agents for every point (A/B plan variance)",
+    )
+    parser.add_argument(
+        "--spec-cache",
+        default=None,
+        help="JSON {task: raw_spec}; read if present, updated "
+        "after each fetch — shares agent calls across sweeps",
+    )
     args = parser.parse_args()
 
     configs = load_sweep_spec(args.spec)

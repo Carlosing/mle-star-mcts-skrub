@@ -52,7 +52,9 @@ def build_golden_plan(df: pd.DataFrame):
             {
                 "GBM": GradientBoostingClassifier(
                     n_estimators=skrub.choose_int(50, 200, name="n_trees"),
-                    learning_rate=skrub.choose_float(0.01, 0.3, log=True, name="lr"),
+                    learning_rate=skrub.choose_float(
+                        0.01, 0.3, log=True, name="lr"
+                    ),
                     random_state=42,
                 ),
                 "RF": RandomForestClassifier(

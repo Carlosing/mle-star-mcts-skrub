@@ -29,7 +29,9 @@ from machine_learning_engineering.run_logging import read_records
 APP_NAME = "mle-mcts-skrub-test"
 
 # Canned model turns for the mocked runs, in call order: analyst then author.
-FAKE_ANALYSIS = "ANALYSIS: regression on 'target'; high-cardinality city column."
+FAKE_ANALYSIS = (
+    "ANALYSIS: regression on 'target'; high-cardinality city column."
+)
 FAKE_SPEC_JSON = (
     '{"encoder_options": ["GapEncoder", "MinHashEncoder"], '
     '"model": ["HistGradientBoosting", "RandomForest"]}'
@@ -89,7 +91,9 @@ async def _run(root_agent, user_text):
 async def test_loop_runs_both_agents_in_order(tmp_path):
     """Both sub-agents run, and each writes its output_key into session state."""
     model = FakeLlm().set_responses([FAKE_ANALYSIS, FAKE_SPEC_JSON])
-    root = build_root_agent(model=model, log_dir=str(tmp_path), with_search=False)
+    root = build_root_agent(
+        model=model, log_dir=str(tmp_path), with_search=False
+    )
 
     _, session = await _run(root, "California housing; predict target.")
 
@@ -104,13 +108,17 @@ async def test_state_handoff_analysis_injected_into_author_prompt(tmp_path):
     state before the call. We read it back from the sanity log's request record.
     """
     model = FakeLlm().set_responses([FAKE_ANALYSIS, FAKE_SPEC_JSON])
-    root = build_root_agent(model=model, log_dir=str(tmp_path), with_search=False)
+    root = build_root_agent(
+        model=model, log_dir=str(tmp_path), with_search=False
+    )
 
     await _run(root, "California housing; predict target.")
 
     records = _read_log(tmp_path)
     author_request = next(
-        r for r in records if r["agent"] == "plan_author" and r["phase"] == "request"
+        r
+        for r in records
+        if r["agent"] == "plan_author" and r["phase"] == "request"
     )
     assert FAKE_ANALYSIS in author_request["system_instruction"]
 
@@ -118,7 +126,9 @@ async def test_state_handoff_analysis_injected_into_author_prompt(tmp_path):
 async def test_sanity_log_is_legible(tmp_path):
     """The log captures a request+response per agent, parseable line by line."""
     model = FakeLlm().set_responses([FAKE_ANALYSIS, FAKE_SPEC_JSON])
-    root = build_root_agent(model=model, log_dir=str(tmp_path), with_search=False)
+    root = build_root_agent(
+        model=model, log_dir=str(tmp_path), with_search=False
+    )
 
     await _run(root, "California housing; predict target.")
 
@@ -131,7 +141,9 @@ async def test_sanity_log_is_legible(tmp_path):
 
     # Responses carry the model output text; requests carry the instruction.
     analyst_resp = next(
-        r for r in records if r["agent"] == "data_analyst" and r["phase"] == "response"
+        r
+        for r in records
+        if r["agent"] == "data_analyst" and r["phase"] == "response"
     )
     assert analyst_resp["output"] == FAKE_ANALYSIS
 
@@ -147,7 +159,8 @@ def _read_log(tmp_path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 live = pytest.mark.skipif(
-    os.environ.get("RUN_LIVE_TESTS") != "1" or not os.environ.get("GOOGLE_API_KEY"),
+    os.environ.get("RUN_LIVE_TESTS") != "1"
+    or not os.environ.get("GOOGLE_API_KEY"),
     reason="set RUN_LIVE_TESTS=1 and GOOGLE_API_KEY to run the live Gemini smoke test",
 )
 

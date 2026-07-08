@@ -23,7 +23,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 skrub = pytest.importorskip("skrub")
 
 from machine_learning_engineering import skrub_ops, spec_resolver
-from machine_learning_engineering.search_loop import _augment_spec, run_search_loop
+from machine_learning_engineering.search_loop import (
+    _augment_spec,
+    run_search_loop,
+)
 
 from fixtures.golden_plan import make_toy_df
 
@@ -36,7 +39,9 @@ def test_scope_selector_tolerates_missing_columns():
     assert skrub_ops._scope_selector(["color", "ghost"]).expand(df) == ["color"]
     # regex metacharacters in a column name must be treated literally
     df2 = df.rename(columns={"color": "color (raw)"})
-    assert skrub_ops._scope_selector(["color (raw)"]).expand(df2) == ["color (raw)"]
+    assert skrub_ops._scope_selector(["color (raw)"]).expand(df2) == [
+        "color (raw)"
+    ]
 
 
 # --- resolver validation ---------------------------------------------------------
@@ -45,10 +50,21 @@ def test_scope_selector_tolerates_missing_columns():
 def test_resolve_scoped_validates_cols_and_names():
     scoped = spec_resolver._resolve_scoped(
         [
-            {"name": "color enc", "cols": ["color", "ghost"],
-             "options": ["skip", "skrub.GapEncoder"]},
-            {"name": "all_invented", "cols": ["nope"], "options": ["skrub.GapEncoder"]},
-            {"name": "no_ops", "cols": ["color"], "options": ["not.allowed.Path"]},
+            {
+                "name": "color enc",
+                "cols": ["color", "ghost"],
+                "options": ["skip", "skrub.GapEncoder"],
+            },
+            {
+                "name": "all_invented",
+                "cols": ["nope"],
+                "options": ["skrub.GapEncoder"],
+            },
+            {
+                "name": "no_ops",
+                "cols": ["color"],
+                "options": ["not.allowed.Path"],
+            },
         ],
         seed=42,
         main_columns=["x1", "x2", "color"],
@@ -63,8 +79,11 @@ def test_resolve_scoped_validates_cols_and_names():
 def test_resolve_spec_carries_scoped_encodings():
     raw = {
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color"],
-             "options": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}
+            {
+                "name": "color_enc",
+                "cols": ["color"],
+                "options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+            }
         ],
         "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
     }
@@ -82,13 +101,19 @@ def scoped_plan_df():
     df = make_toy_df()
     spec = {
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color", "ghost"],
-             "options": [skrub.GapEncoder(n_components=3, random_state=42),
-                         skrub.MinHashEncoder(n_components=4)]}
+            {
+                "name": "color_enc",
+                "cols": ["color", "ghost"],
+                "options": [
+                    skrub.GapEncoder(n_components=3, random_state=42),
+                    skrub.MinHashEncoder(n_components=4),
+                ],
+            }
         ],
         "model": {
-            "HGB": __import__("sklearn.ensemble", fromlist=["x"])
-            .HistGradientBoostingClassifier(random_state=42),
+            "HGB": __import__(
+                "sklearn.ensemble", fromlist=["x"]
+            ).HistGradientBoostingClassifier(random_state=42),
         },
     }
     return skrub_ops.build_staged_plan(spec, df), df
@@ -113,8 +138,11 @@ def test_scoped_rollout_is_deterministic_and_scoreable(scoped_plan_df):
 def test_augment_spec_injects_into_scope_group():
     spec = {
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color"],
-             "options": [skrub.GapEncoder(n_components=3, random_state=42)]}
+            {
+                "name": "color_enc",
+                "cols": ["color"],
+                "options": [skrub.GapEncoder(n_components=3, random_state=42)],
+            }
         ],
         "model": {},
     }
@@ -136,7 +164,10 @@ def test_default_state_is_appliable_when_encoder_options_have_tuned_hps():
     spec = spec_resolver.resolve_spec(
         {
             "encoder_options": [
-                {"name": "skrub.GapEncoder", "params": {"n_components": {"int": [10, 50]}}},
+                {
+                    "name": "skrub.GapEncoder",
+                    "params": {"n_components": {"int": [10, 50]}},
+                },
                 "skrub.MinHashEncoder",
             ],
             "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
@@ -155,12 +186,24 @@ def test_default_state_is_appliable_when_encoder_options_have_tuned_hps():
 def test_resolve_scoped_passes_position_and_additive():
     scoped = spec_resolver._resolve_scoped(
         [
-            {"name": "color_feats", "cols": ["color"], "additive": True,
-             "options": ["skrub.GapEncoder"]},
-            {"name": "num_scale", "cols": ["x1"], "position": "post_encode",
-             "options": ["sklearn.preprocessing.StandardScaler"]},
-            {"name": "bad_pos", "cols": ["x2"], "position": "mid_encode",
-             "options": ["skrub.GapEncoder"]},
+            {
+                "name": "color_feats",
+                "cols": ["color"],
+                "additive": True,
+                "options": ["skrub.GapEncoder"],
+            },
+            {
+                "name": "num_scale",
+                "cols": ["x1"],
+                "position": "post_encode",
+                "options": ["sklearn.preprocessing.StandardScaler"],
+            },
+            {
+                "name": "bad_pos",
+                "cols": ["x2"],
+                "position": "mid_encode",
+                "options": ["skrub.GapEncoder"],
+            },
         ],
         seed=42,
         main_columns=["x1", "x2", "color"],
@@ -179,21 +222,40 @@ def test_post_encode_group_applies_after_the_vectorizer():
     df = make_toy_df()
     spec = {
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color"],
-             "options": [skrub.GapEncoder(n_components=3, random_state=42)]},
-            {"name": "num_scale", "cols": ["x1"], "position": "post_encode",
-             "options": [RobustScaler()]},
+            {
+                "name": "color_enc",
+                "cols": ["color"],
+                "options": [skrub.GapEncoder(n_components=3, random_state=42)],
+            },
+            {
+                "name": "num_scale",
+                "cols": ["x1"],
+                "position": "post_encode",
+                "options": [RobustScaler()],
+            },
         ],
         "model": {"HGB": HistGradientBoostingClassifier(random_state=42)},
     }
     plan = skrub_ops.build_staged_plan(spec, df)
-    assert skrub_ops.get_action_space(plan)["scope_num_scale"] == ["skip", "RobustScaler"]
+    assert skrub_ops.get_action_space(plan)["scope_num_scale"] == [
+        "skip",
+        "RobustScaler",
+    ]
     # DAG order: pre-encode group -> TableVectorizer -> post-encode group
-    skrub_ops.apply_state(plan, {"model": "HGB", "scope_color_enc": "GapEncoder",
-                                 "scope_num_scale": "RobustScaler"})
+    skrub_ops.apply_state(
+        plan,
+        {
+            "model": "HGB",
+            "scope_color_enc": "GapEncoder",
+            "scope_num_scale": "RobustScaler",
+        },
+    )
     steps = skrub_ops.get_steps_summary(plan)
-    assert (steps.index("GapEncoder") < steps.index("TableVectorizer")
-            < steps.index("RobustScaler"))
+    assert (
+        steps.index("GapEncoder")
+        < steps.index("TableVectorizer")
+        < steps.index("RobustScaler")
+    )
     rollout = skrub_ops.make_rollout_fn(plan, df)
     assert rollout({"model": "HGB", "scope_num_scale": "RobustScaler"}) > 0.0
 
@@ -201,8 +263,11 @@ def test_post_encode_group_applies_after_the_vectorizer():
 def test_additive_group_keeps_original_and_appends_suffixed():
     df = make_toy_df(80)
     X = skrub.var("data", df.drop(columns=["target"]))
-    group = {"name": "color_feats", "additive": True,
-             "options": [skrub.MinHashEncoder(n_components=4)]}
+    group = {
+        "name": "color_feats",
+        "additive": True,
+        "options": [skrub.MinHashEncoder(n_components=4)],
+    }
     node = skrub_ops._apply_scope_group(X, group, ["color"])
     base_cols = list(df.drop(columns=["target"]).columns)
     assert list(node.skb.eval().columns) == base_cols  # skip default: a no-op
@@ -219,19 +284,27 @@ def test_additive_group_end_to_end_search():
     df = make_toy_df()
     spec = {
         "scoped_encodings": [
-            {"name": "color_feats", "cols": ["color"], "additive": True,
-             "options": [skrub.MinHashEncoder(n_components=4)]}
+            {
+                "name": "color_feats",
+                "cols": ["color"],
+                "additive": True,
+                "options": [skrub.MinHashEncoder(n_components=4)],
+            }
         ],
         "model": {"HGB": HistGradientBoostingClassifier(random_state=42)},
     }
     plan = skrub_ops.build_staged_plan(spec, df)
     assert skrub_ops.get_action_space(plan)["scope_color_feats"] == [
-        "skip", "MinHashEncoder"]
+        "skip",
+        "MinHashEncoder",
+    ]
     assert skrub_ops.get_default_state(plan)["scope_color_feats"] == "skip"
     rollout = skrub_ops.make_rollout_fn(plan, df)
     on = rollout({"model": "HGB", "scope_color_feats": "MinHashEncoder"})
     assert on > 0.0
-    assert on == rollout({"model": "HGB", "scope_color_feats": "MinHashEncoder"})
+    assert on == rollout(
+        {"model": "HGB", "scope_color_feats": "MinHashEncoder"}
+    )
 
 
 def test_inject_creates_flagged_scope_groups():
@@ -240,11 +313,15 @@ def test_inject_creates_flagged_scope_groups():
     spec = {"model": {}}
     proposals = [
         {"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": True},
-        {"name": "sklearn.preprocessing.StandardScaler", "cols": ["num"],
-         "position": "post_encode"},
+        {
+            "name": "sklearn.preprocessing.StandardScaler",
+            "cols": ["num"],
+            "position": "post_encode",
+        },
     ]
-    new, kept = _inject(spec, "encoder", proposals, 42,
-                        valid_columns=["date", "num"])
+    new, kept = _inject(
+        spec, "encoder", proposals, 42, valid_columns=["date", "num"]
+    )
     assert len(kept) == 2
     by_name = {g["name"]: g for g in new["scoped_encodings"]}
     assert by_name["date_DatetimeEncoder"]["additive"] is True
@@ -256,14 +333,20 @@ def test_search_loop_searches_scope_dimension():
     df = make_toy_df()
     spec = {
         "scoped_encodings": [
-            {"name": "color_enc", "cols": ["color"],
-             "options": [skrub.GapEncoder(n_components=3, random_state=42)]}
+            {
+                "name": "color_enc",
+                "cols": ["color"],
+                "options": [skrub.GapEncoder(n_components=3, random_state=42)],
+            }
         ],
         "model": {
-            "HGB": __import__("sklearn.ensemble", fromlist=["x"])
-            .HistGradientBoostingClassifier(random_state=42),
+            "HGB": __import__(
+                "sklearn.ensemble", fromlist=["x"]
+            ).HistGradientBoostingClassifier(random_state=42),
         },
     }
-    result = run_search_loop(spec, df, "target", scoring="accuracy", budget_per_step=5)
+    result = run_search_loop(
+        spec, df, "target", scoring="accuracy", budget_per_step=5
+    )
     assert "scope_color_enc" in result["action_space"]
     assert result["best_score"] > 0.0

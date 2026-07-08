@@ -30,7 +30,11 @@ def top_k_states(score_cache: dict, k: int = 3) -> list[dict]:
 # report-scorer name -> (metric fn, needs_proba, sign)
 _METRIC_FNS = {
     "r2": (_sk_metrics.r2_score, False, 1.0),
-    "neg_root_mean_squared_error": (_sk_metrics.root_mean_squared_error, False, -1.0),
+    "neg_root_mean_squared_error": (
+        _sk_metrics.root_mean_squared_error,
+        False,
+        -1.0,
+    ),
     "neg_mean_squared_error": (_sk_metrics.mean_squared_error, False, -1.0),
     "neg_mean_absolute_error": (_sk_metrics.mean_absolute_error, False, -1.0),
     "accuracy": (_sk_metrics.accuracy_score, False, 1.0),

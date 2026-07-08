@@ -61,7 +61,9 @@ def search_scorer(task_type: str, metric_name: str | None = None) -> str:
     try:
         return SEARCH_SCORER[task_type]
     except KeyError:
-        raise ValueError(f"no search scorer configured for task_type={task_type!r}")
+        raise ValueError(
+            f"no search scorer configured for task_type={task_type!r}"
+        )
 
 
 def report_scorer(metric_name: str) -> str | None:

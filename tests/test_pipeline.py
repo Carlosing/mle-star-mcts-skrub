@@ -83,9 +83,14 @@ def test_run_pipeline_end_to_end_offline():
 
 def test_run_pipeline_falls_back_on_bad_spec():
     # plan_author returns unparseable JSON -> resolver falls back, run still completes.
-    model = FakeLlm().set_responses([ANALYSIS, "sorry, I could not produce JSON"])
+    model = FakeLlm().set_responses(
+        [ANALYSIS, "sorry, I could not produce JSON"]
+    )
     result = pipeline.run_pipeline(
-        task_name="california-housing-prices", budget=4, model=model, with_search=False
+        task_name="california-housing-prices",
+        budget=4,
+        model=model,
+        with_search=False,
     )
     assert result["used_fallback_spec"] is True
     assert isinstance(result["best_search_score"], float)
@@ -136,8 +141,12 @@ def test_run_pipeline_forwards_c_and_retarget(monkeypatch):
     def fake_search_loop(spec, df, target, **kwargs):
         captured.update(kwargs)
         return {
-            "best_state": {}, "best_score": 0.5, "plan": None,
-            "action_space": {}, "target_key": None, "injected_options": [],
+            "best_state": {},
+            "best_score": 0.5,
+            "plan": None,
+            "action_space": {},
+            "target_key": None,
+            "injected_options": [],
             "score_cache": {},
         }
 

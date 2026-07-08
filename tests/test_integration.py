@@ -29,7 +29,9 @@ ARTIFACT_DIR = Path(__file__).resolve().parent.parent / "temp"
 
 skrub = pytest.importorskip("skrub")
 
-_BASE = os.path.join(os.path.dirname(__file__), "..", "machine_learning_engineering")
+_BASE = os.path.join(
+    os.path.dirname(__file__), "..", "machine_learning_engineering"
+)
 
 
 def _load(name):
@@ -126,7 +128,9 @@ def test_expand_produces_single_edit_neighbors(plan):
     children = mcts.expand(root, space, tried)
     assert children
     for child in children:
-        differing = [k for k in child.state if child.state[k] != root_state.get(k)]
+        differing = [
+            k for k in child.state if child.state[k] != root_state.get(k)
+        ]
         assert len(differing) == 1
 
 
