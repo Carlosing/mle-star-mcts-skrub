@@ -23,6 +23,7 @@ dependencies = [
     # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu 
     # to ensure the CPU version of torch is prioritized.
     "torch>=2.7.1",
+    "ddgs",
 ]
 
 [dependency-groups]

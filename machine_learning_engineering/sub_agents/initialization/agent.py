@@ -9,10 +9,10 @@ import time
 
 from machine_learning_engineering.runner import run_agent
 from machine_learning_engineering.shared_libraries import (
-    code_util,
     common_util,
     config,
     debug_util,
+    web_search_util,
 )
 from machine_learning_engineering.sub_agents.initialization import prompt
 
@@ -70,6 +70,24 @@ def get_task_summary(state, agent_name, response) -> None:
     state["task_summary"] = task_summary
 
 
+def run_web_search_for_task(state, task_id) -> None:
+    """Search the web for recent models/approaches for this task.
+
+    Only runs when use_web_search is enabled in config. Search failures are
+    swallowed so that the rest of the pipeline can continue without web data.
+    """
+    if not state.get("use_web_search", False):
+        return
+
+    task_summary = state.get("task_summary", "")
+    task_type = state.get("task_type", "")
+    query = f"effective machine learning models for {task_type} {task_summary}".strip()
+    num_results = state.get("web_search_num_results", 5)
+    results = web_search_util.search_web(query, num_results=num_results)
+    state[f"web_search_results_{task_id}"] = results
+    state[f"web_search_query_{task_id}"] = query
+
+
 _DEFAULT_CANDIDATES = [
     {
         "model_name": "RandomForestRegressor",
@@ -121,8 +139,8 @@ def _parse_model_candidates(response_text: str, num_model_candidates: int):
 def get_model_candidates(state, agent_name, response, task_id) -> None:
     """Parses model candidates from the LLM response and stores them in state.
 
-    In the MVP there is no web search. The LLM is asked to propose a model
-    directly from its knowledge. The response is expected to follow the JSON
+    The model retrieval prompt may include recent web search results when
+    use_web_search is enabled. The response is expected to follow the JSON
     schema defined in MODEL_RETRIEVAL_INSTR.
     """
     workspace_dir = state.get("workspace_dir", "")
@@ -163,9 +181,13 @@ def get_model_retriever_agent_instruction(state, agent_name: str) -> str:
     """Builds the model retrieval prompt."""
     task_summary = state.get("task_summary", "")
     num_model_candidates = state.get("num_model_candidates", 1)
+    task_id = agent_name.split("_")[-1]
+    results = state.get(f"web_search_results_{task_id}", [])
+    web_search_results = web_search_util.format_results_for_prompt(results)
     return prompt.MODEL_RETRIEVAL_INSTR.format(
         task_summary=task_summary,
         num_model_candidates=num_model_candidates,
+        web_search_results=web_search_results,
     )
 
 
@@ -374,7 +396,10 @@ def run_initialization_pipeline(state) -> None:
         temperature=0.0,
     )
 
-    # Retrieve/propose models (no web search in this phase)
+    # Optional web search before model retrieval
+    run_web_search_for_task(state, task_id)
+
+    # Retrieve/propose models
     run_agent(
         state,
         f"model_retriever_agent_{task_id}",

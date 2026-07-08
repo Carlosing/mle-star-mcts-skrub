@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from machine_learning_engineering.runner import AgentState
-from machine_learning_engineering.shared_libraries import code_util, debug_util
+from machine_learning_engineering.shared_libraries import code_util, debug_util, web_search_util
 from machine_learning_engineering.sub_agents.initialization import agent as init_agent
 
 
@@ -157,3 +157,65 @@ class TestInitializationPipeline:
         # Fallback should pick the best individual (code_1 because lower=True).
         assert state["train_code_0_1"] == code_1
         assert state["train_code_exec_result_0_1"] == result_1
+
+    def test_web_search_populates_state_when_enabled(
+        self, empty_state, setup_mocks, monkeypatch
+    ):
+        """When use_web_search is enabled, web_search_results_1 is populated."""
+        fake_results = [{"title": "Web Result", "body": "Web body"}]
+        monkeypatch.setattr(
+            web_search_util, "search_web", lambda query, num_results: fake_results
+        )
+
+        empty_state.update(
+            task_name="california-housing-prices",
+            data_dir="./machine_learning_engineering/tasks/",
+            workspace_dir="./machine_learning_engineering/workspace/",
+            lower=True,
+            exec_timeout=300,
+            num_model_candidates=2,
+            max_retry=1,
+            max_debug_round=1,
+            use_data_usage_checker=False,
+            use_data_leakage_checker=False,
+            use_web_search=True,
+            web_search_num_results=5,
+        )
+
+        init_agent.run_initialization_pipeline(empty_state)
+
+        assert empty_state["web_search_results_1"] == fake_results
+        assert "web_search_query_1" in empty_state
+
+    def test_web_search_not_run_when_disabled(
+        self, empty_state, setup_mocks, monkeypatch
+    ):
+        """When use_web_search is disabled, no web search state keys are created."""
+        search_called = False
+
+        def fake_search(query, num_results):
+            nonlocal search_called
+            search_called = True
+            return []
+
+        monkeypatch.setattr(web_search_util, "search_web", fake_search)
+
+        empty_state.update(
+            task_name="california-housing-prices",
+            data_dir="./machine_learning_engineering/tasks/",
+            workspace_dir="./machine_learning_engineering/workspace/",
+            lower=True,
+            exec_timeout=300,
+            num_model_candidates=2,
+            max_retry=1,
+            max_debug_round=1,
+            use_data_usage_checker=False,
+            use_data_leakage_checker=False,
+            use_web_search=False,
+            web_search_num_results=5,
+        )
+
+        init_agent.run_initialization_pipeline(empty_state)
+
+        assert not search_called
+        assert "web_search_results_1" not in empty_state

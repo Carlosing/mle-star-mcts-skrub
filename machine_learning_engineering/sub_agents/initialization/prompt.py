@@ -14,8 +14,12 @@ SUMMARIZATION_AGENT_INSTR = """# Task description
 MODEL_RETRIEVAL_INSTR = """# Competition
 {task_summary}
 
+# Recent web search results
+{web_search_results}
+
 # Your task
 - Propose {num_model_candidates} simple and effective machine learning models for the above competition.
+- Use the recent web search results above to inform your proposals.
 - For California housing prices (a tabular regression task), prefer scikit-learn models such as RandomForestRegressor, GradientBoostingRegressor, or a simple neural network with scikit-learn's MLPRegressor.
 - Avoid PyTorch unless strictly necessary; scikit-learn is preferred for this task.
 
