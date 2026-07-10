@@ -6,26 +6,30 @@ instead of restarting. Two refinements layer on top:
 
 - After every fixed-budget slice, mine per-stage action values from the tree, `pick_target_node`, then run the next slice with `target_key` set so expansion focuses on that one stage (the rest stay at the incumbent's values). Re-targeting happens between slices by default (`retarget=False` keeps the first pick).
 - **Option 3 (one LLM call between slices):** before each slice after the
-  first, ask a `propose` callable for new operator paths for the currently
-  targeted stage, validate + inject them into the spec, **rebuild the plan**
-  (skrub has no mid-run splice), and continue on the same tree — so a run can
-  keep an option that was not in the original plan.
-- **HP-refinement bonus phase (no LLM):** after the whole budget is spent, run
-  one final `ceil(total / 4)` slice that starts selection at the incumbent
-  node and restricts expansion to the incumbent model's *active, still-untested*
-  gated hyperparameters (`_incumbent_hp_targets`). This is the deterministic,
-  variance-free realization of what stage-targeting was originally for —
-  biased HP exploration around the best config — using UCT's own "untested ⇒
-  ∞" rule to prioritize the never-tried HP values. It is a strict no-op when
-  the incumbent has no untested HP space (e.g. a bare, non-tuned plan). Off
-  switch: `hp_refine=False`.
+  first, hand the `propose` callable the WHOLE current raw plan plus search
+  evidence and expect back an *extended* plan (any/multiple stages, with HP
+  ranges). Only additions survive: `_merge_raw_plans` unions the two plans by
+  operator path and never touches an existing entry, so every state in the
+  persisted tree stays appliable. The merged plan is re-resolved through
+  `resolve_spec` (the import allow-list stays the safety envelope), the plan
+  is **rebuilt** (skrub has no mid-run splice), and search continues on the
+  same tree — so a run can keep an option that was not in the original plan,
+  and an injected operator arrives *tuned* (its HP ranges enter the action
+  space), not as a bare default.
+- **Focused-refinement bonus phase (no LLM):** after the whole budget is
+  spent, run one final `ceil(total / 4)` slice that starts selection at the
+  incumbent node and explores ALL of its single-edit neighbors — encoder,
+  scale, assemble and hyperparameters alike (UCT's own "untested ⇒ ∞" rule
+  prioritizes the never-tried edits). This is the biased exploration around
+  the best config that stage-targeting was originally for; an earlier HP-only
+  variant no-op'd whenever the incumbent's HP grid was exhausted, which at
+  larger budgets was every run. Off switch: `hp_refine=False`.
 
 The `propose` callable is injected (tests pass a fake); the LLM never enters the
 inner search loop — at most `outer_steps - 1` calls total. The bonus phase adds
 zero LLM calls.
 """
 
-import inspect
 from collections import defaultdict
 
 from machine_learning_engineering import mcts, spec_resolver
@@ -90,140 +94,76 @@ def _make_prior_fn(priors: dict[str, dict[str, float]], pseudo_count: int = 1):
     return prior_fn
 
 
-def _augment_spec(spec: dict, stage_key: str, instances: list) -> dict:
-    """Return a copy of `spec` with new operator instances added to a stage."""
-    new = dict(spec)
-    if stage_key == "model":
-        new["model"] = dict(spec.get("model", {}))
-        for inst in instances:
-            new["model"][type(inst).__name__] = inst
-    elif stage_key == "encoder":
-        new["encoder_options"] = (
-            list(spec.get("encoder_options", [])) + instances
-        )
-    elif stage_key == "clean":
-        new["clean_options"] = list(spec.get("clean_options", [])) + instances
-    elif stage_key.startswith("scope_"):  # a scoped-encoding group
-        groups = [dict(g) for g in spec.get("scoped_encodings", [])]
-        for g in groups:
-            if f"scope_{g['name']}" == stage_key:
-                g["options"] = list(g["options"]) + instances
-        new["scoped_encodings"] = groups
-    else:  # a named post-encoding stage (scale, feature_eng, ...)
-        stages = [dict(s) for s in spec.get("stages", [])]
-        for s in stages:
-            if s.get("name") == stage_key:
-                s["options"] = list(s["options"]) + instances
-        new["stages"] = stages
-    return new
+def _entry_path(entry):
+    """The operator path identifying a raw-plan option (or None)."""
+    if isinstance(entry, str):
+        return entry
+    if isinstance(entry, dict):
+        return entry.get("name")
+    return None
 
 
-def _label(inst, stage_key: str) -> str:
-    """The action-space label the instance will get in `stage_key`.
-
-    Model and scoped-encoding stages use dict-labeled choices (class names);
-    list-based stages label options by their repr.
-    """
-    if stage_key == "model" or stage_key.startswith("scope_"):
-        return type(inst).__name__
-    return repr(inst)
-
-
-def _inject(
-    spec, stage_key, proposals, seed, current_labels=(), valid_columns=None
-):
-    """Resolve allowed-list proposals to instances, skipping any already present.
-
-    Returns (new_spec, kept_paths). A proposal is a dotted path, or
-    ``{"name": path, "cols": [...]}`` to *scope* the operator to specific
-    columns (optionally with ``"additive": true`` and/or
-    ``"position": "post_encode"``, which carry onto the new group): when the
-    target is the shared ``encoder`` stage, a scoped proposal becomes a NEW
-    scoped-encoding group (a new search dimension); when the target is already
-    a ``scope_*`` group the operator joins that group (its columns are fixed).
-    ``cols`` are validated against ``valid_columns``; a proposal is dropped if
-    its path isn't importable / allowlisted (``_make`` returns None) or its
-    label is already an option in
-    the stage (no duplicate outcomes).
-    """
-    current = set(current_labels)
-    group_names = {g["name"] for g in spec.get("scoped_encodings", [])}
-    instances, new_groups, kept = [], [], []
-    for prop in proposals:
-        extra = prop if isinstance(prop, dict) else {}
-        path, cols = (
-            (prop, None)
-            if isinstance(prop, str)
-            else (prop.get("name"), prop.get("cols"))
-        )
-        inst = spec_resolver._make(
-            path, {}, seed, stage_key
-        )  # constructible + allowlisted
-        if inst is None:
-            continue
-        cols = [
-            c
-            for c in (cols or [])
-            if valid_columns is None or c in valid_columns
-        ]
-        if cols and not stage_key.startswith("scope_"):
-            # scoped proposal on the shared encoder stage -> a new scope group
-            name = spec_resolver._sanitize_name(
-                f"{cols[0]}_{type(inst).__name__}"
-            )
-            if name in group_names:
-                continue
-            group_names.add(name)
-            group = {"name": name, "cols": cols, "options": [inst]}
-            if extra.get("position") == "post_encode":
-                group["position"] = "post_encode"
-            if extra.get("additive") is True:
-                group["additive"] = True
-            new_groups.append(group)
-            kept.append(path)
-            continue
-        label = _label(inst, stage_key)
-        if label in current:
-            continue
-        current.add(label)
-        instances.append(inst)
-        kept.append(path)
-    if not instances and not new_groups:
-        return spec, []
-    new = _augment_spec(spec, stage_key, instances) if instances else dict(spec)
-    if new_groups:
-        new["scoped_encodings"] = (
-            list(new.get("scoped_encodings", [])) + new_groups
-        )
-    return new, kept
+def _merge_option_lists(old: list, new) -> list:
+    """Union two raw option lists by operator path; old entries never change."""
+    seen = {_entry_path(e) for e in old}
+    added = []
+    for e in new or []:
+        path = _entry_path(e)
+        if path and path not in seen:
+            seen.add(path)
+            added.append(e)
+    return list(old) + added
 
 
-def _incumbent_hp_targets(
-    best_state, action_space, gating, ledger
-) -> list[str]:
-    """The incumbent model's *active, still-untested* hyperparameter dims.
+def _merge_raw_plans(old: dict, new: dict) -> dict:
+    """Merge a proposed plan into the current raw plan, strictly additively.
 
-    A model-gated HP (`gating`: name -> (parent, activating_label)) is *active*
-    when the incumbent sits at its parent's activating outcome, and *untested*
-    when at least one of its discretized options never appears in the
-    tree-mined `ledger`. These are exactly the hyperparameters the bonus phase
-    should expand around the best config: gating guarantees they belong to the
-    incumbent's own model, so the extra budget can never tune the wrong model.
+    Each stage is unioned by operator path (`clean_options`,
+    `encoder_options`, `model`) or by entry name (`stages`,
+    `scoped_encodings`, `assemble` — new names are appended whole, matching
+    names only gain options). Existing entries are NEVER modified or removed:
+    the persisted tree's states reference the current action-space labels, so
+    a mutation (even adding params to an existing operator) would orphan
+    already-scored nodes. A partial proposal is fine — missing stages mean
+    "no change". Validation is not done here: the merged plan goes through
+    `resolve_spec`, whose import allow-list / schema checks drop anything
+    unusable.
 
     Example:
-        _incumbent_hp_targets(
-            {"model": "RF"}, {"rf_trees": [100, 300, 500]},
-            {"rf_trees": ("model", "RF")}, {"rf_trees": {100: 0.8}})
-        # -> ["rf_trees"]   (300 and 500 never tried)
+        _merge_raw_plans(
+            {"model": ["sklearn.linear_model.Ridge"]},
+            {"model": [{"name": "lightgbm.LGBMRegressor",
+                        "params": {"n_estimators": {"int": [100, 600]}}}]})
+        # -> {"model": ["sklearn.linear_model.Ridge",
+        #               {"name": "lightgbm.LGBMRegressor", "params": {...}}]}
     """
-    targets = []
-    for key, (parent, activating) in (gating or {}).items():
-        if best_state.get(parent) != activating:
-            continue  # inactive: this HP's model isn't the one we settled on
-        tried = ledger.get(key, {})
-        if any(opt not in tried for opt in action_space.get(key, [])):
-            targets.append(key)
-    return targets
+    merged = dict(old)
+    for key in ("clean_options", "encoder_options"):
+        if new.get(key):
+            merged[key] = _merge_option_lists(list(old.get(key) or []), new[key])
+    if new.get("model"):
+        old_models = spec_resolver._iter_model_items(old.get("model"))
+        new_models = spec_resolver._iter_model_items(new["model"])
+        merged["model"] = _merge_option_lists(old_models, new_models)
+    for key in ("stages", "scoped_encodings", "assemble"):
+        if not new.get(key):
+            continue
+        entries = [dict(e) for e in (old.get(key) or [])]
+        by_name = {e.get("name"): e for e in entries}
+        for prop in new[key]:
+            if not isinstance(prop, dict):
+                continue
+            current = by_name.get(prop.get("name"))
+            if current is None:  # a whole new stage / group / join config
+                entries.append(prop)
+                by_name[prop.get("name")] = prop
+            elif key != "assemble" and prop.get("options"):
+                # same name -> only its option menu may grow
+                current["options"] = _merge_option_lists(
+                    list(current.get("options") or []), prop["options"]
+                )
+        merged[key] = entries
+    return merged
 
 
 def run_search_loop(
@@ -237,7 +177,8 @@ def run_search_loop(
     c: float = 0.5,
     seed: int = 42,
     propose=None,
-    n_propose: int = 3,
+    raw_spec: dict | None = None,
+    resolve=None,
     retarget: bool = True,
     aux_tables: dict | None = None,
     priors: dict | None = None,
@@ -245,6 +186,7 @@ def run_search_loop(
     stratify: bool = False,
     hp_refine: bool = True,
     timeout_s: float | None = 45.0,
+    n_subsample_seeds: int = 1,
 ) -> dict:
     """Run the persisted, optionally-refined search and return a results dict.
 
@@ -252,14 +194,26 @@ def run_search_loop(
     the search runs as fixed-budget SLICES on the same persisted tree,
     interleaved with refinement: after every slice the tree is re-mined and a
     stage is (re-)targeted (Option 1; `retarget=False` keeps the first pick
-    for the whole run), and, if `propose` is given, one proposer call injects
-    new options into the current target before each subsequent slice
-    (Option 3) — so `outer_steps=4, budget_per_step=15` means
-    `search 15 → propose → 15 → propose → 15 → propose → 15`, at most
-    `outer_steps - 1` LLM calls total. Returns the (possibly rebuilt) plan so
-    the caller can score the incumbent on it. For relational tasks pass
-    `aux_tables={name: df}` — auxiliary tables join whole (never subsampled)
-    and survive the Option-3 plan rebuild.
+    for the whole run), and, if `propose` is given, one proposer call fires
+    before each subsequent slice (Option 3) — so `outer_steps=4,
+    budget_per_step=15` means `search 15 → propose → 15 → propose → 15 →
+    propose → 15`, at most `outer_steps - 1` LLM calls total. Returns the
+    (possibly rebuilt) plan so the caller can score the incumbent on it. For
+    relational tasks pass `aux_tables={name: df}` — auxiliary tables join
+    whole (never subsampled) and survive the Option-3 plan rebuild.
+
+    Option 3 needs three pieces: `propose(plan_json, context) -> dict | None`
+    (returns a whole raw plan that EXTENDS `plan_json`; any/multiple stages,
+    with HP ranges), `raw_spec` (the current plan as raw JSON dict — the
+    thing the proposer sees and extends) and `resolve` (callable raw dict ->
+    resolved spec, typically a `resolve_spec` closure carrying task_type /
+    aux_schemas / main_columns). The returned plan is merged strictly
+    additively (`_merge_raw_plans`), re-resolved, and the plan rebuilt; the
+    action-space diff is recorded in `injected_options` (`"key"` for a whole
+    new dimension, `"key:label"` for a new option in an existing one). A
+    proposal that fails to parse/resolve, or adds nothing new, is skipped and
+    the search continues unchanged. Without `raw_spec`/`resolve`, `propose`
+    is never called.
 
     `priors` (default: `spec["priors"]`, collected by the resolver from the
     plan's per-option confidence weights) warm-starts freshly expanded
@@ -271,19 +225,25 @@ def run_search_loop(
     subsampled fold can't silently land on zero positives (see
     `skrub_ops._cv_kwarg`).
 
-    `hp_refine=True` (default) appends a final HP-refinement bonus phase after
+    `hp_refine=True` (default) appends a focused-refinement bonus phase after
     the main budget is spent: `ceil(total / 4)` extra rollouts that start
-    selection at the incumbent node and restrict expansion to the incumbent
-    model's still-untested hyperparameters (`_incumbent_hp_targets`), UCT and
-    backprop unchanged. This is the targeting the design originally aimed at —
-    focused HP exploration around the best config. It is a no-op when the
-    incumbent's model exposes no untested tunable HPs (e.g. a plan with only
-    bare, non-tuned operators), so it never runs unless there is real HP space
-    left to explore. The refined HP dims are returned in `hp_refined`.
+    selection at the incumbent node and explore ALL of its single-edit
+    neighbors — structural stages (encoder/scale/assemble) and gated HPs
+    alike — UCT and backprop unchanged. This is the targeting the design
+    originally aimed at: biased exploration around the best config. (The
+    kwarg keeps its historical name; the phase is no longer HP-only — the
+    HP-restricted variant no-op'd whenever the incumbent's HP grid was
+    exhausted.) The dims actually edited during the phase are returned in
+    `refined_dims`.
 
     `timeout_s` (default 45s) caps each rollout's wall clock: a config whose CV
     runs longer scores 0.0, so a free-form HP range that makes one fit
     pathologically slow can't stall the search (see `skrub_ops._time_limit`).
+
+    `n_subsample_seeds > 1` averages every rollout's reward over that many
+    seeded subsamples (pure code, no LLM; see `make_rollout_fn`) — the
+    denoiser for imbalanced tasks where single-draw rewards are too noisy for
+    UCT to converge on. The per-rollout wall-clock cap scales with it.
     """
 
     def _build(current_spec):
@@ -300,6 +260,7 @@ def run_search_loop(
             stratify=stratify,
             target=target,
             timeout_s=timeout_s,
+            n_subsample_seeds=n_subsample_seeds,
         )
         return plan, get_action_space(plan), get_choice_gating(plan), rollout
 
@@ -315,18 +276,16 @@ def run_search_loop(
     best_state, best_score = start, float("-inf")
     target_key = None
     injected: list[str] = []
-    hp_refined: list[str] = []
-
-    def _proposal_path(p) -> str:
-        return p if isinstance(p, str) else p.get("name")
+    refined_dims: list[str] = []
+    explicit_priors = priors is not None
 
     for step in range(max(1, outer_steps)):
-        # Option 3: inject new options for the targeted stage, then rebuild.
+        # Option 3: ask for a whole extended plan, merge additively, rebuild.
         if (
             step >= 1
             and propose is not None
-            and target_key
-            and "__" not in target_key
+            and raw_spec is not None
+            and resolve is not None
         ):
             values = tree_action_values(root)
             context = {
@@ -337,33 +296,42 @@ def run_search_loop(
                 "incumbent_score": best_score,
                 "digest": context_text,
                 "columns": feature_columns,
+                "target_stage": target_key,
+                "vocab": spec_resolver.allowed_operators(),
             }
-            proposals = (
-                _call_propose(
-                    propose,
-                    target_key,
-                    values.get(target_key, {}),
-                    spec_resolver.allowed_operators(),
-                    context,
-                )
-                or []
+            try:
+                proposal = propose(raw_spec, context)
+            except Exception:
+                proposal = None
+            merged = (
+                _merge_raw_plans(raw_spec, proposal)
+                if isinstance(proposal, dict)
+                else raw_spec
             )
-            proposals = [
-                p
-                for p in proposals[:n_propose]
-                if _proposal_path(p) not in injected
-            ]
-            spec, kept = _inject(
-                spec,
-                target_key,
-                proposals,
-                seed,
-                action_space.get(target_key, []),
-                valid_columns=feature_columns,
-            )
-            if kept:
-                plan, action_space, gating, rollout = _build(spec)
-                injected += kept
+            if merged != raw_spec:
+                try:
+                    new_spec = resolve(merged)
+                    rebuilt = _build(new_spec)
+                except Exception:
+                    pass  # unusable extension: keep searching the current plan
+                else:
+                    old_space = action_space
+                    spec, raw_spec = new_spec, merged
+                    plan, action_space, gating, rollout = rebuilt
+                    injected += [
+                        key
+                        for key in action_space
+                        if key not in old_space  # a whole new dimension
+                    ] + [
+                        f"{key}:{label}"
+                        for key, labels in action_space.items()
+                        if key in old_space
+                        for label in labels
+                        if label not in old_space[key]
+                    ]
+                    if not explicit_priors and new_spec.get("priors"):
+                        # injected entries may carry priors of their own
+                        prior_fn = _make_prior_fn(new_spec["priors"])
 
         bstate, bscore, root = mcts.mcts_search(
             start,
@@ -400,18 +368,15 @@ def run_search_loop(
                 except Exception:
                     target_key = None
 
-    # HP-refinement bonus phase: spend ceil(total/4) extra rollouts biasing
-    # expansion toward the incumbent model's still-untested hyperparameters,
+    # Focused-refinement bonus phase: spend ceil(total/4) extra rollouts on
+    # ALL single-edit neighbors of the incumbent (structure and HPs alike),
     # starting selection at the incumbent node (local exploration; UCT and
-    # backprop are unchanged). No-op when there is no untested HP space.
+    # backprop are unchanged).
     if hp_refine:
-        hp_targets = _incumbent_hp_targets(
-            best_state, action_space, gating, tree_action_values(root)
-        )
-        best_node = (
-            mcts.find_state_node(root, best_state) if hp_targets else None
-        )
+        best_node = mcts.find_state_node(root, best_state)
         if best_node is not None:
+            incumbent = dict(best_state)
+            before = set(tried)
             bonus = -(
                 -max(1, outer_steps) * budget_per_step // 4
             )  # ceil(total/4)
@@ -425,13 +390,21 @@ def run_search_loop(
                 tried_states=tried,
                 prior_fn=prior_fn,
                 gating=gating,
-                target_key=set(hp_targets),
                 score_cache=cache,
                 start_node=best_node,
             )
             if bscore > best_score:
                 best_state, best_score = bstate, bscore
-            hp_refined = hp_targets
+            # the dims the phase actually edited: where a state first tried
+            # during the phase differs from the incumbent it started from
+            refined_dims = sorted(
+                {
+                    k
+                    for key in tried - before
+                    for k in set(dict(key)) | set(incumbent)
+                    if dict(key).get(k) != incumbent.get(k)
+                }
+            )
 
     return {
         "best_state": best_state,
@@ -443,106 +416,51 @@ def run_search_loop(
         "score_cache": cache,
         "target_key": target_key,
         "injected_options": injected,
-        "hp_refined": hp_refined,
+        "refined_dims": refined_dims,
     }
 
 
 # --- the real LLM proposer (one Gemini call between search slices) ------------
 
 import json as _json  # noqa: E402
-import re as _re  # noqa: E402
-
-_PATH_RE = _re.compile(
-    r"\b(?:sklearn|skrub|lightgbm|xgboost)(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b"
-)
 
 
-def _parse_paths(text: str) -> list[str]:
-    """Extract dotted operator paths from an LLM reply (JSON array or prose)."""
-    return [p for p in _parse_proposals(text) if isinstance(p, str)]
-
-
-def _parse_proposals(text: str) -> list:
-    """Parse proposer output: dotted paths and/or scoped-operator objects.
-
-    Accepts a JSON array whose items are path strings or
-    ``{"name": <path>, "cols": [<column names>]}``; falls back to extracting
-    dotted sklearn/skrub paths from prose.
+def _parse_plan(text: str) -> dict | None:
+    """Parse proposer output into a raw plan dict, or None if unusable.
 
     Example:
-        _parse_proposals('["skrub.MinHashEncoder", {"name": "skrub.GapEncoder", "cols": ["title"]}]')
-        # -> ["skrub.MinHashEncoder", {"name": "skrub.GapEncoder", "cols": ["title"]}]
+        _parse_plan('```json\\n{"model": ["lightgbm.LGBMRegressor"]}\\n```')
+        # -> {"model": ["lightgbm.LGBMRegressor"]}
+        _parse_plan("sorry, no JSON")  # -> None
     """
     if not text:
-        return []
-    s = (
-        _re.sub(r"^```[a-zA-Z0-9]*", "", text.strip())
-        .strip()
-        .strip("`")
-        .strip()
-    )
+        return None
     try:
-        data = _json.loads(s)
-        if isinstance(data, list):
-            out = []
-            for x in data:
-                if isinstance(x, str):
-                    out.append(x)
-                elif isinstance(x, dict) and isinstance(x.get("name"), str):
-                    cols = [
-                        c for c in (x.get("cols") or []) if isinstance(c, str)
-                    ]
-                    item = {"name": x["name"], "cols": cols}
-                    if x.get("position") == "post_encode":
-                        item["position"] = "post_encode"
-                    if x.get("additive") is True:
-                        item["additive"] = True
-                    out.append(item)
-            return out
+        plan = spec_resolver.parse_spec_json(text)
+        return plan if isinstance(plan, dict) else None
     except Exception:
-        pass
-    return _PATH_RE.findall(s)  # tolerant fallback
-
-
-def _call_propose(propose, stage_key, ledger, vocab, context):
-    """Invoke a proposer, passing `context` only if its signature takes it.
-
-    Keeps the old three-argument proposer protocol working (tests and any
-    user-supplied callable) while the built-in proposer receives the richer
-    evidence dict (cross-stage ledger, incumbent, data digest).
-    """
-    try:
-        params = inspect.signature(propose).parameters
-        wants_context = len(params) >= 4 or any(
-            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
-        )
-    except (TypeError, ValueError):
-        wants_context = False
-    if wants_context:
-        return propose(stage_key, ledger, vocab, context)
-    return propose(stage_key, ledger, vocab)
+        return None
 
 
 def make_llm_proposer(
     model: str | None = None,
-    n: int = 3,
     temperature: float = 0.4,
     log_dir: str | None = None,
 ):
-    """Return a `propose(stage_key, ledger, vocab, context) -> [proposals]`
-    backed by Gemini.
+    """Return a `propose(plan_json, context) -> dict | None` backed by Gemini.
 
     One `google.genai` call between search slices (the LLM never enters the
-    inner search loop). The `context` dict (built by `run_search_loop`) grounds
-    the proposal in search evidence: the cross-stage tree-mined ledger, the
-    incumbent config + score, the data digest, and the real column names — so
-    the model proposes against what was actually measured, not blind. For
-    encoder/scope stages a proposal may be `{"name": path, "cols": [...]}` to
-    scope an operator to specific columns, optionally with `"additive": true`
-    (keep the originals) and `"position": "post_encode"` (run after
-    vectorization). On any failure (quota, parse) it returns `[]`, so the search
-    just continues without injection. genai is imported lazily so this module
-    stays importable offline.
+    inner search loop). The proposer sees the WHOLE current raw plan plus the
+    search evidence in `context` (built by `run_search_loop`: the cross-stage
+    tree-mined ledger, the incumbent config + score, the data digest, the real
+    column names, the currently targeted stage and the allowed-operator
+    vocabulary) and returns a raw plan that EXTENDS it — new operators on any
+    stage, new scoped groups, and hyperparameter ranges on every new entry, so
+    an injected operator competes tuned rather than at bare defaults. Only
+    additions are applied (`_merge_raw_plans`); the merged plan is re-resolved
+    through the import allow-list. On any failure (quota, parse) it returns
+    None, so the search just continues without injection. genai is imported
+    lazily so this module stays importable offline.
 
     Web search is attached (Gemini-native) with the SAME safety net as the
     analyst / plan_author, now symmetric across both directions: search is tried
@@ -596,63 +514,63 @@ def make_llm_proposer(
             json.dump(records, f, ensure_ascii=False, indent=2)
 
     def _attempt(prompt: str, tools):
-        """One genai call -> (raw_text, parsed_proposals); ("", []) on failure."""
+        """One genai call -> (raw_text, parsed_plan_or_None); ("", None) on failure."""
         try:
             resp = client.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
                     temperature=temperature,
-                    max_output_tokens=512,
+                    max_output_tokens=4096,  # a whole extended plan, not a list
                     tools=tools,
                 ),
             )
             text = resp.text or ""
-            return text, _parse_proposals(text)
+            return text, _parse_plan(text)
         except Exception:
-            return "", []
+            return "", None
 
-    def propose(stage_key, ledger, vocab, context=None):
+    def propose(plan_json, context=None):
         call_count[0] += 1
         call_num = call_count[0]
-        kind = "models" if stage_key == "model" else "transformers"
-        allowed = vocab.get(kind, [])
         ctx = context or {}
-        scoped_hint = ""
-        if stage_key == "encoder" or stage_key.startswith("scope_"):
-            scoped_hint = (
-                'An item may also be {"name": <path>, "cols": [<exact column '
-                "names>]} to scope an operator to specific columns; add "
-                '"additive": true when the ORIGINAL columns must be kept '
-                "alongside the derived output (e.g. date-part extraction), "
-                'and "position": "post_encode" to run after vectorization '
-                "(numeric columns only). Known "
-                f"columns: {ctx.get('columns', [])}.\n"
-            )
+        vocab = ctx.get("vocab") or {}
         digest = ctx.get("digest")
         prompt = (
-            "You improve ONE stage of a tabular ML pipeline by proposing NEW "
-            "operators to try next. Output ONLY a JSON array of full dotted import "
-            f'paths (at most {n}), e.g. ["sklearn.preprocessing.RobustScaler"].\n'
-            + scoped_hint
-            + f"\nStage to improve: {stage_key!r} (kind: {kind}).\n"
-            f"Options tried at this stage (label -> mean CV reward): {ledger}.\n"
-            f"Evidence from the whole search tree (per stage, option -> mean "
-            f"reward): {ctx.get('stage_values', {})}.\n"
+            "You maintain the search space of a tabular ML pipeline optimized "
+            "by an external MCTS engine (you never run the search). Below is "
+            "the CURRENT plan: a JSON menu of operators and hyperparameter "
+            "ranges per stage.\n"
+            "Return ONLY a JSON object with the same schema that EXTENDS this "
+            "plan. It must be a superset: NEVER remove or modify existing "
+            "entries — only additions are applied. Add the few NEW options "
+            "most likely to beat the evidence below, on any stage(s): new "
+            "model/encoder/stage operators as full dotted import paths "
+            "(sklearn.*, skrub.*, lightgbm.*, xgboost.*), and/or new "
+            'scoped_encodings groups ({"name", "cols", "options"}, optionally '
+            '"additive": true to keep the original columns and '
+            '"position": "post_encode" to run after vectorization). ALWAYS '
+            'give each new operator a generous hyperparameter range via '
+            '"params" ({"int": [lo, hi]}, {"float": [lo, hi], "log": true} or '
+            '{"choice": [...]}) so it competes tuned — but avoid upper bounds '
+            "that blow up training time. You may rate a new option with "
+            '"prior": 0.0-1.0.\n\n'
+            f"Current plan:\n{_json.dumps(plan_json, indent=1, default=str)}\n\n"
+            f"Search evidence (per stage, option -> mean CV reward): "
+            f"{ctx.get('stage_values', {})}.\n"
             f"Current best config (reward {ctx.get('incumbent_score')}): "
             f"{ctx.get('incumbent')}.\n"
+            f"Stage the search is currently focused on (a good place to add "
+            f"options, not the only one): {ctx.get('target_stage')!r}.\n"
+            f"Known columns: {ctx.get('columns', [])}.\n"
             + (f"Data digest:\n{digest}\n" if digest else "")
             + (
-                "Use the google_search tool to check for current SOTA operators "
-                "and good hyperparameter choices for this stage before you "
-                "answer.\n"
+                "Use the google_search tool to check for current SOTA "
+                "operators and good hyperparameter ranges before you answer.\n"
                 if use_search
                 else ""
             )
-            + f"Propose only NEW sklearn.*, skrub.*, lightgbm.* or xgboost.* "
-            f"operators (not already tried) that are likely to beat what was "
-            f"tried, suited to this stage. "
-            f"Prefer these known-good ones: {allowed}."
+            + f"Known-good operators: {vocab}."
         )
 
         def _stamp() -> str:
@@ -666,12 +584,12 @@ def make_llm_proposer(
                 "agent": "proposer",
                 "call": call_num,
                 "phase": "request",
-                "stage": stage_key,
+                "target_stage": ctx.get("target_stage"),
                 "search": use_search,
                 "prompt": prompt,
             },
         )
-        text, proposals = _attempt(prompt, search_tools)
+        text, proposal = _attempt(prompt, search_tools)
         _log(
             call_num,
             "response",
@@ -682,13 +600,13 @@ def make_llm_proposer(
                 "phase": "response",
                 "search": use_search,
                 "output": text,
-                "proposals": proposals,
+                "proposal": proposal,
             },
         )
         # Symmetric safety net (mirrors plan_author): a grounded call can return
         # nothing usable; retry once with search OFF before giving up.
-        if use_search and not proposals:
-            text, proposals = _attempt(prompt, None)
+        if use_search and proposal is None:
+            text, proposal = _attempt(prompt, None)
             _log(
                 call_num,
                 "response",
@@ -700,9 +618,9 @@ def make_llm_proposer(
                     "search": False,
                     "retry": True,
                     "output": text,
-                    "proposals": proposals,
+                    "proposal": proposal,
                 },
             )
-        return proposals
+        return proposal
 
     return propose

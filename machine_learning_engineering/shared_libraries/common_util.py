@@ -5,7 +5,6 @@ import random
 import shutil
 
 import numpy as np
-import torch
 from google.adk.models import llm_response
 
 
@@ -24,6 +23,12 @@ def get_text_from_response(
 
 def set_random_seed(seed: int) -> None:
     """Sets the random seed for reproducibility."""
+    # torch is imported lazily: it loads its own OpenMP runtime, and two
+    # OpenMP runtimes in one process segfault xgboost's DMatrix creation on
+    # macOS-ARM. Only this legacy helper needs torch; the MCTS path must
+    # never load it (run_logging -> common_util sits on that import chain).
+    import torch
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

@@ -9,10 +9,32 @@ without spending tokens on the whole table. Pandas-only and deterministic.
 import pandas as pd
 
 
-def infer_task_type(df: pd.DataFrame, target: str) -> str:
-    """Heuristic: numeric target with many distinct values -> regression."""
+def infer_task_type(
+    df: pd.DataFrame, target: str, metric: str | None = None
+) -> str:
+    """Heuristic: numeric target with many distinct values -> regression.
+
+    A ``metric`` that implies a task type overrules the heuristic *when the
+    target's dtype allows it*: a numeric target with few distinct values (a
+    0.5-5.0 star rating, a Likert scale) is regression if the task reports
+    RMSE, even though the cardinality rule would call it classification —
+    otherwise the whole run silently searches `accuracy` over Classifiers and
+    reports RMSE. A non-numeric target is always classification, whatever the
+    metric says.
+
+    Example:
+        infer_task_type(df, "rating")          # -> "classification"  (10 values)
+        infer_task_type(df, "rating", "rmse")  # -> "regression"
+        infer_task_type(df, "status", "rmse")  # -> "classification"  (strings)
+    """
+    from machine_learning_engineering import metrics as _metrics
+
     s = df[target]
-    if pd.api.types.is_numeric_dtype(s) and s.nunique(dropna=True) > 20:
+    numeric = pd.api.types.is_numeric_dtype(s)
+    declared = _metrics.metric_task_type(metric)
+    if declared is not None and (numeric or declared == "classification"):
+        return declared
+    if numeric and s.nunique(dropna=True) > 20:
         return "regression"
     return "classification"
 
@@ -89,6 +111,7 @@ def make_data_summary(
     n_example_values: int = 5,
     n_head_rows: int = 5,
     aux_tables: dict[str, pd.DataFrame] | None = None,
+    metric: str | None = None,
 ) -> str:
     """Return a compact text digest of ``df`` to feed the analyst agent.
 
@@ -97,13 +120,19 @@ def make_data_summary(
     plus the first few rows. With ``aux_tables={name: df}``, each auxiliary
     table gets a schema digest plus join-key candidates, so the planner can
     propose aggregate joins (the ``assemble`` stage) using real names.
+
+    ``metric`` (the task's declared metric) disambiguates the task type the
+    digest reports, so the planner is never told "classification" for a
+    low-cardinality numeric target that the pipeline searches as regression.
     """
     n_rows, n_cols = df.shape
     lines = [
         f"Dataset: {n_rows} rows x {n_cols} columns. Target column: {target!r}.",
     ]
     if target in df.columns:
-        lines.append(f"Inferred task type: {infer_task_type(df, target)}.")
+        lines.append(
+            f"Inferred task type: {infer_task_type(df, target, metric)}."
+        )
     lines.append("")
     lines.append("Columns:")
     for col in df.columns:

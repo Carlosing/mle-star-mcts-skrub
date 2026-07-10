@@ -248,6 +248,57 @@ def parse_spec_json(raw):
 
 # --- resolution --------------------------------------------------------------
 
+_XGB_CLASSIFIER_SHIM = None
+
+
+def _xgb_classifier_shim():
+    """An XGBClassifier that accepts arbitrary (e.g. string) target labels.
+
+    xgboost >= 1.6 dropped its internal label encoding: ``fit`` requires ``y``
+    to be integers ``0..n_classes-1`` and raises on string labels — so on a
+    string-target task every XGB rollout silently scored 0.0 (and a plan whose
+    *default* model was XGB failed to build at all under skrub's eager
+    preview). The subclass keeps the class name ``XGBClassifier`` so
+    action-space labels and gating names are unchanged; labels are encoded in
+    sorted order (the sklearn ``classes_`` convention), so ``predict_proba``
+    columns line up with ``skrub_ops._resolve_scoring`` and the ensemble's
+    ``np.unique(y_true)`` fallback. Imported lazily (and cached) so the module
+    stays importable without xgboost.
+
+    Example:
+        cls = _xgb_classifier_shim()
+        cls(n_estimators=10).fit(X, ["no", "yes", "no"]).predict(X)
+        # -> array(["no", "yes", ...])  (original labels, not codes)
+    """
+    global _XGB_CLASSIFIER_SHIM
+    if _XGB_CLASSIFIER_SHIM is not None:
+        return _XGB_CLASSIFIER_SHIM
+    import numpy as np
+    import xgboost
+
+    class XGBClassifier(xgboost.XGBClassifier):
+        def fit(self, X, y, **kwargs):
+            y = np.asarray(y)
+            labels = np.unique(y)
+            # expose the original labels only AFTER the base fit: xgboost's
+            # own fit validates np.unique(codes) against self.classes_
+            self._label_classes = None
+            fitted = super().fit(X, np.searchsorted(labels, y), **kwargs)
+            self._label_classes = labels
+            return fitted
+
+        def predict(self, X, **kwargs):
+            codes = np.asarray(super().predict(X, **kwargs)).astype(int)
+            return self._label_classes[codes]
+
+        @property
+        def classes_(self):
+            labels = getattr(self, "_label_classes", None)
+            return super().classes_ if labels is None else labels
+
+    _XGB_CLASSIFIER_SHIM = XGBClassifier
+    return _XGB_CLASSIFIER_SHIM
+
 
 def _ensure_seeded(est, seed=SEED):
     try:
@@ -390,6 +441,8 @@ def _make(path, params, seed, context):
     cls = _load_class(path)
     if cls is None:
         return None
+    if path == "xgboost.XGBClassifier":
+        cls = _xgb_classifier_shim()  # string-label safety, same class name
     entry = REGISTRY.get(path, {})
     tunable = entry.get("tunable", {})
     kwargs = dict(entry.get("defaults", {}))

@@ -18,8 +18,16 @@ N_PROPOSES ?=
 TOP_K ?= 1
 # JSON sweep spec for `make sweep` (defaults + runs; see sweeps/example.json)
 SWEEP ?= sweeps/example.json
+# --- Claude-driven (offline, zero Gemini quota) --------------------------------
+# proposer calls interleaved between BUDGET-sized slices (0 = Option 1 + HP-refine only)
+CLAUDE_PROPOSES ?= 2
+# top-k ensemble for the Claude driver (1 = off)
+CLAUDE_TOP_K ?= 3
+# artifact parent dir (empty = runs/claude_<timestamp>)
+OUT ?=
 
-.PHONY: help sync test test-live probe run-live run-refine sweep stage-credit-fraud
+.PHONY: help sync test test-live probe run-live run-refine sweep sweep-live \
+        run-claude sweep-claude stage-tasks stage-credit-fraud
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
@@ -31,6 +39,14 @@ help:
 	@echo "make run-refine - run-live with Option 1 + Option 3 on (OUTER_STEPS=3, REFINE=1)"
 	@echo "make sweep      - run a JSON sweep spec on the REAL API; writes runs/sweep_<ts>/"
 	@echo "                  vars: SWEEP=$(SWEEP) (agents run once per task, spec reused)"
+	@echo "make sweep-live - alias for 'make sweep' (explicit: it hits the real Gemini API)"
+	@echo ""
+	@echo "-- Claude-driven, offline, ZERO Gemini quota (plans+proposals in scripts/claude_agents.py) --"
+	@echo "make run-claude   - one task through the Claude driver; writes runs/claude_<ts>/<task>/"
+	@echo "                    vars: TASK=<name> BUDGET=$(BUDGET) CLAUDE_PROPOSES=$(CLAUDE_PROPOSES) CLAUDE_TOP_K=$(CLAUDE_TOP_K) OUT=<dir>"
+	@echo "make sweep-claude - ALL tasks in scripts/claude_agents.py, same driver (a quota-free sweep)"
+	@echo ""
+	@echo "make stage-tasks        - stage every data/ dataset missing from tasks/ (offline)"
 	@echo "make stage-credit-fraud - download + stage the relational credit-fraud task (online, once)"
 
 sync:
@@ -56,6 +72,25 @@ run-refine:
 
 sweep:
 	uv run python -m machine_learning_engineering.sweep $(SWEEP)
+
+# same thing, named so it is obvious at the call site that this spends quota
+sweep-live: sweep
+
+# Claude stands in for the Gemini agent layer: plans + Option-3 proposals come
+# from scripts/claude_agents.py, so the search runs with zero network calls.
+run-claude:
+	uv run python scripts/run_claude_pipeline.py \
+		--budget $(BUDGET) --n-proposes $(CLAUDE_PROPOSES) --top-k $(CLAUDE_TOP_K) \
+		$(if $(TASK),--task $(TASK),) $(if $(OUT),--out $(OUT),)
+
+# every task claude_agents.py has a plan for, one after another
+sweep-claude:
+	uv run python scripts/run_claude_pipeline.py \
+		--budget $(BUDGET) --n-proposes $(CLAUDE_PROPOSES) --top-k $(CLAUDE_TOP_K) \
+		$(if $(OUT),--out $(OUT),)
+
+stage-tasks:
+	uv run python scripts/stage_tasks.py
 
 stage-credit-fraud:
 	uv run python scripts/stage_credit_fraud.py

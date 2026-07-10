@@ -24,7 +24,7 @@ skrub = pytest.importorskip("skrub")
 
 from machine_learning_engineering import skrub_ops, spec_resolver
 from machine_learning_engineering.search_loop import (
-    _augment_spec,
+    _merge_raw_plans,
     run_search_loop,
 )
 
@@ -135,22 +135,31 @@ def test_scoped_rollout_is_deterministic_and_scoreable(scoped_plan_df):
     assert on == rollout({"model": "HGB", "scope_color_enc": "GapEncoder"})
 
 
-def test_augment_spec_injects_into_scope_group():
-    spec = {
+def test_merge_extends_a_scope_group_additively():
+    raw = {
         "scoped_encodings": [
             {
                 "name": "color_enc",
                 "cols": ["color"],
-                "options": [skrub.GapEncoder(n_components=3, random_state=42)],
+                "options": ["skrub.GapEncoder"],
             }
         ],
-        "model": {},
+        "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
     }
-    new = _augment_spec(spec, "scope_color_enc", [skrub.StringEncoder()])
-    labels = [type(o).__name__ for o in new["scoped_encodings"][0]["options"]]
-    assert labels == ["GapEncoder", "StringEncoder"]
-    # original spec untouched
-    assert len(spec["scoped_encodings"][0]["options"]) == 1
+    new = _merge_raw_plans(
+        raw,
+        {
+            "scoped_encodings": [
+                {"name": "color_enc", "options": ["skrub.StringEncoder"]}
+            ]
+        },
+    )
+    assert new["scoped_encodings"][0]["options"] == [
+        "skrub.GapEncoder",
+        "skrub.StringEncoder",
+    ]
+    # original raw plan untouched
+    assert raw["scoped_encodings"][0]["options"] == ["skrub.GapEncoder"]
 
 
 def test_default_state_is_appliable_when_encoder_options_have_tuned_hps():
@@ -307,26 +316,36 @@ def test_additive_group_end_to_end_search():
     )
 
 
-def test_inject_creates_flagged_scope_groups():
-    from machine_learning_engineering.search_loop import _inject
-
-    spec = {"model": {}}
-    proposals = [
-        {"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": True},
+def test_injected_scope_groups_carry_flags_through_the_resolver():
+    # a proposed extension may create NEW flagged scope groups; the merge
+    # appends them whole and resolve_spec preserves additive/position
+    raw = {"model": ["sklearn.ensemble.HistGradientBoostingRegressor"]}
+    merged = _merge_raw_plans(
+        raw,
         {
-            "name": "sklearn.preprocessing.StandardScaler",
-            "cols": ["num"],
-            "position": "post_encode",
+            "scoped_encodings": [
+                {
+                    "name": "date_feats",
+                    "cols": ["date"],
+                    "options": ["skrub.DatetimeEncoder"],
+                    "additive": True,
+                },
+                {
+                    "name": "num_scale",
+                    "cols": ["num"],
+                    "options": ["sklearn.preprocessing.StandardScaler"],
+                    "position": "post_encode",
+                },
+            ]
         },
-    ]
-    new, kept = _inject(
-        spec, "encoder", proposals, 42, valid_columns=["date", "num"]
     )
-    assert len(kept) == 2
-    by_name = {g["name"]: g for g in new["scoped_encodings"]}
-    assert by_name["date_DatetimeEncoder"]["additive"] is True
-    assert by_name["num_StandardScaler"]["position"] == "post_encode"
-    assert "additive" not in by_name["num_StandardScaler"]
+    spec = spec_resolver.resolve_spec(
+        merged, task_type="regression", main_columns=["date", "num"]
+    )
+    by_name = {g["name"]: g for g in spec["scoped_encodings"]}
+    assert by_name["date_feats"]["additive"] is True
+    assert by_name["num_scale"]["position"] == "post_encode"
+    assert by_name["num_scale"].get("additive") is not True
 
 
 def test_search_loop_searches_scope_dimension():

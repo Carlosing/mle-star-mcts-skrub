@@ -12,23 +12,104 @@ import pandas as pd
 from machine_learning_engineering import spec_resolver
 from machine_learning_engineering.skrub_ops import get_choice_gating
 from machine_learning_engineering.search_loop import (
-    _parse_paths,
+    _merge_raw_plans,
     run_search_loop,
 )
 
 
-def test_parse_paths_handles_json_fences_and_prose():
-    assert _parse_paths('["sklearn.preprocessing.RobustScaler"]') == [
-        "sklearn.preprocessing.RobustScaler"
+def test_merge_raw_plans_is_strictly_additive():
+    old = {
+        "encoder_options": ["skrub.GapEncoder"],
+        "stages": [{"name": "scale", "options": ["skip"]}],
+        "model": ["sklearn.linear_model.Ridge"],
+    }
+    new = {
+        "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+        "stages": [
+            {"name": "scale", "options": ["sklearn.preprocessing.RobustScaler"]},
+            {"name": "feature_eng", "options": ["sklearn.preprocessing.PolynomialFeatures"]},
+        ],
+        "model": [
+            {
+                "name": "lightgbm.LGBMRegressor",
+                "params": {"n_estimators": {"int": [100, 600]}},
+            }
+        ],
+    }
+    merged = _merge_raw_plans(old, new)
+    # unions by path: the duplicate GapEncoder is dropped, the new encoder kept
+    assert merged["encoder_options"] == [
+        "skrub.GapEncoder",
+        "skrub.MinHashEncoder",
     ]
-    assert _parse_paths('```json\n["skrub.MinHashEncoder"]\n```') == [
-        "skrub.MinHashEncoder"
+    # a matching stage only grows its option menu; a new stage appends whole
+    assert merged["stages"][0]["options"] == [
+        "skip",
+        "sklearn.preprocessing.RobustScaler",
     ]
-    # prose fallback extracts dotted sklearn/skrub paths
-    assert _parse_paths("I suggest sklearn.linear_model.Ridge here.") == [
-        "sklearn.linear_model.Ridge"
-    ]
-    assert _parse_paths("no operators here") == []
+    assert merged["stages"][1]["name"] == "feature_eng"
+    # an injected model keeps its params (it enters the search tuned)
+    assert merged["model"][0] == "sklearn.linear_model.Ridge"  # untouched
+    assert merged["model"][1]["params"]  # tuned addition
+    # the old plan object was not mutated
+    assert old["stages"][0]["options"] == ["skip"]
+    assert old["model"] == ["sklearn.linear_model.Ridge"]
+
+
+def test_merge_raw_plans_never_modifies_existing_entries():
+    old = {"model": ["sklearn.linear_model.Ridge"]}
+    # a proposal re-listing an existing operator WITH params must be ignored:
+    # mutating an existing entry would change its action-space label and
+    # orphan already-scored tree states
+    new = {
+        "model": [
+            {
+                "name": "sklearn.linear_model.Ridge",
+                "params": {"alpha": {"float": [0.001, 1000.0]}},
+            }
+        ]
+    }
+    assert _merge_raw_plans(old, new) == old
+
+
+def test_merge_raw_plans_treats_missing_stages_as_no_change():
+    old = {
+        "encoder_options": ["skrub.GapEncoder"],
+        "model": ["sklearn.linear_model.Ridge"],
+    }
+    assert _merge_raw_plans(old, {}) == old
+    # a partial proposal touches only the stage it names
+    merged = _merge_raw_plans(old, {"model": ["sklearn.linear_model.Lasso"]})
+    assert merged["encoder_options"] == ["skrub.GapEncoder"]
+    assert len(merged["model"]) == 2
+
+
+def test_merge_raw_plans_appends_new_scoped_groups_and_assemble():
+    old = {
+        "scoped_encodings": [
+            {"name": "g1", "cols": ["a"], "options": ["skrub.GapEncoder"]}
+        ],
+        "assemble": [{"name": "j1", "table": "aux", "operations": ["mean"]}],
+        "model": ["sklearn.linear_model.Ridge"],
+    }
+    new = {
+        "scoped_encodings": [
+            {"name": "g1", "cols": ["IGNORED"], "options": ["skrub.MinHashEncoder"]},
+            {"name": "g2", "cols": ["b"], "options": ["skrub.StringEncoder"], "additive": True},
+        ],
+        "assemble": [
+            {"name": "j1", "table": "HIJACKED", "operations": ["max"]},
+            {"name": "j2", "table": "aux", "operations": ["max"]},
+        ],
+    }
+    merged = _merge_raw_plans(old, new)
+    g1, g2 = merged["scoped_encodings"]
+    assert g1["cols"] == ["a"]  # an existing group's cols never change
+    assert g1["options"] == ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+    assert g2["name"] == "g2" and g2["additive"] is True
+    j1, j2 = merged["assemble"]
+    assert j1["table"] == "aux"  # an existing join config never changes
+    assert j2["name"] == "j2"
 
 
 TARGET = "median_house_value"
@@ -61,17 +142,26 @@ RAW = {
     ],
 }
 
-# Per-stage new options not present in RAW.
-_NEW_PER_STAGE = {
-    "scale": ["sklearn.preprocessing.RobustScaler"],
-    "encoder": ["skrub.MinHashEncoder"],
-    "clean": ["skrub.Cleaner"],
-    "model": ["sklearn.linear_model.Ridge"],
+# An extension plan not present in RAW: a tuned model + a new scale option.
+_EXTENSION = {
+    "model": [
+        {
+            "name": "sklearn.linear_model.Ridge",
+            "params": {"alpha": {"float": [0.01, 100.0], "log": True}},
+        }
+    ],
+    "stages": [
+        {"name": "scale", "options": ["sklearn.preprocessing.RobustScaler"]}
+    ],
 }
 
 
 def _spec():
     return spec_resolver.resolve_spec(RAW, task_type="regression")
+
+
+def _resolve(plan_json):
+    return spec_resolver.resolve_spec(plan_json, task_type="regression")
 
 
 def test_tree_persists_across_outer_steps():
@@ -83,8 +173,9 @@ def test_tree_persists_across_outer_steps():
         outer_steps=2,
         budget_per_step=6,
     )
-    # backprop increments root.N once per iteration across both phases (no reset)
-    assert res["root"].N == 2 * 6
+    # backprop increments root.N once per iteration across all phases (no
+    # reset): 2 slices of 6 + the ceil(12/4) focused-refinement bonus
+    assert res["root"].N == 2 * 6 + 3
     # score cache holds one entry per distinct evaluated state
     assert len(res["score_cache"]) >= 1
 
@@ -107,9 +198,9 @@ def test_targeting_picks_an_operator_stage():
 def test_run_keeps_an_option_not_in_the_plan():
     calls = {"n": 0}
 
-    def fake_propose(stage_key, ledger, vocab):
+    def fake_propose(plan_json, context):
         calls["n"] += 1
-        return _NEW_PER_STAGE.get(stage_key, [])
+        return _EXTENSION
 
     res = run_search_loop(
         _spec(),
@@ -119,13 +210,19 @@ def test_run_keeps_an_option_not_in_the_plan():
         outer_steps=3,
         budget_per_step=8,
         propose=fake_propose,
+        raw_spec=RAW,
+        resolve=_resolve,
     )
 
     assert res["injected_options"]  # at least one new option was injected
-    tk = res["target_key"]
-    injected_classes = {p.rsplit(".", 1)[-1] for p in res["injected_options"]}
-    # the injected option(s) now appear in the (rebuilt) action space for the stage
-    assert injected_classes & set(res["action_space"].get(tk, []))
+    # the injected model + scale option live in the rebuilt action space
+    assert "Ridge" in res["action_space"]["model"]
+    assert any("RobustScaler" in lbl for lbl in res["action_space"]["scale"])
+    # the injected model arrived TUNED: its HP became a new gated dimension
+    gating = get_choice_gating(res["plan"])
+    hp_dims = [k for k, v in gating.items() if v == ("model", "Ridge")]
+    assert hp_dims and all(k in res["action_space"] for k in hp_dims)
+    assert any(k in res["injected_options"] for k in hp_dims)
     # one LLM call per refinement step, never per rollout
     assert calls["n"] <= 3
 
@@ -133,9 +230,9 @@ def test_run_keeps_an_option_not_in_the_plan():
 def test_interleaved_propose_fires_between_every_slice():
     calls = []
 
-    def fake_propose(stage_key, ledger, vocab):
-        calls.append(stage_key)
-        return []
+    def fake_propose(plan_json, context):
+        calls.append(context.get("target_stage"))
+        return {}  # nothing to add: the search continues unchanged
 
     run_search_loop(
         _spec(),
@@ -145,9 +242,31 @@ def test_interleaved_propose_fires_between_every_slice():
         outer_steps=4,
         budget_per_step=3,
         propose=fake_propose,
+        raw_spec=RAW,
+        resolve=_resolve,
     )
     # search 3 -> propose -> 3 -> propose -> 3 -> propose -> 3
     assert len(calls) == 3
+
+
+def test_propose_needs_raw_spec_and_resolve():
+    calls = {"n": 0}
+
+    def fake_propose(plan_json, context):
+        calls["n"] += 1
+        return _EXTENSION
+
+    # without the raw plan + resolver, Option 3 is off: no proposer call
+    run_search_loop(
+        _spec(),
+        _california(),
+        TARGET,
+        scoring="r2",
+        outer_steps=2,
+        budget_per_step=3,
+        propose=fake_propose,
+    )
+    assert calls["n"] == 0
 
 
 def test_retargeting_reruns_each_slice_and_can_be_disabled(monkeypatch):
@@ -194,11 +313,12 @@ def test_score_cache_bounds_cv_calls_across_slices():
     )
     # each MCTS iteration evaluates at most one NEW state; the persisted cache
     # is exact dedup, so distinct CV evaluations never exceed the total budget
-    assert len(res["score_cache"]) <= 3 * 4 + 1
+    # (3 slices of 4 + the ceil(12/4) bonus phase) plus the root
+    assert len(res["score_cache"]) <= 3 * 4 + 3 + 1
 
 
 # A single HP-tuned model: the only searchable dims are its hyperparameters,
-# so the incumbent always has untested HP space left after a small main budget.
+# so the bonus phase's single-edit neighbors are all HP edits here.
 _HP_RAW = {
     "encoder_options": ["skrub.GapEncoder"],
     "model": [
@@ -214,7 +334,7 @@ _HP_RAW = {
 }
 
 
-def test_hp_bonus_phase_refines_incumbent_after_main_budget():
+def test_bonus_phase_refines_incumbent_hps_after_main_budget():
     spec = spec_resolver.resolve_spec(_HP_RAW, task_type="regression")
     b = 6
     res = run_search_loop(
@@ -222,23 +342,53 @@ def test_hp_bonus_phase_refines_incumbent_after_main_budget():
     )
     # the bonus phase ran ceil(b/4) extra rollouts on the SAME persisted root
     assert res["root"].N == b + -(-b // 4)
-    # it targeted the incumbent model's (gated) hyperparameters
+    # with a single model, every neighbor of the incumbent is a gated HP edit
     gating = get_choice_gating(res["plan"])
-    assert res["hp_refined"] and all(k in gating for k in res["hp_refined"])
+    assert res["refined_dims"] and all(
+        k in gating for k in res["refined_dims"]
+    )
     # HP space was actually explored: some evaluated config sets a gated HP
     assert any(k in gating for key in res["score_cache"] for k in dict(key))
 
 
-def test_hp_bonus_phase_is_noop_and_off_switch(monkeypatch):
+def test_bonus_phase_explores_structural_neighbors_and_off_switch():
     from machine_learning_engineering import search_loop as sl
 
-    # bare spec -> no tunable HP -> no gated dims -> bonus is a no-op
+    # bare spec (no tunable HPs): the old HP-only phase no-op'd here; the
+    # focused phase now explores the incumbent's structural neighbors.
+    # A 3-scale x 3-model space so budget 5 can't exhaust it before the bonus.
+    struct_raw = {
+        "encoder_options": ["skrub.GapEncoder"],
+        "stages": [
+            {
+                "name": "scale",
+                "options": [
+                    "skip",
+                    "sklearn.preprocessing.StandardScaler",
+                    "sklearn.preprocessing.RobustScaler",
+                ],
+            }
+        ],
+        "model": [
+            "sklearn.ensemble.HistGradientBoostingRegressor",
+            "sklearn.ensemble.RandomForestRegressor",
+            "sklearn.linear_model.Ridge",
+        ],
+    }
     res = sl.run_search_loop(
-        _spec(), _california(), TARGET, scoring="r2", budget_per_step=5
+        spec_resolver.resolve_spec(struct_raw, task_type="regression"),
+        _california(),
+        TARGET,
+        scoring="r2",
+        budget_per_step=5,
     )
-    assert res["root"].N == 5 and res["hp_refined"] == []
+    assert res["root"].N == 5 + 2  # ceil(5/4) bonus rollouts ran
+    assert res["refined_dims"]  # and they edited real dims...
+    assert all(
+        "__" not in k for k in res["refined_dims"]
+    )  # ...all structural (scale/model/encoder), no HP dims exist here
 
-    # even with HP space, hp_refine=False skips the bonus phase entirely
+    # hp_refine=False skips the bonus phase entirely
     spec = spec_resolver.resolve_spec(_HP_RAW, task_type="regression")
     off = sl.run_search_loop(
         spec,
@@ -248,7 +398,7 @@ def test_hp_bonus_phase_is_noop_and_off_switch(monkeypatch):
         budget_per_step=6,
         hp_refine=False,
     )
-    assert off["root"].N == 6 and off["hp_refined"] == []
+    assert off["root"].N == 6 and off["refined_dims"] == []
 
 
 def test_run_states_are_model_gated_canonical():

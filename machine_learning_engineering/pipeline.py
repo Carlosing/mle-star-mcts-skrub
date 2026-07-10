@@ -36,6 +36,7 @@ from machine_learning_engineering.search_loop import (
     run_search_loop,
 )
 from machine_learning_engineering.shared_libraries import config
+from machine_learning_engineering import spec_resolver
 from machine_learning_engineering.spec_resolver import resolve_spec
 
 APP_NAME = "mle-mcts-skrub"
@@ -71,11 +72,16 @@ def load_task(
     target = target or _parse_target(desc, df)
     if target not in df.columns:
         raise ValueError(f"target {target!r} not in columns {list(df.columns)}")
+    if df[target].isna().any():
+        # unlabeled rows crash skrub's eager plan preview ("Input y contains
+        # NaN") and would otherwise silently zero every regression rollout
+        df = df.dropna(subset=[target])
+    metric = _parse_metric(desc)
     return (
         df,
         target,
-        infer_task_type(df, target),
-        _parse_metric(desc),
+        infer_task_type(df, target, metric),
+        metric,
         desc,
         aux_tables,
     )
@@ -133,20 +139,43 @@ def _fallback_spec(task_type: str) -> dict:
 
 def _safe_resolve(
     raw, task_type: str, aux_schemas=None, main_columns=None
-) -> tuple[dict, bool]:
-    """resolve_spec with a fallback; returns (spec, used_fallback)."""
+) -> tuple[dict, dict, bool]:
+    """resolve_spec with a fallback; returns (spec, raw_plan, used_fallback).
+
+    `raw_plan` is the parsed plan dict that was actually resolved (the LLM's,
+    or the fallback) — the search loop hands it to the Option-3 proposer as
+    the plan to extend.
+    """
     try:
+        raw_plan = spec_resolver.parse_spec_json(raw)
         spec = resolve_spec(
-            raw,
+            raw_plan,
             task_type=task_type,
             aux_schemas=aux_schemas,
             main_columns=main_columns,
         )
-        return spec, False
+        return spec, raw_plan, False
     except Exception:
-        return resolve_spec(
-            _fallback_spec(task_type), task_type=task_type
-        ), True
+        fallback = _fallback_spec(task_type)
+        return resolve_spec(fallback, task_type=task_type), fallback, True
+
+
+def _auto_subsample_seeds(df, target: str, task_type: str) -> int:
+    """Auto-pick the rollout seed-averaging factor from the target profile.
+
+    Imbalanced classification (minority share < 5%) gets 3 seeded subsamples
+    per rollout — single-draw rewards there are too noisy for UCT (budget-80
+    demonstrably chased a noisy proxy to a worse held-out config than
+    budget-20 on 1.25%-positive credit-fraud). Everything else keeps 1.
+
+    Example:
+        _auto_subsample_seeds(fraud_df, "fraud", "classification")  # -> 3
+        _auto_subsample_seeds(housing_df, "value", "regression")    # -> 1
+    """
+    if task_type != "classification":
+        return 1
+    share = float(df[target].value_counts(normalize=True).min())
+    return 3 if share < 0.05 else 1
 
 
 # --- the pipeline ------------------------------------------------------------
@@ -168,6 +197,7 @@ def run_pipeline(
     c: float = 0.5,
     retarget: bool = True,
     spec_raw: str | None = None,
+    subsample_seeds: int | None = None,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -185,6 +215,11 @@ def run_pipeline(
     ``spec_raw`` skips the analyst/plan-author agents entirely and resolves the
     given raw plan instead — the sweep harness fetches the spec once per task
     and reuses it across points, so LLM calls stay O(tasks), not O(runs).
+
+    ``subsample_seeds`` averages each rollout's reward over that many seeded
+    subsamples (``skrub_ops.make_rollout_fn(n_subsample_seeds=)``). ``None``
+    (default) auto-selects: 3 for imbalanced classification (minority share
+    < 5%, where single-draw rewards are too noisy for UCT), else 1.
     """
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
@@ -192,7 +227,7 @@ def run_pipeline(
     df, target, task_type, metric, description, aux_tables = load_task(
         task_name, data_dir=data_dir, target=target
     )
-    summary = make_data_summary(df, target, aux_tables=aux_tables)
+    summary = make_data_summary(df, target, aux_tables=aux_tables, metric=metric)
 
     if spec_raw is None:
         root = build_root_agent(
@@ -215,14 +250,25 @@ def run_pipeline(
             analysis = session.state.get("dataset_analysis", "") or analysis
     else:
         raw, analysis = spec_raw, ""  # reused spec: no agent turns, no analysis
-    spec, used_fallback = _safe_resolve(
-        raw,
-        task_type,
-        aux_schemas={
-            name: list(adf.columns) for name, adf in aux_tables.items()
-        },
-        main_columns=[c for c in df.columns if c != target],
+    aux_schemas = {
+        name: list(adf.columns) for name, adf in aux_tables.items()
+    }
+    main_columns = [c for c in df.columns if c != target]
+    spec, raw_plan, used_fallback = _safe_resolve(
+        raw, task_type, aux_schemas=aux_schemas, main_columns=main_columns
     )
+
+    def _resolve_plan(plan_json: dict) -> dict:
+        # the Option-3 rebuild path: same validation envelope as the original
+        return resolve_spec(
+            plan_json,
+            task_type=task_type,
+            aux_schemas=aux_schemas,
+            main_columns=main_columns,
+        )
+
+    if subsample_seeds is None:
+        subsample_seeds = _auto_subsample_seeds(df, target, task_type)
 
     search = run_search_loop(
         spec,
@@ -234,10 +280,13 @@ def run_pipeline(
         c=c,
         seed=seed,
         propose=propose,
+        raw_spec=raw_plan,
+        resolve=_resolve_plan,
         retarget=retarget,
         aux_tables=aux_tables or None,
         context_text=summary,
         stratify=(task_type == "classification"),
+        n_subsample_seeds=subsample_seeds,
     )
 
     result = {
@@ -249,6 +298,10 @@ def run_pipeline(
         "model": config.CONFIG.agent_model,
         "budget": budget,
         "search_scorer": metrics.search_scorer(task_type, metric),
+        # best_search_score is a bounded UCT reward, not the raw scorer value
+        "search_reward_scale": skrub_ops.reward_scale(
+            metrics.search_scorer(task_type, metric)
+        ),
         "best_state": search["best_state"],
         "best_search_score": search["best_score"],
         "report": _report(
@@ -262,7 +315,8 @@ def run_pipeline(
         "action_space": search["action_space"],
         "target_key": search["target_key"],
         "injected_options": search["injected_options"],
-        "hp_refined": search.get("hp_refined", []),
+        "refined_dims": search.get("refined_dims", []),
+        "subsample_seeds": subsample_seeds,
         "ensemble": _top_k_report(
             search, df, target, task_type, metric, aux_tables, top_k, seed
         ),
@@ -319,7 +373,9 @@ def _result_markdown(r: dict) -> str:
         "```json",
         json.dumps(r.get("best_state", {}), indent=2, default=str),
         "```",
-        f"- search reward ({r.get('search_scorer')}): {r.get('best_search_score')}",
+        f"- search reward ({r.get('search_scorer')}, "
+        f"scale={r.get('search_reward_scale', 'raw')}): "
+        f"{r.get('best_search_score')}",
     ]
     if rep:
         lines.append(
@@ -333,9 +389,9 @@ def _result_markdown(r: dict) -> str:
         )
     if r.get("target_key"):
         lines.append(f"- targeted stage (Option 1): {r['target_key']}")
-    if r.get("hp_refined"):
+    if r.get("refined_dims"):
         lines.append(
-            f"- HP-refinement bonus phase tuned (incumbent model): {r['hp_refined']}"
+            f"- focused-refinement bonus phase edited: {r['refined_dims']}"
         )
     if r.get("injected_options"):
         lines.append(
@@ -465,6 +521,13 @@ def _main() -> None:
     parser.add_argument(
         "--seed", type=int, default=42, help="global random seed"
     )
+    parser.add_argument(
+        "--subsample-seeds",
+        type=int,
+        default=None,
+        help="average each rollout over N seeded subsamples (default: auto — "
+        "3 for imbalanced classification, else 1)",
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
@@ -484,6 +547,7 @@ def _main() -> None:
         top_k=args.top_k,
         c=args.c,
         retarget=not args.no_retarget,
+        subsample_seeds=args.subsample_seeds,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"

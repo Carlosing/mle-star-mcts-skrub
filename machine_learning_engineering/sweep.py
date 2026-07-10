@@ -44,6 +44,7 @@ _DEFAULTS = {
     "retarget": True,
     "top_k": 1,
     "seed": 42,
+    "subsample_seeds": None,  # None = pipeline auto (3 if imbalanced, else 1)
 }
 _KEYS = set(_DEFAULTS) | {"n_proposes"}
 
@@ -56,6 +57,7 @@ _COLUMNS = [
     "refine",
     "retarget",
     "top_k",
+    "subsample_seeds",
     "best_search_score",
     "report_scorer",
     "report_score",
@@ -153,6 +155,9 @@ def run_one(
             "top_k",
         )
     }
+    row["subsample_seeds"] = (
+        cfg["subsample_seeds"] if cfg["subsample_seeds"] is not None else "auto"
+    )
     row.update({c: "" for c in _COLUMNS if c not in row})
     row["run_dir"] = out_dir
     started = time.time()
@@ -171,6 +176,7 @@ def run_one(
                 c=cfg["c"],
                 retarget=cfg["retarget"],
                 spec_raw=spec_raw,
+                subsample_seeds=cfg["subsample_seeds"],
             )
             report = result.get("report") or {}
             ens = result.get("ensemble") or {}
@@ -182,6 +188,9 @@ def run_one(
                 used_fallback_spec=result["used_fallback_spec"],
                 reused_spec=result["reused_spec"],
                 llm_calls=result["llm_calls"],
+                subsample_seeds=result.get(
+                    "subsample_seeds", row["subsample_seeds"]
+                ),  # the resolved auto value when the pipeline reports it
                 status="ok",
                 spec_raw=result[
                     "spec_raw"

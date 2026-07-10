@@ -4,9 +4,9 @@ The prior is emitted by the plan author IN ITS EXISTING CALL (zero extra LLM
 calls): options may carry `"prior": 0.0-1.0`, the resolver collects them into
 `spec["priors"]`, and the search loop turns that into a pure-lookup `prior_fn`
 that seeds every fresh child's Q/N. The proposer side: `run_search_loop` hands
-the proposer an evidence context (cross-stage ledger, incumbent, digest,
-columns) and accepts scoped proposals `{"name": path, "cols": [...]}`,
-optionally flagged `"additive": true` / `"position": "post_encode"`.
+the proposer the WHOLE current raw plan plus an evidence context (cross-stage
+ledger, incumbent, digest, columns, target stage, vocabulary) and merges the
+returned extension plan additively — including new scoped_encodings groups.
 """
 
 import json
@@ -22,7 +22,7 @@ pytest.importorskip("skrub")
 from machine_learning_engineering import mcts, spec_resolver
 from machine_learning_engineering.search_loop import (
     _make_prior_fn,
-    _parse_proposals,
+    _parse_plan,
     make_llm_proposer,
     run_search_loop,
 )
@@ -135,40 +135,30 @@ def test_run_search_loop_uses_spec_priors_offline():
     assert result["best_score"] > 0.0
 
 
-# --- proposer protocol: proposals parsing + evidence context ---------------------
+# --- proposer protocol: plan parsing + evidence context ---------------------
 
 
-def test_parse_proposals_accepts_paths_and_scoped_objects():
-    text = (
-        '["skrub.MinHashEncoder", '
-        '{"name": "skrub.GapEncoder", "cols": ["color", 3]}, '
-        '{"cols": ["x"]}, 42]'
-    )
-    assert _parse_proposals(text) == [
-        "skrub.MinHashEncoder",
-        {"name": "skrub.GapEncoder", "cols": ["color"]},  # non-str col dropped
-    ]
+def test_parse_plan_accepts_fenced_json_objects():
+    assert _parse_plan('{"model": ["lightgbm.LGBMRegressor"]}') == {
+        "model": ["lightgbm.LGBMRegressor"]
+    }
+    assert _parse_plan(
+        '```json\n{"encoder_options": ["skrub.MinHashEncoder"]}\n```'
+    ) == {"encoder_options": ["skrub.MinHashEncoder"]}
+    # prose around the object is tolerated (parse_spec_json brace-scan)
+    assert _parse_plan('Here you go: {"model": ["x.Y"]} hope it helps') == {
+        "model": ["x.Y"]
+    }
 
 
-def test_parse_proposals_carries_additive_and_position_flags():
-    text = (
-        '[{"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": true}, '
-        '{"name": "sklearn.preprocessing.StandardScaler", "cols": ["age"], '
-        '"position": "post_encode"}, '
-        '{"name": "skrub.GapEncoder", "cols": ["t"], "position": "bogus"}]'
-    )
-    assert _parse_proposals(text) == [
-        {"name": "skrub.DatetimeEncoder", "cols": ["date"], "additive": True},
-        {
-            "name": "sklearn.preprocessing.StandardScaler",
-            "cols": ["age"],
-            "position": "post_encode",
-        },
-        {"name": "skrub.GapEncoder", "cols": ["t"]},  # invalid position dropped
-    ]
+def test_parse_plan_rejects_non_objects():
+    assert _parse_plan("") is None
+    assert _parse_plan("no JSON here") is None
+    # the old contract's array shape is NOT a plan
+    assert _parse_plan('["skrub.MinHashEncoder"]') is None
 
 
-def test_proposer_receives_evidence_context_and_scoped_proposals_inject():
+def test_proposer_receives_whole_plan_and_scoped_extension_injects():
     df = make_toy_df()
     raw = {
         "encoder_options": ["skrub.GapEncoder"],
@@ -177,14 +167,24 @@ def test_proposer_receives_evidence_context_and_scoped_proposals_inject():
             "sklearn.linear_model.LogisticRegression",
         ],
     }
-    spec = spec_resolver.resolve_spec(raw, task_type="classification")
-    seen: dict = {}
+    cols = [c for c in df.columns if c != "target"]
+    spec = spec_resolver.resolve_spec(
+        raw, task_type="classification", main_columns=cols
+    )
+    seen: dict = {"plans": []}
 
-    def fake_propose(stage_key, ledger, vocab, context):
-        seen["stage_key"], seen["context"] = stage_key, context
-        if stage_key == "encoder":
-            return [{"name": "skrub.MinHashEncoder", "cols": ["color"]}]
-        return []
+    def fake_propose(plan_json, context):
+        seen["plans"].append(plan_json)
+        seen["context"] = context
+        return {
+            "scoped_encodings": [
+                {
+                    "name": "color_mh",
+                    "cols": ["color"],
+                    "options": ["skrub.MinHashEncoder"],
+                }
+            ]
+        }
 
     result = run_search_loop(
         spec,
@@ -194,42 +194,24 @@ def test_proposer_receives_evidence_context_and_scoped_proposals_inject():
         outer_steps=3,
         budget_per_step=6,
         propose=fake_propose,
+        raw_spec=raw,
+        resolve=lambda r: spec_resolver.resolve_spec(
+            r, task_type="classification", main_columns=cols
+        ),
         context_text="DIGEST SENTINEL",
     )
+    # the proposer saw the WHOLE current raw plan, and on later calls the
+    # already-extended plan (so it never re-proposes blind)
+    assert seen["plans"][0] == raw
+    assert "scoped_encodings" in seen["plans"][-1]
     ctx = seen["context"]
     assert ctx["digest"] == "DIGEST SENTINEL"
     assert ctx["columns"] == ["x1", "x2", "color"]
     assert "incumbent" in ctx and "stage_values" in ctx
-    if seen["stage_key"] == "encoder":  # targeting picked the encoder stage
-        # the scoped proposal became a new scope group in the action space
-        assert result["injected_options"] == ["skrub.MinHashEncoder"]
-        assert any(k.startswith("scope_") for k in result["action_space"])
-
-
-def test_old_three_arg_proposers_still_work():
-    df = make_toy_df()
-    raw = {
-        "encoder_options": ["skrub.GapEncoder"],
-        "model": [
-            "sklearn.ensemble.HistGradientBoostingClassifier",
-            "sklearn.linear_model.LogisticRegression",
-        ],
-    }
-    spec = spec_resolver.resolve_spec(raw, task_type="classification")
-
-    def legacy_propose(stage_key, ledger, vocab):
-        return []
-
-    result = run_search_loop(
-        spec,
-        df,
-        "target",
-        scoring="accuracy",
-        outer_steps=2,
-        budget_per_step=5,
-        propose=legacy_propose,
-    )
-    assert isinstance(result["best_score"], float)
+    assert "target_stage" in ctx and "vocab" in ctx
+    # the scoped extension became a new searchable dimension
+    assert "scope_color_mh" in result["action_space"]
+    assert "scope_color_mh" in result["injected_options"]
 
 
 # --- proposer logging + symmetric search retry (make_llm_proposer) --------------
@@ -262,21 +244,21 @@ def _fake_genai_client(script):
 def test_proposer_retries_without_search_and_logs_by_call(tmp_path, monkeypatch):
     from google import genai
 
-    # grounded (search) call returns nothing; the search-off retry returns a path
+    # grounded (search) call returns nothing; the search-off retry returns a plan
     client_cls = _fake_genai_client(
-        lambda mode: "" if mode == "search" else '["sklearn.preprocessing.RobustScaler"]'
+        lambda mode: ""
+        if mode == "search"
+        else '{"model": ["lightgbm.LGBMRegressor"]}'
     )
     monkeypatch.setattr(genai, "Client", client_cls)
 
     propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
     out = propose(
-        "scale",
-        {"StandardScaler()": 0.5},
-        {"transformers": ["sklearn.preprocessing.StandardScaler"]},
-        {"digest": "d"},
+        {"model": ["sklearn.linear_model.Ridge"]},
+        {"digest": "d", "target_stage": "model"},
     )
-    # the search-off retry recovered the proposal the grounded call dropped
-    assert out == ["sklearn.preprocessing.RobustScaler"]
+    # the search-off retry recovered the plan the grounded call dropped
+    assert out == {"model": ["lightgbm.LGBMRegressor"]}
 
     # first call logged under number 1, request + a two-record response
     assert (tmp_path / "proposer_1_request.json").exists()
@@ -287,20 +269,22 @@ def test_proposer_retries_without_search_and_logs_by_call(tmp_path, monkeypatch)
     assert resp[1]["retry"] is True
 
     # a second call is numbered 2
-    propose("model", {}, {"models": []}, {})
+    propose({"model": []}, {})
     assert (tmp_path / "proposer_2_request.json").exists()
 
 
 def test_proposer_no_retry_when_grounded_call_succeeds(tmp_path, monkeypatch):
     from google import genai
 
-    client_cls = _fake_genai_client(lambda mode: '["skrub.MinHashEncoder"]')
+    client_cls = _fake_genai_client(
+        lambda mode: '{"encoder_options": ["skrub.MinHashEncoder"]}'
+    )
     monkeypatch.setattr(genai, "Client", client_cls)
 
     propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
-    out = propose("encoder", {}, {"transformers": []}, {"columns": ["a"]})
+    out = propose({"model": ["sklearn.linear_model.Ridge"]}, {"columns": ["a"]})
 
-    assert out == ["skrub.MinHashEncoder"]
+    assert out == {"encoder_options": ["skrub.MinHashEncoder"]}
     resp = json.load(open(tmp_path / "proposer_1_response.json"))
     assert len(resp) == 1  # grounded success -> no retry record
     assert not any("retry" in r for r in resp)

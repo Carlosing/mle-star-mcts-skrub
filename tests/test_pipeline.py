@@ -151,7 +151,7 @@ def test_run_pipeline_forwards_c_and_retarget(monkeypatch):
         }
 
     monkeypatch.setattr(pipeline, "run_search_loop", fake_search_loop)
-    pipeline.run_pipeline(
+    result = pipeline.run_pipeline(
         task_name="california-housing-prices",
         budget=4,
         spec_raw=SPEC_JSON,
@@ -162,3 +162,19 @@ def test_run_pipeline_forwards_c_and_retarget(monkeypatch):
     assert captured["c"] == 0.9
     assert captured["retarget"] is False
     assert captured["seed"] == 7
+    # regression -> the auto seed-averaging factor resolves to 1
+    assert captured["n_subsample_seeds"] == 1
+    assert result["subsample_seeds"] == 1
+
+
+def test_auto_subsample_seeds_targets_imbalanced_classification():
+    import pandas as pd
+
+    balanced = pd.DataFrame({"y": ["a", "b"] * 50})
+    imbalanced = pd.DataFrame({"y": ["neg"] * 990 + ["pos"] * 10})
+    assert pipeline._auto_subsample_seeds(balanced, "y", "classification") == 1
+    assert (
+        pipeline._auto_subsample_seeds(imbalanced, "y", "classification") == 3
+    )
+    # regression never averages, whatever the target looks like
+    assert pipeline._auto_subsample_seeds(imbalanced, "y", "regression") == 1

@@ -20,6 +20,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 import skrub
+from sklearn.base import BaseEstimator, TransformerMixin
 from skrub import selectors as _selectors
 from skrub._data_ops import _evaluation as _ev
 
@@ -356,6 +357,129 @@ def _additive_scoped_options(options: list) -> dict:
     return labeled
 
 
+def _safe_names(names) -> list[str]:
+    """Sanitize column names to ``[A-Za-z0-9_]``, de-duplicating collisions.
+
+    LightGBM (and older XGBoost) reject feature names containing JSON special
+    characters (``[]{}":,`` ...), which skrub's encoders and ``AggJoiner``
+    routinely emit (e.g. ``Physician_Specialty: Foo|Bar``). Every other
+    character becomes ``_``; a resulting collision gets a numeric suffix so
+    names stay unique (boosters reject duplicate names too).
+
+    Example:
+        _safe_names(["a|b", "a:b", "ok"])  # -> ["a_b", "a_b_1", "ok"]
+    """
+    used: set[str] = set()
+    out: list[str] = []
+    for n in names:
+        base = re.sub(r"[^0-9A-Za-z_]", "_", str(n)) or "col"
+        name, i = base, 1
+        while name in used:
+            name, i = f"{base}_{i}", i + 1
+        used.add(name)
+        out.append(name)
+    return out
+
+
+class _SanitizeColumns(BaseEstimator, TransformerMixin):
+    """Rename all columns to booster-safe identifiers before the model fit.
+
+    A fixed (non-searchable) whole-frame step inserted just before the model so
+    an injected LightGBM/XGBoost can fit at all: skrub's encoded / aggregated
+    column names carry JSON special characters that LightGBM rejects outright,
+    silently scoring the rollout 0.0. Models that ignore feature names (HGB,
+    sklearn RF / linear) are unaffected — values pass through untouched. See
+    ``_safe_names``.
+    """
+
+    def fit(self, X, y=None):
+        self.feature_names_in_ = (
+            list(X.columns) if hasattr(X, "columns") else None
+        )
+        return self
+
+    def transform(self, X):
+        if hasattr(X, "columns"):
+            X = X.copy()
+            X.columns = _safe_names(list(X.columns))
+        return X
+
+    def get_feature_names_out(self, input_features=None):
+        names = (
+            self.feature_names_in_
+            if self.feature_names_in_ is not None
+            else input_features
+        )
+        return np.asarray(_safe_names(list(names)))
+
+
+def _is_array_cell(value) -> bool:
+    """True for a non-string sequence stored inside a dataframe cell.
+
+    Example:
+        _is_array_cell(np.array(["Y", "Z"]))  # -> True
+        _is_array_cell("Y")                   # -> False
+    """
+    if isinstance(value, (str, bytes)):
+        return False
+    return isinstance(value, (list, tuple, np.ndarray, pd.Series)) or isinstance(
+        value, pd.api.extensions.ExtensionArray
+    )
+
+
+def _first_cell(value):
+    """Collapse an array cell to its first element; pass scalars through."""
+    if not _is_array_cell(value):
+        return value
+    return value[0] if len(value) else np.nan
+
+
+class _ScalarizeAggregates(BaseEstimator, TransformerMixin):
+    """Collapse array-valued cells left behind by ``AggJoiner(operations="mode")``.
+
+    On a modal TIE, skrub's ``mode`` aggregation writes the whole tied array
+    into the cell (``["Y", "Z"]``) instead of a scalar. The column becomes
+    ``object`` dtype mixing scalars, arrays and NaN, and skrub's own
+    ``TableVectorizer`` then dies inside ``CleanNullStrings`` (pandas
+    ``replace`` does ``operator.eq`` on the array -> "truth value of an empty
+    array is ambiguous"). Every CV fold fails, so the whole assemble option
+    silently scores 0.0 — credit-fraud's ``basket_mode`` did exactly that.
+
+    A fixed, non-searchable step right after the assemble stage (it adds no
+    ``choose_from``, so the action space and gating are untouched). Ties are
+    broken by taking the first element, which is deterministic: pandas' mode
+    returns its values sorted.
+    """
+
+    def fit(self, X, y=None):
+        self.feature_names_in_ = (
+            list(X.columns) if hasattr(X, "columns") else None
+        )
+        return self
+
+    def transform(self, X):
+        if not hasattr(X, "columns"):
+            return X
+        out = None
+        for col in X.columns:
+            if X[col].dtype != object:
+                continue  # only an object column can hold an array cell
+            if not X[col].map(_is_array_cell).any():
+                continue
+            if out is None:
+                out = X.copy()
+            out[col] = out[col].map(_first_cell)
+        return X if out is None else out
+
+    def get_feature_names_out(self, input_features=None):
+        names = (
+            self.feature_names_in_
+            if self.feature_names_in_ is not None
+            else input_features
+        )
+        return np.asarray(list(names))
+
+
 def _apply_scope_group(node, group: dict, cols: list[str]):
     """Insert one scoped-encoding group into the DAG at the current node.
 
@@ -458,7 +582,9 @@ def build_staged_plan(
     - The model `choose_from` has a real default (its first entry), so a
       partial pipeline is always runnable.
     - The assemble stage uses a *labeled dict* `choose_from` so options read as
-      'aux_mean' etc. rather than the AggJoiner repr (which embeds the table).
+      'aux_mean' etc. rather than the AggJoiner repr (which embeds the table),
+      and is followed by a fixed `_ScalarizeAggregates` step that repairs the
+      array-valued cells `mode` leaves on a tie.
 
     Example (minimal, single-table):
         spec = {"encoder_options": [skrub.GapEncoder(), skrub.MinHashEncoder()],
@@ -493,6 +619,10 @@ def build_staged_plan(
                 cols=cfg.get("cols"),
             )
         node = node.skb.apply(skrub.choose_from(joiners, name="assemble"))
+        # `mode` aggregation leaves an array in the cell on a tie, which kills
+        # the TableVectorizer downstream (see _ScalarizeAggregates). Fixed
+        # step, invisible to the action space.
+        node = node.skb.apply(_ScalarizeAggregates())
 
     # --- clean / coerce ---
     if spec.get("clean_options"):
@@ -539,6 +669,11 @@ def build_staged_plan(
                 _skip_first(list(stage["options"])), name=stage["name"]
             )
         )
+
+    # --- sanitize feature names so an injected booster can fit (see
+    # _safe_names): a fixed, non-searchable whole-frame rename, invisible to the
+    # action space / gating (it adds no `choose_from`). ---
+    node = node.skb.apply(_SanitizeColumns())
 
     # --- model ---
     node = node.skb.apply(
@@ -667,6 +802,52 @@ def _stratified_subsample(df, target: str, n: int, seed: int, floor: int = 10):
     return pd.concat(parts).sample(frac=1.0, random_state=seed)
 
 
+def _profile_subsample_n(
+    df,
+    target: str | None,
+    stratify: bool,
+    min_rows: int = 500,
+    cap: int = 2000,
+) -> tuple[int, int]:
+    """Size the rollout subsample from the data *profile*, not just row count.
+
+    Returns ``(n, floor)`` for `_stratified_subsample`. The old fixed rule
+    (``max(min_rows, 1% of rows)`` with a minority floor of 10) made rewards
+    near-noise on imbalanced data: credit-fraud at 1.25% positive gave ~6-10
+    positives in 500 rows, so CV folds tested on 1-2 each — observed directly
+    when a budget-80 run chased that noisy proxy to a WORSE held-out config
+    than budget-20. Profile-aware sizing:
+
+    - imbalance: target ``floor = min(minority_count, 40)`` REAL minority rows
+      (~8 per fold at 5 folds) and grow ``n`` toward ``floor / prevalence`` so
+      the majority keeps scale, capped at ``cap`` rows for wall-clock;
+    - high cardinality: any non-target string column with > 100 uniques bumps
+      ``n`` to >= 1000 (encoders can't estimate a vocabulary from 500 rows);
+    - relational fan-out: aux tables join whole (never subsampled), so the
+      main-table ``n`` is left alone.
+
+    The cap only limits profile-driven *growth* — a huge table whose 1% base
+    already exceeds it keeps the old base size.
+
+    Example:
+        _profile_subsample_n(fraud_df, "fraud", True)   # -> (2000, 40)
+        _profile_subsample_n(numeric_df, "y", False)    # -> (500, 10)
+    """
+    n = max(min_rows, int(0.01 * len(df)))
+    feats = df.drop(columns=[target]) if target in df.columns else df
+    text = feats.select_dtypes(include=["object", "string", "category"])
+    if any(text[c].nunique() > 100 for c in text.columns):
+        n = max(n, min(cap, 1000))
+    floor = 10
+    if stratify and target is not None and target in df.columns:
+        counts = df[target].value_counts()
+        floor = int(min(counts.min(), 40))
+        prevalence = float(counts.min()) / len(df)
+        if prevalence > 0:
+            n = max(n, min(cap, int(floor / prevalence)))
+    return min(len(df), n), floor
+
+
 def _fold_mean(scores) -> float:
     """Mean over per-fold CV scores, skipping scorer-failed (NaN) folds.
 
@@ -682,6 +863,62 @@ def _fold_mean(scores) -> float:
     if np.all(np.isnan(arr)):
         return 0.0
     return float(np.nanmean(arr))
+
+
+# Scorers already confined to [0, 1]: their raw value IS a valid UCT reward, so
+# they pass through untouched and every historical baseline on them still holds.
+# Anything else (r2, and `None` = the estimator's own .score(), which is R2 for a
+# regressor) is unbounded BELOW and must be squashed — see `_bounded_reward`.
+_UNIT_SCORERS = frozenset(
+    {"roc_auc", "average_precision", "accuracy", "balanced_accuracy", "f1"}
+)
+
+
+def _bounded_reward(score: float, scoring) -> float:
+    """Map a raw CV score onto the (0, 1] UCT reward scale, order-preserving.
+
+    UCT compares Q/N against an exploration term scaled by ``c``, so rewards
+    must be bounded and higher-is-better. `r2` is bounded ABOVE by 1 but
+    unbounded below, and a single catastrophic config (r2 = -50) would drag
+    every ancestor's Q with it. Clamping the negative half to 0.0 bounds it but
+    throws the ordering away — on a genuinely hard regression task every config
+    scores r2 < 0, the whole landscape flattens and UCT is left choosing at
+    random (observed on flight-delays and movielens).
+
+    So unbounded-below scorers get a strictly increasing squash instead:
+
+        f(s) = 1 / (2 - s)      f(1) = 1, f(0) = 0.5, f(-1) = 1/3, f(-inf) -> 0
+
+    Ordering is preserved everywhere, catastrophes compress toward 0 instead of
+    diverging, and 0.5 reads as "no better than predicting the mean". The reward
+    is only a SEARCH scale: the reported metric (`evaluate_full`) is untouched,
+    and 0.0 stays reserved for a failed config — strictly worse than any real
+    one, since the squash never reaches 0.
+
+    Scorers already in [0, 1] (`_UNIT_SCORERS`) pass through, so classification
+    rewards keep their raw meaning.
+
+    Example:
+        _bounded_reward(0.66, "roc_auc")  # -> 0.66   (already bounded)
+        _bounded_reward(0.0, "r2")        # -> 0.5    (predicts the mean)
+        _bounded_reward(-49.0, "r2")      # -> 0.02   (bad, but still ordered)
+    """
+    if scoring in _UNIT_SCORERS:
+        return min(1.0, max(0.0, float(score)))
+    return 1.0 / (2.0 - min(1.0, float(score)))
+
+
+def reward_scale(scoring) -> str:
+    """How `_bounded_reward` maps this scorer's raw score onto the UCT scale.
+
+    For reporting: `best_search_score` is a REWARD, not the raw scorer value,
+    whenever the scorer is unbounded below.
+
+    Example:
+        reward_scale("accuracy")  # -> "raw"
+        reward_scale("r2")        # -> "1/(2 - r2)"
+    """
+    return "raw" if scoring in _UNIT_SCORERS else f"1/(2 - {scoring or 'score'})"
 
 
 # Ranking scorers that consume class *probabilities*. skrub's learner reports
@@ -718,7 +955,24 @@ def _resolve_scoring(scoring):
     }[scoring]
 
     def _scorer(estimator, X, y):
-        proba = np.asarray(estimator.predict_proba(X))
+        try:
+            proba = np.asarray(estimator.predict_proba(X))
+        except AttributeError:
+            # decision_function-only classifiers (LinearSVC, SGD-hinge, SVC
+            # without probability=True): skrub's learner raises
+            # AttributeError for predict_proba, which would NaN every fold
+            # (silent 0.0). Both metrics rank by score, so raw margins work.
+            scores = np.asarray(estimator.decision_function(X))
+            if scoring == "roc_auc" and scores.ndim == 2:
+                return float(
+                    score_func(
+                        y,
+                        scores,
+                        multi_class="ovr",
+                        labels=getattr(estimator, "classes_", None),
+                    )
+                )
+            return float(score_func(y, scores))
         if proba.ndim == 2 and proba.shape[1] == 2:
             return float(score_func(y, proba[:, 1]))
         if scoring == "roc_auc" and proba.ndim == 2 and proba.shape[1] > 2:
@@ -747,12 +1001,15 @@ def make_rollout_fn(
     stratify: bool = False,
     target: str | None = None,
     timeout_s: float | None = 45.0,
+    n_subsample_seeds: int = 1,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
     Evaluates a configuration on an adaptive seeded subsample of the MAIN
-    table: n = max(min_rows, 1% of the data), capped at the full table. The
-    same state always scores the same. Failed configs return 0.0.
+    table, sized from the data profile (`_profile_subsample_n`: 1%-of-rows
+    base, grown for imbalance / high-cardinality text, capped at 2000 for
+    wall-clock, always capped at the full table). The same state always
+    scores the same. Failed configs return 0.0.
 
     Works for both flat (complete) and staged (partial) states because
     `apply_state` resets to defaults before applying — a partial state simply
@@ -763,9 +1020,13 @@ def make_rollout_fn(
     var (defaults to the plan's single var).
 
     `scoring` is an sklearn scorer name forwarded to cross_validate. It must be
-    **higher-is-better** (MCTS maximizes) — use a bounded one like "r2" or
-    "accuracy" so rewards stay on the same scale as the UCT exploration term.
-    None keeps the estimator's default .score() (R2 for regressors).
+    **higher-is-better** (MCTS maximizes). None keeps the estimator's default
+    .score() (R2 for regressors). The raw CV score is mapped onto the bounded
+    (0, 1] UCT reward scale by `_bounded_reward`: scorers already in [0, 1]
+    (accuracy, roc_auc, f1) pass through unchanged, while an unbounded-below
+    scorer (r2) is squashed order-preservingly through `1 / (2 - s)`. A failed
+    config returns exactly 0.0, which the squash never reaches — so failures
+    rank strictly below every config that actually ran.
 
     `stratify=True` (pass for classification, especially imbalanced targets)
     uses a seeded `StratifiedKFold` instead of skrub's plain-`KFold` default —
@@ -781,41 +1042,67 @@ def make_rollout_fn(
     free-form hyperparameter range that makes a single fit pathologically slow
     can't stall the search. `None`/0 disables the cap. Best-effort — see
     `_time_limit` (main-thread + SIGALRM only; can't preempt a non-yielding C
-    call).
+    call). With `n_subsample_seeds > 1` the cap scales with the seed count
+    (the whole averaged rollout gets `timeout_s * n_subsample_seeds`).
+
+    `n_subsample_seeds` (default 1) averages the reward over that many
+    distinct seeded subsamples (seeds `seed`, `seed+1`, ...) — a pure-code
+    denoiser for imbalanced/high-variance tasks where a single subsample draw
+    dominates the reward. Deterministic: the subsamples are fixed at build
+    time, so the same state still always scores the same and the score cache
+    stays exact.
 
     Input:  plan + training df; returns a closure rollout(state) -> float.
 
     Example:
         rollout = make_rollout_fn(plan, df)
-        rollout({"model": "GBM"})           # -> 0.88   (mean CV test score)
+        rollout({"model": "GBM"})           # -> 0.89   (bounded reward, r2 0.78)
         rollout({"model": "DoesNotExist"})  # -> 0.0    (failed config, no crash)
         # relational:
         rollout = make_rollout_fn(plan, main_df, aux={"aux": aux_df}, main_var="data")
     """
-    n = min(len(df), max(min_rows, int(0.01 * len(df))))
-    if stratify and target is not None and target in df.columns:
-        small = _stratified_subsample(df, target, n, seed)
-        minority = int(small[target].value_counts().min())
+    if target is not None and target in df.columns and df[target].isna().any():
+        # unlabeled rows: sklearn raises "Input y contains NaN" on every fit,
+        # so a handful of missing targets would zero the WHOLE search silently
+        # (classification only dodged it because value_counts drops NaN)
+        df = df.dropna(subset=[target])
+    strat = stratify and target is not None and target in df.columns
+    n, floor = _profile_subsample_n(df, target, strat, min_rows=min_rows)
+    seeds = [seed + i for i in range(max(1, int(n_subsample_seeds)))]
+    if strat:
+        smalls = [
+            _stratified_subsample(df, target, n, s, floor=floor) for s in seeds
+        ]
+        minority = min(int(s[target].value_counts().min()) for s in smalls)
         n_splits = int(min(5, max(2, minority)))
     else:
-        small = df.sample(n=n, random_state=seed)
+        smalls = [df.sample(n=n, random_state=s) for s in seeds]
         n_splits = 5
     var_name = main_var or _single_var_name(plan)
     scorer = _resolve_scoring(scoring)
+    total_timeout = timeout_s * len(smalls) if timeout_s else timeout_s
 
     def rollout(state: dict) -> float:
         try:
             apply_state(plan, state)
-            environment = {var_name: small, **(aux or {})}
-            cv_kwargs = {
-                "environment": environment,
-                **_cv_kwarg(stratify, seed, n_splits=n_splits),
-            }
-            if scorer is not None:
-                cv_kwargs["scoring"] = scorer
-            with _time_limit(timeout_s):
-                result = plan.skb.cross_validate(**cv_kwargs)
-            return _fold_mean(result["test_score"])
+            with _time_limit(total_timeout):
+                scores = []
+                for small in smalls:
+                    environment = {var_name: small, **(aux or {})}
+                    cv_kwargs = {
+                        "environment": environment,
+                        **_cv_kwarg(stratify, seed, n_splits=n_splits),
+                    }
+                    if scorer is not None:
+                        cv_kwargs["scoring"] = scorer
+                    result = plan.skb.cross_validate(**cv_kwargs)
+                    folds = np.asarray(result["test_score"], dtype=float)
+                    if np.all(np.isnan(folds)):
+                        return 0.0  # every fold failed -> a failed config
+                    scores.append(_fold_mean(folds))
+            # map the raw score onto the bounded UCT scale; 0.0 stays reserved
+            # for failures above, so a legitimate r2 of 0 reads as 0.5
+            return _bounded_reward(sum(scores) / len(scores), scoring)
         except _RolloutTimeout:
             return (
                 0.0  # BaseException — not covered by `except Exception` below
@@ -891,9 +1178,9 @@ def pick_target_node(ablation_results: dict[str, dict]) -> str:
     (`search_loop.run_search_loop` locks the rest via `target_key`). Targeting
     stays pure code by design — an LLM inside the search loop is the rejected
     anti-pattern, not a pending upgrade. The complementary *post-budget*
-    targeting that focuses on the incumbent model's untested hyperparameters is
-    `search_loop._incumbent_hp_targets` (the HP-refinement bonus phase), which
-    is deterministic for the same reason.
+    targeting is `search_loop.run_search_loop`'s focused-refinement bonus
+    phase (all single-edit neighbors of the incumbent), deterministic for the
+    same reason.
 
     Example:
         pick_target_node({"model":   {"GBM": 0.88, "RF": 0.87},
