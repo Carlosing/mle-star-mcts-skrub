@@ -1,0 +1,13 @@
+# Task
+
+Predict the rentals.
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Regression task (13903 training rows, 7 feature columns). train.csv has the features and the 'rentals' column; test.csv has the features only.
+
+Hourly bike rentals. 'casual'/'registered' were dropped: they sum exactly to the target. A date column plus cyclical weather numerics — a natural fit for a DatetimeEncoder scoped group.
