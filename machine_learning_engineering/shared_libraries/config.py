@@ -36,7 +36,7 @@ class DefaultConfig:
     num_top_plans: int = 1  # The number of highest-scoring plans or strategies to select or retain.
     use_data_leakage_checker: bool = True  # Enable (`True`) or disable (`False`) a check for data leakage in the machine learning pipeline.
     use_data_usage_checker: bool = True  # Enable (`True`) or disable (`False`) a check for how data is being used, potentially for compliance or best practices.
-    use_web_search: bool = False  # Enable (`True`) or disable (`False`) DuckDuckGo web search during model retrieval.
+    use_web_search: bool = True  # Enable (`True`) or disable (`False`) DuckDuckGo web search during model retrieval.
     web_search_num_results: int = 5  # Number of web search results to include in the model retrieval prompt.
 
 
