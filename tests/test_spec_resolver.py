@@ -13,6 +13,7 @@ from sklearn.ensemble import (
 from sklearn.preprocessing import StandardScaler
 
 from machine_learning_engineering import skrub_ops
+from machine_learning_engineering import spec_resolver
 from machine_learning_engineering.spec_resolver import (
     parse_spec_json,
     resolve_spec,
@@ -171,6 +172,31 @@ def test_unimportable_paths_dropped_and_reported():
         type(o).__name__ == "NotARealThing" for o in spec["encoder_options"]
     )
     assert set(spec["model"]) == {"RandomForestRegressor"}  # bad model dropped
+
+
+def test_operator_with_missing_optional_dep_is_dropped(monkeypatch):
+    # an operator that imports fine but needs an OPTIONAL runtime dep that
+    # isn't installed must be DROPPED at resolve, not crash the build later.
+    # Simulate by pointing GapEncoder's guard at a nonexistent module.
+    monkeypatch.setitem(
+        spec_resolver._OPTIONAL_DEPS,
+        "skrub.GapEncoder",
+        "nonexistent_pkg_xyz_123",
+    )
+    assert spec_resolver._load_class("skrub.GapEncoder") is None
+    # in a full plan it's dropped like any unusable operator; the run survives
+    spec = resolve_spec(
+        {
+            "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+            "model": ["sklearn.ensemble.RandomForestRegressor"],
+        }
+    )
+    assert not any(
+        type(o).__name__ == "GapEncoder" for o in spec["encoder_options"]
+    )
+    assert any(
+        isinstance(o, skrub.MinHashEncoder) for o in spec["encoder_options"]
+    )
 
 
 def test_strict_raises_on_unknown():

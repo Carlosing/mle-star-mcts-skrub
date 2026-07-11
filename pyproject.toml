@@ -59,6 +59,17 @@ lint = [
 gcp = [
     "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
 ]
+# Benchmark-only deps, kept out of the core so the search stack stays light.
+# AutoGluon (the time-budgeted baseline in scripts/run_autogluon.py) pulls a
+# large tree; matplotlib backs scripts/make_figures.py. Install with:
+#   uv sync --extra bench
+bench = [
+    "autogluon-tabular>=1.1",
+    "matplotlib>=3.8",
+    # skrub's TextEncoder (a strong high-cardinality-text encoder the LLM may
+    # pick on text tasks like toxicity) needs sentence-transformers at fit time.
+    "sentence-transformers>=2.2",
+]
 
 [tool.ruff]
 line-length = 80

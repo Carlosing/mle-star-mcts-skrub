@@ -78,6 +78,34 @@ def _score(scoring: str, y_true, y_pred, proba):
     return sign * float(value)
 
 
+def holdout_split(
+    df: pd.DataFrame,
+    target: str,
+    task_type: str,
+    seed: int = 42,
+    holdout_frac: float = 0.25,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Seeded ``(train, holdout)`` split of the main table — the shared bench.
+
+    Single-sourced so every method compared in the benchmark (the extension,
+    AutoGluon, MLE-STAR) scores on the *same* rows. Classification uses a
+    stratified draw (an imbalanced target's random 25% can miss a class);
+    regression a plain seeded sample.
+
+    Example:
+        train, holdout = holdout_split(df, "target", "classification")
+        # train.index and holdout.index partition df.index deterministically
+    """
+    if task_type == "classification":
+        holdout = df.groupby(df[target], group_keys=False).sample(
+            frac=holdout_frac, random_state=seed
+        )
+    else:
+        holdout = df.sample(frac=holdout_frac, random_state=seed)
+    train = df.drop(index=holdout.index)
+    return train, holdout
+
+
 def evaluate_top_k(
     plan,
     states: list[dict],
@@ -107,15 +135,9 @@ def evaluate_top_k(
     """
     if scoring not in _METRIC_FNS:
         raise ValueError(f"unsupported scoring for ensembling: {scoring!r}")
-    if task_type == "classification":
-        # stratified holdout: on an imbalanced target a random 25% draw can
-        # land far from the class ratio (or miss a class), inflating variance
-        holdout = df.groupby(df[target], group_keys=False).sample(
-            frac=holdout_frac, random_state=seed
-        )
-    else:
-        holdout = df.sample(frac=holdout_frac, random_state=seed)
-    train = df.drop(index=holdout.index)
+    train, holdout = holdout_split(
+        df, target, task_type, seed=seed, holdout_frac=holdout_frac
+    )
     train_env = {main_var: train, **(aux or {})}
     # the plan's X node drops the target itself, so the holdout keeps the
     # column (only fit mode ever evaluates the y mark)

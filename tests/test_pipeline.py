@@ -84,6 +84,75 @@ def test_run_pipeline_end_to_end_offline():
     assert result["report"]["scorer"] == "neg_root_mean_squared_error"
 
 
+class UsageFakeLlm(FakeLlm):
+    """FakeLlm whose responses carry a usage_metadata block (per turn)."""
+
+    async def generate_content_async(self, llm_request, stream: bool = False):
+        text = (
+            self._responses[min(self._idx, len(self._responses) - 1)]
+            if self._responses
+            else ""
+        )
+        self._idx += 1
+        yield LlmResponse(
+            content=types.Content(role="model", parts=[types.Part(text=text)]),
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=100,
+                candidates_token_count=250,
+                total_token_count=350,
+            ),
+        )
+
+
+def test_token_capture_populates_result():
+    # each agent turn reports 350 tokens; two turns (analyst + plan_author) -> 700.
+    model = UsageFakeLlm().set_responses([ANALYSIS, SPEC_JSON])
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices",
+        budget=4,
+        model=model,
+        with_search=False,
+    )
+    assert result["llm_calls"] == 2
+    tokens = result["tokens"]
+    assert tokens["total"] == tokens["prompt"] + tokens["completion"]
+    assert tokens["total"] == 700  # 2 turns x 350
+    by_agent = result["tokens_by_agent"]
+    assert set(by_agent) == {"data_analyst", "plan_author"}
+    assert by_agent["plan_author"]["total"] == 350
+
+
+def test_token_capture_zero_without_usage():
+    # a plain FakeLlm reports no usage -> zero tokens, but calls still counted.
+    model = FakeLlm().set_responses([ANALYSIS, SPEC_JSON])
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices",
+        budget=4,
+        model=model,
+        with_search=False,
+    )
+    assert result["tokens"]["total"] == 0
+    assert result["tokens_by_agent"]["plan_author"]["calls"] == 1
+
+
+def test_holdout_score_matches_top_ensemble_member():
+    # the incumbent's shared-holdout score == the ensemble's top individual
+    # score (same split, same scorer, k=1 slice of the same fit path).
+    model = FakeLlm().set_responses([ANALYSIS, SPEC_JSON])
+    result = pipeline.run_pipeline(
+        task_name="california-housing-prices",
+        budget=8,
+        model=model,
+        with_search=False,
+        top_k=3,
+    )
+    assert result["holdout"] is not None
+    assert result["holdout"]["scorer"] == "neg_root_mean_squared_error"
+    assert result["holdout"]["score"] == pytest.approx(
+        result["ensemble"]["individual_scores"][0]
+    )
+
+
 def test_run_pipeline_falls_back_on_bad_spec():
     # plan_author returns unparseable JSON -> resolver falls back, run still completes.
     model = FakeLlm().set_responses(

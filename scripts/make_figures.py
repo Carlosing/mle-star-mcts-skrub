@@ -1,0 +1,273 @@
+"""Comparison figures + tables from uniform run artifacts.
+
+Reads the ``result.json`` files the three runners emit (the extension via
+``pipeline.run_pipeline``, AutoGluon via ``scripts/run_autogluon.py``, MLE-STAR
+via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
+``holdout: {scorer, score}``, ``tokens: {total, ...}``, ``llm_calls``,
+``wall_clock_s``, ``time_budget_s`` — and produces:
+
+1. **quality-at-cost** — per task, each method's shared-holdout score against the
+   tokens it spent (the extension clusters at a small constant; AutoGluon at 0;
+   MLE-STAR far right). Bar-of-quality + token annotation, one panel per task.
+2. **time-scaling** — the extension's holdout score vs its wall-clock/budget at
+   CONSTANT token cost (the headline claim), read from a budget sweep's
+   ``sweep.csv``.
+3. **mechanism table** — a static qualitative comparison (mechanism / debug cost
+   / token cost / leakage handling / adaptivity), written as markdown.
+
+Run:
+    uv run python scripts/make_figures.py --runs runs/bench --sweep runs/scaling/sweep.csv \
+        --out runs/figures
+Needs matplotlib (the `bench` extra):  uv sync --extra bench
+"""
+
+import argparse
+import csv
+import glob
+import json
+import os
+from collections import defaultdict
+
+
+def load_results(roots: list[str]) -> list[dict]:
+    """Collect uniform records from every result.json under the given roots.
+
+    Only files that carry a ``method`` + ``holdout`` block are kept (so partial
+    or legacy result.json without the benchmark fields are skipped). Returns a
+    flat list of ``{method, task, score, scorer, tokens, llm_calls,
+    wall_clock_s, time_budget_s, relational}`` dicts.
+    """
+    records: list[dict] = []
+    for root in roots:
+        for path in sorted(glob.glob(os.path.join(root, "**", "result.json"),
+                                     recursive=True)):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    d = json.load(f)
+            except (OSError, ValueError):
+                continue
+            hold = d.get("holdout")
+            if not d.get("method") or not hold or hold.get("score") is None:
+                continue
+            records.append({
+                "method": d["method"],
+                "task": d.get("task", "?"),
+                "score": float(hold["score"]),
+                "scorer": hold.get("scorer", ""),
+                "tokens": int((d.get("tokens") or {}).get("total", 0)),
+                "llm_calls": int(d.get("llm_calls", 0)),
+                "wall_clock_s": float(d.get("wall_clock_s") or 0.0),
+                "time_budget_s": d.get("time_budget_s"),
+                "relational": bool(d.get("relational", False)),
+                "path": path,
+            })
+    return records
+
+
+_METHOD_COLOR = {
+    "extension": "#2b8cbe",
+    "autogluon": "#31a354",
+    "mlestar": "#e6550d",
+}
+
+
+def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
+    """One panel per task: holdout score per method, annotated with token cost."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    by_task = defaultdict(list)
+    for r in records:
+        by_task[r["task"]].append(r)
+    if not by_task:
+        return None
+
+    tasks = sorted(by_task)
+    n = len(tasks)
+    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    for ax, task in zip(axes[0], tasks):
+        rows = sorted(by_task[task], key=lambda r: r["method"])
+        labels = [r["method"] for r in rows]
+        scores = [r["score"] for r in rows]
+        colors = [_METHOD_COLOR.get(m, "#888") for m in labels]
+        bars = ax.bar(labels, scores, color=colors)
+        for bar, r in zip(bars, rows):
+            tok = f"{r['tokens']:,} tok" if r["tokens"] else "0 tok"
+            ax.annotate(
+                f"{r['score']:.3f}\n{tok}",
+                (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                ha="center", va="bottom", fontsize=7,
+            )
+        ax.set_title(task, fontsize=9)
+        ax.set_ylabel(rows[0]["scorer"] if rows else "holdout score", fontsize=8)
+        ax.tick_params(axis="x", labelsize=8, rotation=20)
+    fig.suptitle("Quality at cost — shared-holdout score vs token spend",
+                 fontsize=11)
+    fig.tight_layout()
+    path = os.path.join(out_dir, "quality_at_cost.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
+def fig_time_scaling(sweep_csv: str, out_dir: str) -> str | None:
+    """Extension holdout score vs budget/time at CONSTANT token cost.
+
+    Reads a sweep.csv (from `make sweep`) whose runs vary `budget` (or
+    `time_budget_s`); plots the quality curve per task and confirms token cost
+    is flat. This is the headline differentiator.
+    """
+    if not sweep_csv or not os.path.exists(sweep_csv):
+        return None
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    rows = []
+    with open(sweep_csv, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("status") not in (None, "", "ok"):
+                continue
+            rows.append(row)
+    if not rows:
+        return None
+
+    def _x(row):
+        tb = row.get("time_budget_s")
+        if tb not in (None, "", "None"):
+            return float(tb), "wall-clock budget (s)"
+        return float(row.get("budget") or 0), "search budget (rollouts)"
+
+    def _y(row):
+        for key in ("holdout_score", "report_score", "best_search_score"):
+            v = row.get(key)
+            if v not in (None, "", "None"):
+                return float(v)
+        return None
+
+    by_task = defaultdict(list)
+    xlabel = "search budget (rollouts)"
+    for row in rows:
+        x, xlabel = _x(row)
+        y = _y(row)
+        if y is None:
+            continue
+        tok = int(float(row.get("tokens_total") or 0))
+        by_task[row.get("task", "?")].append((x, y, tok))
+
+    if not by_task:
+        return None
+    fig, (ax, ax2) = plt.subplots(2, 1, figsize=(6, 6), sharex=True,
+                                  gridspec_kw={"height_ratios": [3, 1]})
+    for task, pts in sorted(by_task.items()):
+        pts = sorted(pts)
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        toks = [p[2] for p in pts]
+        ax.plot(xs, ys, marker="o", label=task)
+        ax2.plot(xs, toks, marker="s", label=task)
+    ax.set_ylabel("shared-holdout score (higher better)")
+    ax.set_title("Time scaling — quality rises with budget at constant LLM cost")
+    ax.legend(fontsize=8)
+    ax2.set_ylabel("tokens")
+    ax2.set_xlabel(xlabel)
+    ax2.set_ylim(bottom=0)
+    fig.tight_layout()
+    path = os.path.join(out_dir, "time_scaling.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
+_MECHANISM_ROWS = [
+    ("Search mechanism",
+     "MCTS over a skrub-DataOps space (structure + HPs)",
+     "Ensemble/stacking of many pretrained model configs",
+     "LLM writes + iteratively refines Python code"),
+    ("LLM call count",
+     "O(1) per task (2 + N_PROPOSES), fixed & known up front",
+     "0 (no LLM)",
+     "Unbounded: ~26 best case, 1000+ with debug cascade"),
+    ("Cost scales with",
+     "CV rollouts / wall-clock (pure code) — LLM cost constant",
+     "Wall-clock (pure code)",
+     "LLM calls (data-dependent debug retries)"),
+    ("Leakage handling",
+     "skrub DataOps: transforms fit inside CV folds by construction",
+     "AutoGluon internal CV / bagging",
+     "Depends on the code the LLM generates (no guarantee)"),
+    ("Adaptivity",
+     "Space authored once; search adapts within it (Option 1/3)",
+     "Fixed AutoML pipeline",
+     "Fully adaptive per step (at unbounded token cost)"),
+    ("Relational tables",
+     "Yes — AggJoiner over aux_*.csv is a searchable stage",
+     "No — flat table only",
+     "Possible if the LLM writes the join"),
+]
+
+
+def mechanism_table(out_dir: str) -> str:
+    """Write the static qualitative mechanism-comparison table as markdown."""
+    header = ("| Axis | MCTS-skrub (ours) | AutoGluon | MLE-STAR |\n"
+              "|---|---|---|---|\n")
+    body = "".join(
+        f"| {axis} | {ours} | {ag} | {ms} |\n"
+        for axis, ours, ag, ms in _MECHANISM_ROWS
+    )
+    path = os.path.join(out_dir, "mechanism_table.md")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# Mechanism comparison\n\n" + header + body)
+    return path
+
+
+def write_comparison_csv(records: list[dict], out_dir: str) -> str:
+    """Flat CSV of every collected record (one row per method x task run)."""
+    path = os.path.join(out_dir, "comparison.csv")
+    cols = ["task", "method", "scorer", "score", "tokens", "llm_calls",
+            "wall_clock_s", "time_budget_s", "relational"]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        for r in sorted(records, key=lambda r: (r["task"], r["method"])):
+            w.writerow(r)
+    return path
+
+
+def _main() -> None:
+    parser = argparse.ArgumentParser(description="Benchmark figures + tables.")
+    parser.add_argument(
+        "--runs", nargs="+", default=["runs"],
+        help="root dir(s) to scan for uniform result.json artifacts",
+    )
+    parser.add_argument(
+        "--sweep", default=None,
+        help="a sweep.csv (budget/time varied) for the time-scaling figure",
+    )
+    parser.add_argument("--out", default="runs/figures", help="output dir")
+    args = parser.parse_args()
+
+    os.makedirs(args.out, exist_ok=True)
+    records = load_results(args.runs)
+    print(f"collected {len(records)} benchmark records from {args.runs}")
+
+    made = [
+        write_comparison_csv(records, args.out),
+        mechanism_table(args.out),
+    ]
+    q = fig_quality_at_cost(records, args.out)
+    if q:
+        made.append(q)
+    t = fig_time_scaling(args.sweep, args.out)
+    if t:
+        made.append(t)
+    print("wrote:")
+    for p in made:
+        print(f"  {p}")
+
+
+if __name__ == "__main__":
+    _main()

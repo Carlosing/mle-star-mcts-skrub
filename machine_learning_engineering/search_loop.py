@@ -30,6 +30,7 @@ inner search loop — at most `outer_steps - 1` calls total. The bonus phase add
 zero LLM calls.
 """
 
+import time
 from collections import defaultdict
 
 from machine_learning_engineering import mcts, spec_resolver
@@ -188,6 +189,7 @@ def run_search_loop(
     timeout_s: float | None = 60.0,
     n_subsample_seeds: int = 1,
     n_jobs: int = 6,
+    time_budget_s: float | None = None,
 ) -> dict:
     """Run the persisted, optionally-refined search and return a results dict.
 
@@ -245,7 +247,20 @@ def run_search_loop(
     seeded subsamples (pure code, no LLM; see `make_rollout_fn`) — the
     denoiser for imbalanced tasks where single-draw rewards are too noisy for
     UCT to converge on. The per-rollout wall-clock cap scales with it.
+
+    `time_budget_s`, if given, caps the whole search by wall clock: each MCTS
+    slice stops at the shared deadline (`budget_per_step` becomes an upper
+    bound), the outer-slice loop breaks once the deadline passes, and the
+    focused-refinement bonus phase is skipped when no time remains. This is how
+    a run fills a fixed compute budget (e.g. 1 hour) at CONSTANT LLM cost — the
+    time-vs-quality axis of the benchmark. `None` keeps the pure rollout-count
+    budget. The two combine: whichever cap (rollouts or time) is hit first wins.
     """
+    deadline = (
+        time.perf_counter() + time_budget_s
+        if time_budget_s is not None
+        else None
+    )
 
     def _build(current_spec):
         plan = build_staged_plan(
@@ -288,6 +303,8 @@ def run_search_loop(
     explicit_priors = priors is not None
 
     for step in range(max(1, outer_steps)):
+        if deadline is not None and time.perf_counter() >= deadline:
+            break
         # Option 3: ask for a whole extended plan, merge additively, rebuild.
         if (
             step >= 1
@@ -359,6 +376,7 @@ def run_search_loop(
             gating=gating,
             target_key=target_key,
             score_cache=cache,
+            deadline=deadline,
         )
         if bscore > best_score:
             best_state, best_score = bstate, bscore
@@ -386,7 +404,9 @@ def run_search_loop(
     # ALL single-edit neighbors of the incumbent (structure and HPs alike),
     # starting selection at the incumbent node (local exploration; UCT and
     # backprop are unchanged).
-    if hp_refine:
+    if hp_refine and not (
+        deadline is not None and time.perf_counter() >= deadline
+    ):
         best_node = mcts.find_state_node(root, best_state)
         if best_node is not None:
             incumbent = dict(best_state)
@@ -406,6 +426,7 @@ def run_search_loop(
                 gating=gating,
                 score_cache=cache,
                 start_node=best_node,
+                deadline=deadline,
             )
             if bscore > best_score:
                 best_state, best_score = bstate, bscore
@@ -505,6 +526,22 @@ def make_llm_proposer(
     # any other id (school / OpenAI-compatible) calls that endpoint via the
     # OpenAI client, no web search. Option 3 follows PROVIDER with no code
     # change. Clients imported lazily so the module stays importable offline.
+    # lazy so the logic layer stays importable offline (run_logging pulls in
+    # google.adk at import); only reached when a proposer is actually built.
+    from machine_learning_engineering.run_logging import extract_usage
+
+    # per-proposer token accounting, exposed as `propose.token_totals` so the
+    # pipeline can report Option-3's LLM cost without changing propose()'s
+    # signature. `calls` counts real completions (both attempts of a retry).
+    token_totals = {"prompt": 0, "completion": 0, "total": 0, "calls": 0}
+
+    def _tally(resp) -> None:
+        usage = extract_usage(resp)
+        token_totals["prompt"] += usage["prompt"]
+        token_totals["completion"] += usage["completion"]
+        token_totals["total"] += usage["total"]
+        token_totals["calls"] += 1
+
     use_search = isinstance(model, str) and "gemini" in model.lower()
     if use_search:
         from google import genai  # lazy
@@ -525,6 +562,7 @@ def make_llm_proposer(
                     tools=tools,
                 ),
             )
+            _tally(resp)
             return resp.text or ""
     else:
         from openai import OpenAI  # lazy
@@ -548,6 +586,7 @@ def make_llm_proposer(
                 max_tokens=16384,
                 messages=[{"role": "user", "content": prompt}],
             )
+            _tally(resp)
             return resp.choices[0].message.content or ""
 
     call_count = [0]  # proposer-call counter; first call is logged as 1
@@ -676,4 +715,5 @@ def make_llm_proposer(
             )
         return proposal
 
+    propose.token_totals = token_totals  # read by pipeline for the cost report
     return propose

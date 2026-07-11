@@ -22,6 +22,9 @@ TOP_K ?= 1
 PROVIDER ?= google
 # CV fold-parallelism for rollouts (default 6 P-cores; safe with boosters)
 NJOBS ?= 6
+# wall-clock budget (seconds) for the whole search; empty = pure rollout-count
+# budget (BUDGET). Set e.g. TIME_BUDGET=3600 for the 1h benchmark protocol.
+TIME_BUDGET ?=
 # JSON sweep spec for `make sweep` (defaults + runs; see sweeps/example.json)
 SWEEP ?= sweeps/example.json
 # sweep driver: empty = live agents (PROVIDER); claude = fully offline, no quota
@@ -35,7 +38,8 @@ CLAUDE_TOP_K ?= 3
 OUT ?=
 
 .PHONY: help sync test test-live probe probe-school run-live run-refine sweep \
-        sweep-live run-claude sweep-claude stage-tasks stage-credit-fraud
+        sweep-live run-claude sweep-claude stage-tasks stage-credit-fraud \
+        bench-autogluon bench-mlestar figures
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
@@ -58,6 +62,12 @@ help:
 	@echo ""
 	@echo "make stage-tasks        - stage every data/ dataset missing from tasks/ (offline)"
 	@echo "make stage-credit-fraud - download + stage the relational credit-fraud task (online, once)"
+	@echo ""
+	@echo "-- benchmark comparison (needs: uv sync --extra bench) --"
+	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1"
+	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
+	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=runs SWEEP_CSV=<csv> OUT=<dir>"
+	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
 sync:
 	uv lock && uv sync
@@ -79,6 +89,7 @@ run-live:
 	PROVIDER=$(PROVIDER) uv run python -m machine_learning_engineering.pipeline \
 		--budget $(BUDGET) --outer-steps $(OUTER_STEPS) --top-k $(TOP_K) \
 		--n-jobs $(NJOBS) \
+		$(if $(TIME_BUDGET),--time-budget-s $(TIME_BUDGET),) \
 		$(if $(TASK),--task $(TASK),) $(if $(REFINE),--refine,) \
 		$(if $(N_PROPOSES),--n-proposes $(N_PROPOSES),)
 
@@ -110,3 +121,29 @@ stage-tasks:
 
 stage-credit-fraud:
 	uv run python scripts/stage_credit_fraud.py
+
+# --- benchmark comparison (needs the `bench` extra: uv sync --extra bench) -----
+# AutoGluon baseline under the same wall-clock budget on the SAME shared holdout.
+# NUM_CPUS=1 (default) is REQUIRED on macOS-ARM (LightGBM/XGBoost double-libomp
+# segfault); raise on Linux for full AutoGluon parallelism.
+NUM_CPUS ?= 1
+bench-autogluon:
+	OMP_NUM_THREADS=1 uv run python scripts/run_autogluon.py \
+		--task $(TASK) --time-budget-s $(if $(TIME_BUDGET),$(TIME_BUDGET),3600) \
+		--num-cpus $(NUM_CPUS) $(if $(OUT),--out $(OUT),)
+
+# Revived MLE-STAR under hard caps (best-effort; spends real LLM budget). Set
+# MAX_CALLS to bound the debug-cascade token cost. Uses PROVIDER for the model.
+MAX_CALLS ?= 60
+bench-mlestar:
+	PROVIDER=$(PROVIDER) OMP_NUM_THREADS=1 uv run python scripts/run_mlestar.py \
+		--task $(TASK) --max-calls $(MAX_CALLS) \
+		--time-budget-s $(if $(TIME_BUDGET),$(TIME_BUDGET),3600) \
+		$(if $(OUT),--out $(OUT),)
+
+# Read every uniform result.json under RUNS and render the comparison figures.
+RUNS ?= runs
+figures:
+	uv run python scripts/make_figures.py --runs $(RUNS) \
+		$(if $(SWEEP_CSV),--sweep $(SWEEP_CSV),) \
+		--out $(if $(OUT),$(OUT),runs/figures)

@@ -13,6 +13,7 @@ Design constraints from the project brief:
 """
 
 import math
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -149,6 +150,7 @@ def mcts_search(
     target_key=None,
     score_cache: Optional[dict] = None,
     start_node: Optional[MCTSNode] = None,
+    deadline: Optional[float] = None,
 ) -> tuple[dict, float, MCTSNode]:
     """Run `budget` MCTS iterations and return (best_state, best_score, root).
 
@@ -173,6 +175,12 @@ def mcts_search(
     the root — a descendant node lets a bonus phase explore *locally* around
     the incumbent while backprop still updates the whole path up to the root,
     so UCT statistics stay globally consistent.
+    `deadline`, if given (an absolute `time.perf_counter()` value), stops the
+    loop once wall-clock passes it — `budget` becomes an upper bound and time
+    the real cap (whichever is hit first). The score cache is exact, so an early
+    stop just yields fewer nodes; determinism/correctness are unaffected. The
+    check is between iterations, so a single in-flight rollout can overshoot by
+    up to one rollout's wall clock (bounded by `make_rollout_fn`'s `timeout_s`).
     """
     root_state = canonicalize(root_state, gating)
     # First call: create the root node and initialize tried_states with it
@@ -195,6 +203,8 @@ def mcts_search(
     # MCTS main loop
     descent_root = start_node if start_node is not None else root
     for _ in range(budget):
+        if deadline is not None and time.perf_counter() >= deadline:
+            break
         # Select a unexpanded node (from `start_node` for a local bonus phase)
         leaf = select(descent_root, c)
 

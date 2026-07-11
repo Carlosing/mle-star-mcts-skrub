@@ -180,6 +180,28 @@ def test_tree_persists_across_outer_steps():
     assert len(res["score_cache"]) >= 1
 
 
+def test_time_budget_stops_a_large_budget_early():
+    # a huge rollout budget under a tiny wall-clock budget returns promptly with
+    # a valid incumbent — the search filled the time, not the rollout count.
+    import time
+
+    started = time.perf_counter()
+    res = run_search_loop(
+        _spec(),
+        _california(),
+        TARGET,
+        scoring="r2",
+        budget_per_step=100_000,
+        time_budget_s=3.0,
+        hp_refine=False,
+    )
+    elapsed = time.perf_counter() - started
+    assert elapsed < 60  # nowhere near exhausting 100k rollouts
+    assert isinstance(res["best_state"], dict)
+    # far fewer than the nominal budget were actually evaluated
+    assert len(res["score_cache"]) < 100_000
+
+
 def test_targeting_picks_an_operator_stage():
     res = run_search_loop(
         _spec(),

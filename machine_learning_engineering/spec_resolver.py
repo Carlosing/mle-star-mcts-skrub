@@ -28,6 +28,7 @@ Flow: parse_spec_json(text) -> resolve_spec(dict) -> dict for build_staged_plan.
 """
 
 import importlib
+import importlib.util
 import inspect
 import json
 import math
@@ -216,15 +217,41 @@ REGISTRY = {
 # --- lazy, allowlisted class loading -----------------------------------------
 
 
+# Operators that import fine but need an OPTIONAL runtime dependency at fit
+# time. The allow-list roots (skrub, sklearn, …) are always installed, so a
+# path like ``skrub.TextEncoder`` passes ``_load_class`` — but TextEncoder only
+# works if ``sentence_transformers`` is present. Without this guard a plan that
+# names such an operator crashes the whole run at plan-BUILD (outside the
+# rollout's 0.0-on-failure net); with it the operator is dropped like any other
+# unusable one, and the run continues on the rest of the menu.
+_OPTIONAL_DEPS = {
+    "skrub.TextEncoder": "sentence_transformers",
+}
+
+
+def _optional_dep_available(path) -> bool:
+    """True unless ``path`` needs an optional dep that isn't importable."""
+    module = _OPTIONAL_DEPS.get(path)
+    if module is None:
+        return True
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 def _load_class(path):
     """Import and return the class at a dotted path, or None.
 
-    Returns None for non-strings, paths outside ALLOWLIST_ROOTS, or any import /
-    attribute failure (the operator is then dropped — by design).
+    Returns None for non-strings, paths outside ALLOWLIST_ROOTS, an operator
+    whose optional runtime dependency is missing (``_OPTIONAL_DEPS``), or any
+    import / attribute failure (the operator is then dropped — by design).
     """
     if not isinstance(path, str) or "." not in path:
         return None
     if path.split(".", 1)[0] not in ALLOWLIST_ROOTS:
+        return None
+    if not _optional_dep_available(path):
         return None
     module_path, _, cls_name = path.rpartition(".")
     try:

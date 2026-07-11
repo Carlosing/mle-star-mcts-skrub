@@ -30,6 +30,28 @@ def fake_reward(state: dict) -> float:
     return hits / len(TARGET)
 
 
+def test_deadline_stops_the_loop_early():
+    import time
+
+    calls = {"n": 0}
+
+    def counting_reward(state: dict) -> float:
+        calls["n"] += 1
+        return fake_reward(state)
+
+    # deadline already in the past -> the budget loop never runs; only the root
+    # is scored (once, before the loop). Determinism/return contract intact.
+    best_state, best_score, root = mcts.mcts_search(
+        {"encoder": "GapEncoder", "model": "GBM", "n_trees": 50},
+        ACTION_SPACE,
+        counting_reward,
+        budget=10_000,
+        deadline=time.perf_counter() - 1.0,
+    )
+    assert calls["n"] == 1  # root only; no rollouts inside the loop
+    assert isinstance(best_state, dict) and isinstance(best_score, float)
+
+
 def test_uct_unvisited_is_infinite():
     parent = mcts.MCTSNode(state={})
     parent.N = 5

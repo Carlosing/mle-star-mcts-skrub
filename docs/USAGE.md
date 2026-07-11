@@ -116,6 +116,7 @@ Pass these as `NAME=value` after the `make` command, e.g.
 | `REFINE` | (off) | `REFINE=1` turns on Option 3 (needs `OUTER_STEPS>1`). `N_PROPOSES` is the simpler way to do this. |
 | `PROVIDER` | `google` | Which LLM provider: `google` (Gemini) or `school` (GWDG). See below. |
 | `NJOBS` | `6` | How many CPU cores to use per pipeline evaluation. `6` suits an Apple M-series; lower it on a smaller machine. |
+| `TIME_BUDGET` | (off) | Wall-clock budget in **seconds** for the whole search (e.g. `3600` = 1 hour). When set, `BUDGET` becomes an upper bound and time is the real cap. The LLM cost stays the same 2 calls — you buy quality with *time*, not tokens. Used for the benchmark protocol. |
 | `SWEEP` | `sweeps/example.json` | The sweep spec file for `make sweep`. |
 | `CLAUDE_PROPOSES` | `2` | Option-3 proposer calls for `make run-claude` (offline). |
 | `CLAUDE_TOP_K` | `3` | Top-K ensemble for `make run-claude`. |
@@ -154,6 +155,12 @@ Notes:
   answering) — this is handled automatically. Use `make probe-school` to see
   what's currently available; the list changes over time.
 - Web search grounding is Gemini-only; school runs simply run without it.
+- **Token cost (measured):** because school models spend *completion* tokens
+  thinking, a run costs roughly twice a Gemini one. A measured `toxicity` run on
+  GWDG's Qwen was **~12.6k tokens** for the two agent calls (`data_analyst`
+  2.9k, `plan_author` 9.7k; ~7.7k of that total was completion/thinking). This
+  is the *whole* per-task LLM cost — it does not grow with `BUDGET` or
+  `TIME_BUDGET`, only `+1 call` per `N_PROPOSES`.
 
 ---
 
@@ -167,7 +174,28 @@ Each live run creates `runs/<task>_<timestamp>/`. The two files you'll read:
   full search space, the ensemble, etc.).
 
 The rest are logs of exactly what each agent said:
-`data_analyst_*.json`, `plan_author_*.json`, `proposer_*.json`.
+`data_analyst_*.json`, `plan_author_*.json`, `proposer_*.json`. Each response log
+now also records that call's `tokens`.
+
+**What `result.json` records** (the fields you'll care about):
+
+| Field | Meaning |
+|---|---|
+| `method` | `"extension"` (AutoGluon / MLE-STAR baselines emit `"autogluon"` / `"mlestar"`). |
+| `best_state` | The winning pipeline config (encoder, model, tuned HPs). |
+| `best_search_score` | The internal MCTS reward (bounded, higher-is-better). |
+| `report` `{scorer, score}` | The incumbent on the competition metric via **CV** (reporting only). |
+| `holdout` `{scorer, score}` | The incumbent on a **seeded 25% holdout** — the number that is directly comparable across the extension, AutoGluon and MLE-STAR. |
+| `ensemble` | Top-`K` ensemble vs the single incumbent, on the same holdout. |
+| `llm_calls` | Exact number of LLM calls made (**`2`** for a plain run: `data_analyst` + `plan_author`; `+1` per `N_PROPOSES`). |
+| `tokens` `{prompt, completion, total}` | **Real token cost** of the whole run. |
+| `tokens_by_agent` | Per-agent token breakdown (`data_analyst`, `plan_author`, `proposer`), each `{prompt, completion, total, calls}`. |
+| `time_budget_s` / `wall_clock_s` | The wall-clock budget (if set) and the measured run time. |
+| `action_space`, `injected_options`, `spec_raw`, `analysis`, `data_summary` | The searched space, any Option-3 additions, the raw plan, and the agent I/O. |
+
+The extension's LLM cost is a **fixed constant** — `tokens` does not grow with
+`BUDGET`, `TOP_K`, or `TIME_BUDGET`, only with `N_PROPOSES`. That is the whole
+point of the design: you scale quality with compute/time at constant token cost.
 
 **The terminal also prints a short summary at the end:**
 
@@ -190,6 +218,66 @@ How to read it:
 - **`⚠ Plan quality warnings`** in `summary.md` (if present) — stages the LLM
   described but that couldn't be searched (e.g. only one option). Informational,
   not a failure.
+
+---
+
+## Benchmark comparison (extension vs AutoGluon vs MLE-STAR)
+
+A three-way, **time-budgeted** comparison on the **same task and the same seeded
+holdout**. Each method gets a fixed wall-clock budget (e.g. 1 hour); we compare
+the `holdout` score they reach and the **tokens/LLM calls** each spent to get
+there. Needs the benchmark extra once:
+
+```bash
+uv sync --extra bench        # installs AutoGluon + matplotlib (kept out of core)
+```
+
+**1 — the extension**, filling the budget at constant LLM cost:
+
+```bash
+make run-live TASK=toxicity TIME_BUDGET=3600 TOP_K=3 PROVIDER=school
+```
+
+**2 — AutoGluon** (the well-known AutoML baseline), same budget, same holdout:
+
+```bash
+make bench-autogluon TASK=toxicity TIME_BUDGET=3600
+```
+
+- `NUM_CPUS=1` (default) is **required on Apple-Silicon Macs** — LightGBM/XGBoost
+  otherwise crash with a silent segfault (the same duplicate-`libomp` issue the
+  extension avoids by pinning boosters to one thread). Raise it on Linux.
+- AutoGluon is **flat-table only** — on relational tasks (credit-fraud) it never
+  sees the `aux_*.csv`; that's exactly the extension's relational advantage.
+
+**3 — MLE-STAR** (the original agent, revived and **hard-capped**), best-effort:
+
+```bash
+make bench-mlestar TASK=toxicity MAX_CALLS=60 TIME_BUDGET=3600 PROVIDER=school
+```
+
+- MLE-STAR writes and debugs code, so its token cost is **unbounded** — this is
+  the whole reason for the caps. `MAX_CALLS` aborts the run once that many LLM
+  calls have fired; there is also a per-call token bound and the wall-clock cap.
+  Treat its result as **one data point**, not a swept curve.
+
+**Render the comparison** from every `result.json` produced:
+
+```bash
+make figures RUNS=runs                       # quality-at-cost + mechanism table
+make figures RUNS=runs SWEEP_CSV=runs/scaling/sweep.csv   # + time-scaling curve
+```
+
+This writes `runs/figures/`: `quality_at_cost.png`, `time_scaling.png`,
+`mechanism_table.md`, and a flat `comparison.csv`. All three methods emit the
+same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`,
+`wall_clock_s`), so the figure script reads them uniformly.
+
+> **The headline story:** the extension's token cost is a small **constant**
+> (2 LLM calls, `+1` per `N_PROPOSES`) no matter how large `BUDGET`/`TIME_BUDGET`
+> gets, while MLE-STAR's grows with every code-and-debug step. Plot quality
+> against tokens and the extension sits at a fixed, cheap x; MLE-STAR trails off
+> to the right; AutoGluon sits at the origin (no LLM).
 
 ---
 

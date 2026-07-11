@@ -53,18 +53,91 @@ def _contents_text(llm_request: LlmRequest) -> list[str]:
     return out
 
 
-def make_prompt_logging_callbacks(out_dir: str):
+def extract_usage(response) -> dict:
+    """Best-effort ``{prompt, completion, total}`` token counts from a response.
+
+    Handles the two shapes this project sees: ADK/native-genai
+    (``response.usage_metadata`` with ``prompt_token_count`` /
+    ``candidates_token_count`` / ``total_token_count``) and the OpenAI-compatible
+    path (``response.usage`` with ``prompt_tokens`` / ``completion_tokens`` /
+    ``total_tokens``). Returns all-zero when no usage is present (e.g. a mocked
+    ``FakeLlm`` response), never raising.
+
+    Example:
+        extract_usage(gemini_resp)   # -> {"prompt": 812, "completion": 1500, "total": 2312}
+        extract_usage(fake_resp)     # -> {"prompt": 0, "completion": 0, "total": 0}
+    """
+    zero = {"prompt": 0, "completion": 0, "total": 0}
+    meta = getattr(response, "usage_metadata", None)
+    if meta is not None:
+        prompt = getattr(meta, "prompt_token_count", None)
+        completion = getattr(meta, "candidates_token_count", None)
+        total = getattr(meta, "total_token_count", None)
+        if any(v is not None for v in (prompt, completion, total)):
+            prompt = prompt or 0
+            completion = completion or 0
+            return {
+                "prompt": prompt,
+                "completion": completion,
+                "total": total if total is not None else prompt + completion,
+            }
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        prompt = getattr(usage, "prompt_tokens", None) or 0
+        completion = getattr(usage, "completion_tokens", None) or 0
+        total = getattr(usage, "total_tokens", None)
+        if prompt or completion or total:
+            return {
+                "prompt": prompt,
+                "completion": completion,
+                "total": total if total is not None else prompt + completion,
+            }
+    return dict(zero)
+
+
+def add_usage(sink: dict, agent: str, usage: dict) -> None:
+    """Accumulate a per-call ``usage`` into ``sink[agent]`` (creating the slot).
+
+    ``sink`` maps agent name -> running ``{prompt, completion, total, calls}``.
+    A call with all-zero tokens still increments ``calls`` (it happened), so the
+    count tracks real turns even when the provider omits usage.
+    """
+    slot = sink.setdefault(
+        agent, {"prompt": 0, "completion": 0, "total": 0, "calls": 0}
+    )
+    slot["prompt"] += usage.get("prompt", 0)
+    slot["completion"] += usage.get("completion", 0)
+    slot["total"] += usage.get("total", 0)
+    slot["calls"] += 1
+
+
+def make_prompt_logging_callbacks(
+    out_dir: str | None, usage_sink: dict | None = None
+):
     """Return ``(before_model, after_model)`` callbacks that log to ``out_dir``.
 
     Records are grouped into ``<agent>_<phase>.json`` files, each a pretty JSON
     array (a model turn may fire more than once, e.g. with tool use). The same
     pair can be attached to multiple agents; both callbacks return ``None`` so
     they never alter the request or response.
+
+    ``out_dir=None`` disables the file writes (no directory is created) — use
+    this when only ``usage_sink`` token capture is wanted, so an offline/mocked
+    run leaves no stray log dir behind.
+
+    If ``usage_sink`` (a dict) is given, ``after_model`` also accumulates each
+    turn's token usage into it, keyed by agent name (see ``add_usage``) — this
+    is how the pipeline reports a per-agent token cost without changing the agent
+    graph. The same sink can be shared across a retry build so both attempts'
+    tokens count.
     """
-    os.makedirs(out_dir, exist_ok=True)
+    if out_dir is not None:
+        os.makedirs(out_dir, exist_ok=True)
     groups: dict[str, list] = {}
 
     def _write(agent: str, phase: str, record: dict) -> None:
+        if out_dir is None:
+            return
         key = f"{agent}_{phase}"
         groups.setdefault(key, []).append(record)
         with open(
@@ -93,6 +166,9 @@ def make_prompt_logging_callbacks(out_dir: str):
         callback_context: CallbackContext, llm_response: LlmResponse
     ):
         agent = callback_context.agent_name
+        usage = extract_usage(llm_response)
+        if usage_sink is not None:
+            add_usage(usage_sink, agent, usage)
         _write(
             agent,
             "response",
@@ -101,6 +177,7 @@ def make_prompt_logging_callbacks(out_dir: str):
                 "agent": agent,
                 "phase": "response",
                 "output": common_util.get_text_from_response(llm_response),
+                "tokens": usage,
             },
         )
         return None  # do not override the response

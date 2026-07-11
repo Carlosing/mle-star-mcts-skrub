@@ -19,6 +19,7 @@ import glob
 import json
 import os
 import re
+import time
 from datetime import datetime
 
 import pandas as pd
@@ -221,6 +222,31 @@ def _auto_subsample_seeds(df, target: str, task_type: str) -> int:
     return 3 if share < 0.05 else 1
 
 
+def _token_report(agent_usage: dict, propose) -> dict:
+    """Assemble the ``tokens`` + ``tokens_by_agent`` result fields.
+
+    ``agent_usage`` is the per-agent sink the ADK callbacks filled (analyst,
+    plan_author); the proposer's tokens ride on ``propose.token_totals`` (an
+    attribute set by ``make_llm_proposer``). All-zero when a run reused a spec
+    and made no proposer calls, or when the provider returned no usage.
+
+    Example:
+        _token_report({"plan_author": {"prompt": 800, "completion": 1500,
+                       "total": 2300, "calls": 1}}, None)
+        # -> {"tokens": {"prompt": 800, "completion": 1500, "total": 2300},
+        #     "tokens_by_agent": {"plan_author": {...}}}
+    """
+    by_agent = {k: dict(v) for k, v in agent_usage.items()}
+    prop = getattr(propose, "token_totals", None)
+    if prop is not None:
+        by_agent["proposer"] = dict(prop)
+    tokens = {"prompt": 0, "completion": 0, "total": 0}
+    for slot in by_agent.values():
+        for k in tokens:
+            tokens[k] += slot.get(k, 0)
+    return {"tokens": tokens, "tokens_by_agent": by_agent}
+
+
 # --- the pipeline ------------------------------------------------------------
 
 
@@ -242,6 +268,7 @@ def run_pipeline(
     spec_raw: str | None = None,
     subsample_seeds: int | None = None,
     n_jobs: int = 6,
+    time_budget_s: float | None = None,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -268,14 +295,19 @@ def run_pipeline(
     if out_dir is not None and log_dir is None:
         log_dir = out_dir
 
+    wall_start = time.perf_counter()
     df, target, task_type, metric, description, aux_tables = load_task(
         task_name, data_dir=data_dir, target=target
     )
     summary = make_data_summary(df, target, aux_tables=aux_tables, metric=metric)
 
+    agent_usage: dict = {}  # per-agent token totals from the ADK callbacks
     if spec_raw is None:
         root = build_root_agent(
-            model=model, with_search=with_search, log_dir=log_dir
+            model=model,
+            with_search=with_search,
+            log_dir=log_dir,
+            usage_sink=agent_usage,
         )
         session = asyncio.run(_run_agents(root, summary))
         raw = session.state.get("skrub_spec_raw", "")
@@ -287,7 +319,10 @@ def run_pipeline(
         # rich JSON plan. Only triggers on the search path, only when empty.
         if with_search and not (raw or "").strip():
             root = build_root_agent(
-                model=model, with_search=False, log_dir=log_dir
+                model=model,
+                with_search=False,
+                log_dir=log_dir,
+                usage_sink=agent_usage,  # same sink: both attempts' tokens count
             )
             session = asyncio.run(_run_agents(root, summary))
             raw = session.state.get("skrub_spec_raw", "") or raw
@@ -332,9 +367,11 @@ def run_pipeline(
         stratify=(task_type == "classification"),
         n_subsample_seeds=subsample_seeds,
         n_jobs=n_jobs,
+        time_budget_s=time_budget_s,
     )
 
     result = {
+        "method": "extension",
         "task": task_name or config.CONFIG.task_name,
         "task_description": description,
         "target": target,
@@ -342,6 +379,7 @@ def run_pipeline(
         "metric": metric,
         "model": config.CONFIG.agent_model,
         "budget": budget,
+        "time_budget_s": time_budget_s,
         "search_scorer": metrics.search_scorer(task_type, metric),
         # best_search_score is a bounded UCT reward, not the raw scorer value
         "search_reward_scale": skrub_ops.reward_scale(
@@ -356,6 +394,10 @@ def run_pipeline(
             metric,
             aux=aux_tables or None,
             stratify=(task_type == "classification"),
+        ),
+        # incumbent on the SHARED holdout — the cross-method comparable number
+        "holdout": _holdout_report(
+            search, df, target, task_type, metric, aux_tables, seed
         ),
         "action_space": search["action_space"],
         "target_key": search["target_key"],
@@ -372,6 +414,8 @@ def run_pipeline(
         "reused_spec": spec_raw is not None,
         "llm_calls": (0 if spec_raw is not None else 2)
         + ((outer_steps - 1) if propose is not None else 0),
+        "wall_clock_s": round(time.perf_counter() - wall_start, 1),
+        **_token_report(agent_usage, propose),
         "data_summary": summary,  # the data report fed to the analyst
         "analysis": analysis,  # report -> planner
         "spec_raw": raw,  # the plan the planner generated
@@ -401,10 +445,14 @@ def save_run_artifacts(result: dict, out_dir: str) -> str:
 
 def _result_markdown(r: dict) -> str:
     rep = r.get("report") or {}
+    tok = r.get("tokens") or {}
     lines = [
         f"# Run: {r['task']}  ({r['task_type']}, metric={r['metric']})",
         f"model: {r.get('model')}  |  budget: {r.get('budget')}  |  "
         f"fallback spec: {r.get('used_fallback_spec')}",
+        f"LLM calls: {r.get('llm_calls')}  |  tokens: "
+        f"{tok.get('total', 0):,} (prompt {tok.get('prompt', 0):,} + "
+        f"completion {tok.get('completion', 0):,})",
         "",
     ]
     if (
@@ -515,6 +563,36 @@ def _top_k_report(
         return None
 
 
+def _holdout_report(search, df, target, task_type, metric, aux_tables, seed):
+    """Score the incumbent on the SHARED seeded holdout (the cross-method bench).
+
+    Uses the same split + scorer as the top-k ensemble (`ensemble.holdout_split`
+    / `evaluate_top_k` with k=1), so this number is directly comparable to the
+    AutoGluon and MLE-STAR baselines, which score on the identical rows. The
+    extension's `report.score` is a full-data CV mean and is NOT comparable —
+    this holdout number is the apples-to-apples one.
+
+    Returns ``{"scorer": ..., "score": ...}`` or ``None`` on any failure.
+    """
+    scorer = metrics.report_scorer(metric)
+    if scorer is None or scorer not in ensemble._METRIC_FNS:
+        return None
+    try:
+        res = ensemble.evaluate_top_k(
+            search["plan"],
+            [search["best_state"]],
+            df,
+            target,
+            task_type,
+            scoring=scorer,
+            aux=aux_tables or None,
+            seed=seed,
+        )
+        return {"scorer": scorer, "score": res["individual_scores"][0]}
+    except Exception:
+        return None
+
+
 def _report(
     plan,
     state: dict,
@@ -611,6 +689,13 @@ def _main() -> None:
         default=6,
         help="CV fold-parallelism per rollout (default 6; safe with boosters)",
     )
+    parser.add_argument(
+        "--time-budget-s",
+        type=float,
+        default=None,
+        help="wall-clock budget for the whole search (e.g. 3600 for 1h); "
+        "--budget becomes an upper bound. LLM cost stays constant.",
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
@@ -632,6 +717,7 @@ def _main() -> None:
         retarget=not args.no_retarget,
         subsample_seeds=args.subsample_seeds,
         n_jobs=args.n_jobs,
+        time_budget_s=args.time_budget_s,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"

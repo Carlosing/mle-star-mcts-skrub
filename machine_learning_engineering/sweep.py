@@ -45,6 +45,7 @@ _DEFAULTS = {
     "top_k": 1,
     "seed": 42,
     "subsample_seeds": None,  # None = pipeline auto (3 if imbalanced, else 1)
+    "time_budget_s": None,  # None = pure rollout-count budget (no wall-clock cap)
 }
 _KEYS = set(_DEFAULTS) | {"n_proposes"}
 
@@ -53,6 +54,7 @@ _COLUMNS = [
     "seed",
     "c",
     "budget",
+    "time_budget_s",
     "outer_steps",
     "refine",
     "retarget",
@@ -61,10 +63,14 @@ _COLUMNS = [
     "best_search_score",
     "report_scorer",
     "report_score",
+    "holdout_score",
     "ensemble_score",
     "used_fallback_spec",
     "reused_spec",
     "llm_calls",
+    "tokens_total",
+    "tokens_prompt",
+    "tokens_completion",
     "wall_clock_s",
     "status",
     "error",
@@ -185,6 +191,7 @@ def run_one(
             "seed",
             "c",
             "budget",
+            "time_budget_s",
             "outer_steps",
             "refine",
             "retarget",
@@ -213,17 +220,25 @@ def run_one(
                 retarget=cfg["retarget"],
                 spec_raw=spec_raw,
                 subsample_seeds=cfg["subsample_seeds"],
+                time_budget_s=cfg["time_budget_s"],
             )
             report = result.get("report") or {}
+            hold = result.get("holdout") or {}
             ens = result.get("ensemble") or {}
             row.update(
                 best_search_score=result["best_search_score"],
                 report_scorer=report.get("scorer", ""),
                 report_score=report.get("score", ""),
+                holdout_score=hold.get("score", ""),
                 ensemble_score=ens.get("ensemble_score", ""),
                 used_fallback_spec=result["used_fallback_spec"],
                 reused_spec=result["reused_spec"],
                 llm_calls=result["llm_calls"],
+                tokens_total=result.get("tokens", {}).get("total", 0),
+                tokens_prompt=result.get("tokens", {}).get("prompt", 0),
+                tokens_completion=result.get("tokens", {}).get(
+                    "completion", 0
+                ),
                 subsample_seeds=result.get(
                     "subsample_seeds", row["subsample_seeds"]
                 ),  # the resolved auto value when the pipeline reports it
@@ -274,11 +289,13 @@ def write_markdown(rows: list[dict], spec_path: str, path: str) -> None:
         + failed
     )
     total_llm = sum(int(r.get("llm_calls") or 0) for r in rows)
+    total_tokens = sum(int(r.get("tokens_total") or 0) for r in rows)
     total_wall = sum(float(r.get("wall_clock_s") or 0.0) for r in rows)
     lines = [
         f"# Sweep: {spec_path}",
         f"date: {datetime.now():%Y-%m-%d %H:%M}  |  runs: {len(rows)} "
         f"({len(failed)} failed)  |  LLM calls: {total_llm}  |  "
+        f"tokens: {total_tokens:,}  |  "
         f"wall-clock: {total_wall / 60:.1f} min",
         "",
         "| " + " | ".join(_COLUMNS[:-2]) + " |",

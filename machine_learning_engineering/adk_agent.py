@@ -213,7 +213,10 @@ _PLAN_AUTHOR_INSTRUCTION = (
 
 
 def build_root_agent(
-    model=None, log_dir: str | None = None, with_search: bool = True
+    model=None,
+    log_dir: str | None = None,
+    with_search: bool = True,
+    usage_sink: dict | None = None,
 ):
     """Build the analyze -> author plan graph.
 
@@ -227,6 +230,9 @@ def build_root_agent(
         is native Gemini (`_resolve_model`); on an OpenAI/compatible model it is
         silently dropped, since ``google_search`` is Gemini-native. Set False for
         offline/mocked runs.
+      usage_sink: if given, a dict the after-model callback accumulates per-agent
+        token usage into (see ``run_logging.make_prompt_logging_callbacks``). The
+        callbacks are attached when either ``log_dir`` or ``usage_sink`` is set.
 
     Returns:
       The root ``SequentialAgent``; its ``sub_agents`` are ``[analyst, author]``.
@@ -248,8 +254,12 @@ def build_root_agent(
         )
 
     before_cb, after_cb = (None, None)
-    if log_dir is not None:
-        before_cb, after_cb = make_prompt_logging_callbacks(log_dir)
+    if log_dir is not None or usage_sink is not None:
+        # log_dir=None still gets callbacks (for usage capture) but writes no
+        # files — see make_prompt_logging_callbacks.
+        before_cb, after_cb = make_prompt_logging_callbacks(
+            log_dir, usage_sink=usage_sink
+        )
 
     data_analyst = agents.LlmAgent(
         name="data_analyst",
