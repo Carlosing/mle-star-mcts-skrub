@@ -110,19 +110,62 @@ def _parse_metric(desc: str) -> str:
 # --- agent run ---------------------------------------------------------------
 
 
-async def _run_agents(root_agent, user_text: str):
-    runner = InMemoryRunner(agent=root_agent, app_name=APP_NAME)
-    session = await runner.session_service.create_session(
-        app_name=runner.app_name, user_id="driver"
-    )
-    content = types.Content(parts=[types.Part(text=user_text)], role="user")
-    async for _ in runner.run_async(
-        user_id=session.user_id, session_id=session.id, new_message=content
-    ):
-        pass
-    return await runner.session_service.get_session(
-        app_name=runner.app_name, user_id=session.user_id, session_id=session.id
-    )
+_TRANSIENT_AGENT_ERRORS = ("503", "UNAVAILABLE", "500", "INTERNAL", "overloaded")
+
+
+def _is_transient(exc: Exception) -> bool:
+    """True for a provider-side hiccup worth retrying (not a quota or auth wall).
+
+    Example:
+        _is_transient(RuntimeError("503 UNAVAILABLE"))   # -> True
+        _is_transient(RuntimeError("401 UNAUTHENTICATED"))  # -> False
+    """
+    text = f"{type(exc).__name__}: {exc}"
+    return any(marker in text for marker in _TRANSIENT_AGENT_ERRORS)
+
+
+async def _run_agents(
+    root_agent, user_text: str, attempts: int = 4, backoff_s: float = 8.0
+):
+    """Drive the agent graph, retrying provider 5xx with exponential backoff.
+
+    Gemini answers a small ping while 503-ing the real, google_search-grounded
+    agent calls, so a run would die at data_analyst or plan_author and throw
+    away whatever calls already succeeded. Quota/auth errors are NOT retried —
+    they will not clear on their own.
+    """
+    last: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            runner = InMemoryRunner(agent=root_agent, app_name=APP_NAME)
+            session = await runner.session_service.create_session(
+                app_name=runner.app_name, user_id="driver"
+            )
+            content = types.Content(
+                parts=[types.Part(text=user_text)], role="user"
+            )
+            async for _ in runner.run_async(
+                user_id=session.user_id,
+                session_id=session.id,
+                new_message=content,
+            ):
+                pass
+            return await runner.session_service.get_session(
+                app_name=runner.app_name,
+                user_id=session.user_id,
+                session_id=session.id,
+            )
+        except Exception as exc:  # noqa: BLE001 - re-raised below
+            last = exc
+            if not _is_transient(exc) or attempt == attempts - 1:
+                raise
+            wait = backoff_s * (2**attempt)
+            print(
+                f"[agents] transient provider error ({exc.__class__.__name__}); "
+                f"retry {attempt + 1}/{attempts - 1} in {wait:.0f}s"
+            )
+            await asyncio.sleep(wait)
+    raise last  # unreachable; the loop either returns or raises
 
 
 def _fallback_spec(task_type: str) -> dict:
@@ -198,6 +241,7 @@ def run_pipeline(
     retarget: bool = True,
     spec_raw: str | None = None,
     subsample_seeds: int | None = None,
+    n_jobs: int = 6,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -287,6 +331,7 @@ def run_pipeline(
         context_text=summary,
         stratify=(task_type == "classification"),
         n_subsample_seeds=subsample_seeds,
+        n_jobs=n_jobs,
     )
 
     result = {
@@ -315,12 +360,15 @@ def run_pipeline(
         "action_space": search["action_space"],
         "target_key": search["target_key"],
         "injected_options": search["injected_options"],
+        "proposal_injection_error": search.get("proposal_injection_error"),
         "refined_dims": search.get("refined_dims", []),
         "subsample_seeds": subsample_seeds,
         "ensemble": _top_k_report(
             search, df, target, task_type, metric, aux_tables, top_k, seed
         ),
         "used_fallback_spec": used_fallback,
+        "dropped_sections": spec.get("dropped_sections", []),
+        "single_option_stages": spec.get("single_option_stages", []),
         "reused_spec": spec_raw is not None,
         "llm_calls": (0 if spec_raw is not None else 2)
         + ((outer_steps - 1) if propose is not None else 0),
@@ -358,6 +406,31 @@ def _result_markdown(r: dict) -> str:
         f"model: {r.get('model')}  |  budget: {r.get('budget')}  |  "
         f"fallback spec: {r.get('used_fallback_spec')}",
         "",
+    ]
+    if (
+        r.get("dropped_sections")
+        or r.get("single_option_stages")
+        or r.get("proposal_injection_error")
+    ):
+        lines.append("## ⚠ Plan quality warnings")
+        if r.get("dropped_sections"):
+            lines.append(
+                f"- **dropped sections** (present in the plan but malformed, so "
+                f"resolved to nothing and not searched): {r['dropped_sections']}"
+            )
+        if r.get("single_option_stages"):
+            lines.append(
+                f"- **single-option stages** (only one choice, so nothing to "
+                f"search): {r['single_option_stages']}"
+            )
+        if r.get("proposal_injection_error"):
+            lines.append(
+                f"- **proposal injection error** (Option 3 proposed an extension "
+                f"that could not be resolved/built, so it was skipped): "
+                f"{r['proposal_injection_error']}"
+            )
+        lines.append("")
+    lines += [
         "## Task",
         (r.get("task_description") or "").strip() or "(no description)",
         "",
@@ -423,7 +496,11 @@ def _top_k_report(
         task_type, metric
     )
     try:
-        states = ensemble.top_k_states(search["score_cache"], top_k)
+        states = ensemble.top_k_states(
+            search["score_cache"],
+            top_k,
+            defaults=skrub_ops.get_default_state(search["plan"]),
+        )
         return ensemble.evaluate_top_k(
             search["plan"],
             states,
@@ -528,6 +605,12 @@ def _main() -> None:
         help="average each rollout over N seeded subsamples (default: auto — "
         "3 for imbalanced classification, else 1)",
     )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=6,
+        help="CV fold-parallelism per rollout (default 6; safe with boosters)",
+    )
     args = parser.parse_args()
 
     task = args.task or config.CONFIG.task_name
@@ -548,6 +631,7 @@ def _main() -> None:
         c=args.c,
         retarget=not args.no_retarget,
         subsample_seeds=args.subsample_seeds,
+        n_jobs=args.n_jobs,
     )
     print(
         f"\nTask: {result['task']}  target={result['target']}  ({result['task_type']})"

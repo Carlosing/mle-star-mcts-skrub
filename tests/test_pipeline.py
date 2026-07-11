@@ -1,5 +1,8 @@
 """End-to-end pipeline tests — agents mocked, skrub+MCTS real, fully offline."""
 
+import asyncio
+
+import pytest
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
@@ -178,3 +181,78 @@ def test_auto_subsample_seeds_targets_imbalanced_classification():
     )
     # regression never averages, whatever the target looks like
     assert pipeline._auto_subsample_seeds(imbalanced, "y", "regression") == 1
+
+
+# --- transient provider errors ------------------------------------------------
+
+
+class _Session:
+    id = "s"
+    user_id = "driver"
+
+
+async def _no_sleep(*a, **k):
+    return None
+
+
+def test_is_transient_retries_5xx_but_not_quota_or_auth():
+    """Gemini 503s the grounded agent calls while answering a small ping, so a
+    run dies at data_analyst/plan_author. Quota and auth never self-clear."""
+    assert pipeline._is_transient(RuntimeError("503 UNAVAILABLE"))
+    assert pipeline._is_transient(RuntimeError("500 INTERNAL"))
+    assert pipeline._is_transient(RuntimeError("model is overloaded"))
+    assert not pipeline._is_transient(RuntimeError("429 RESOURCE_EXHAUSTED"))
+    assert not pipeline._is_transient(RuntimeError("401 UNAUTHENTICATED"))
+
+
+def test_run_agents_retries_transient_then_succeeds(monkeypatch):
+    calls = {"n": 0}
+
+    class _FakeRunner:
+        def __init__(self, *a, **k):
+            self.app_name = "app"
+            self.session_service = self
+
+        async def create_session(self, **k):
+            return _Session()
+
+        async def get_session(self, **k):
+            return "SESSION"
+
+        async def _gen(self):
+            if False:
+                yield None
+
+        def run_async(self, **k):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("503 UNAVAILABLE")
+            return self._gen()
+
+    monkeypatch.setattr(pipeline, "InMemoryRunner", _FakeRunner)
+    monkeypatch.setattr(pipeline.asyncio, "sleep", _no_sleep)
+
+    got = asyncio.run(pipeline._run_agents(object(), "hi", backoff_s=0.0))
+    assert got == "SESSION"
+    assert calls["n"] == 3
+
+
+def test_run_agents_reraises_non_transient_immediately(monkeypatch):
+    calls = {"n": 0}
+
+    class _FakeRunner:
+        def __init__(self, *a, **k):
+            self.app_name = "app"
+            self.session_service = self
+
+        async def create_session(self, **k):
+            return _Session()
+
+        def run_async(self, **k):
+            calls["n"] += 1
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr(pipeline, "InMemoryRunner", _FakeRunner)
+    with pytest.raises(RuntimeError, match="RESOURCE_EXHAUSTED"):
+        asyncio.run(pipeline._run_agents(object(), "hi", backoff_s=0.0))
+    assert calls["n"] == 1  # no retry burned on a quota wall

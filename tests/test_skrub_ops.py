@@ -93,6 +93,46 @@ def test_rollout_is_deterministic(plan, df):
     assert rollout(state) == rollout(state)
 
 
+def test_rollout_reward_is_identical_across_n_jobs(plan, df):
+    """CV fold-parallelism must not change the reward — folds are averaged
+    (order-independent) on a seeded subsample, so n_jobs is purely a wall-clock
+    knob. If 1 vs 6 ever diverged, the score cache (which assumes a state's
+    reward is fixed) would split on machine core count."""
+    state = {**skrub_ops.get_state(plan), "model": "RF", "rf_trees": 150}
+    serial = skrub_ops.make_rollout_fn(plan, df, n_jobs=1)(state)
+    parallel = skrub_ops.make_rollout_fn(plan, df, n_jobs=6)(state)
+    assert serial == parallel
+
+
+def test_booster_rollout_is_identical_and_crashfree_across_n_jobs():
+    """The booster fork path: LGBM with the estimator's own n_jobs pinned to 1
+    (REGISTRY) must roll out identically and without segfault whether CV folds
+    run serially or forked across 6 workers."""
+    import numpy as np
+    import pandas as pd
+
+    from machine_learning_engineering.spec_resolver import resolve_spec
+
+    n = 300
+    rs = np.random.RandomState(0)
+    d = pd.DataFrame(
+        {"a": rs.rand(n), "b": [f"t{i % 5}" for i in range(n)],
+         "y": [i % 2 for i in range(n)]}
+    )
+    spec = resolve_spec(
+        {"model": ["lightgbm.LGBMClassifier"]}, task_type="classification"
+    )
+    p = skrub_ops.build_staged_plan(spec, d, target="y")
+    root = skrub_ops.get_default_state(p)
+    serial = skrub_ops.make_rollout_fn(
+        p, d, scoring="accuracy", target="y", stratify=True, n_jobs=1
+    )(root)
+    parallel = skrub_ops.make_rollout_fn(
+        p, d, scoring="accuracy", target="y", stratify=True, n_jobs=6
+    )(root)
+    assert serial > 0.0 and serial == parallel
+
+
 def test_rollout_distinguishes_states(plan, df):
     rollout = skrub_ops.make_rollout_fn(plan, df)
     base = skrub_ops.get_state(plan)

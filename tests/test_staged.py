@@ -113,8 +113,14 @@ def test_assemble_stage_in_action_space_with_clean_labels(relational):
     plan, _, _ = relational
     space = skrub_ops.get_action_space(plan)
     assert "assemble" in space
-    # dict-labeled options, not the giant AggJoiner repr
-    assert space["assemble"] == ["skip", "aux_mean", "aux_mean_max_min"]
+    # dict-labeled options, not the giant AggJoiner repr; >=2 entries also get
+    # the composed "all_aggregates" option (chains every join)
+    assert space["assemble"] == [
+        "skip",
+        "aux_mean",
+        "aux_mean_max_min",
+        "all_aggregates",
+    ]
 
 
 def test_assemble_improves_relational_score(relational):

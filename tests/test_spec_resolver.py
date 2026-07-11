@@ -1,5 +1,6 @@
 """Tests for spec_resolver: LLM dotted-path spec -> seeded instance-spec (lazy)."""
 
+import json
 import os
 
 import pandas as pd
@@ -55,6 +56,27 @@ def test_parse_json_fenced_and_prose():
     }
     prose = 'Here you go:\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\nThanks.'
     assert parse_spec_json(prose) == {
+        "model": ["sklearn.ensemble.RandomForestRegressor"]
+    }
+
+
+def test_parse_json_ignores_braces_in_the_models_commentary():
+    """plan_author narrates its HP ranges before the plan; braces there must
+    not poison the parse (a raise silently downgrades to _fallback_spec)."""
+    chatty = (
+        'The n_estimators range {"int": [100, 1000]} is standard, and\n'
+        '{"float": [0.01, 0.3]} suits the learning rate.\n'
+        '```json\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\n```'
+    )
+    assert parse_spec_json(chatty) == {
+        "model": ["sklearn.ensemble.RandomForestRegressor"]
+    }
+
+    unfenced = (
+        'Ranges like {"int": [100, 1000]} are typical.\n'
+        '{"model": ["sklearn.ensemble.RandomForestRegressor"]}'
+    )
+    assert parse_spec_json(unfenced) == {
         "model": ["sklearn.ensemble.RandomForestRegressor"]
     }
 
@@ -138,7 +160,16 @@ def test_unimportable_paths_dropped_and_reported():
     assert "sklearn.bogus.Nope" in reported
 
     spec = resolve_spec(raw)
-    assert len(spec["encoder_options"]) == 1  # bad encoder dropped
+    import skrub
+
+    # the bad encoder is dropped; GapEncoder survives, and since it's then a
+    # lone required-stage option, the skrub-default companion is appended
+    assert any(
+        isinstance(o, skrub.GapEncoder) for o in spec["encoder_options"]
+    )
+    assert not any(
+        type(o).__name__ == "NotARealThing" for o in spec["encoder_options"]
+    )
     assert set(spec["model"]) == {"RandomForestRegressor"}  # bad model dropped
 
 
@@ -258,3 +289,128 @@ def test_bare_path_works_without_params():
         spec["model"]["RandomForestRegressor"].get_params()["random_state"]
         == 42
     )
+
+
+def test_onehot_encoder_is_forced_dense_and_unknown_safe():
+    """skrub's DataOps carry pandas frames, which cannot hold a sparse matrix:
+    an unforced OneHotEncoder raised inside build_staged_plan and killed the
+    whole run. handle_unknown="error" is the same class of latent crash, one
+    CV fold later."""
+    spec = resolve_spec(
+        {
+            "encoder_options": ["sklearn.preprocessing.OneHotEncoder"],
+            "model": ["sklearn.ensemble.RandomForestRegressor"],
+        },
+        task_type="regression",
+    )
+    ohe = spec["encoder_options"][0]
+    assert ohe.sparse_output is False
+    assert ohe.handle_unknown != "error"
+
+
+def test_sparse_output_is_not_forced_onto_kwargs_constructors():
+    """LGBM/XGB take **kwargs, so a permissive `_accepts_param` check would
+    inject sparse_output straight into the booster."""
+    pytest.importorskip("lightgbm")
+    spec = resolve_spec(
+        {"model": ["lightgbm.LGBMClassifier"]}, task_type="classification"
+    )
+    assert "sparse_output" not in spec["model"]["LGBMClassifier"].get_params()
+
+
+def test_parse_json_rejects_a_fragment_from_a_truncated_response():
+    """A response cut off at its output-token cap leaves valid JSON fragments in
+    the text. A brace-scan returns one, and `{"float": [0.7, 1.0]}` silently
+    became "the extended plan" — Option 3 no-op'd with no error."""
+    truncated = (
+        '```json\n{\n "clean_options": ["skip"],\n "scoped_encodings": [\n'
+        '  {"name": "t", "options": [\n'
+        '    {"name": "sklearn.feature_extraction.text.TfidfVectorizer",\n'
+        '     "params": {"max_df": {"float": [0.7, 1.0]},\n'
+        '                "ngram_range": {'
+    )
+    with pytest.raises(json.JSONDecodeError, match="truncated"):
+        parse_spec_json(truncated)
+
+
+def test_parse_json_prefers_the_plan_over_an_illustrative_snippet():
+    """The model may fence the plan and then fence an example after it."""
+    two_fences = (
+        '```json\n{"model": ["sklearn.ensemble.RandomForestRegressor"]}\n```\n'
+        'For instance a range looks like:\n```json\n{"int": [1, 9]}\n```'
+    )
+    assert parse_spec_json(two_fences) == {
+        "model": ["sklearn.ensemble.RandomForestRegressor"]
+    }
+
+
+def test_assemble_dict_instead_of_list_is_reported_not_crashed():
+    """A model emitted `assemble` as a single dict (schema wants a list) with
+    nested per-column operation groups. It resolved to nothing and vanished with
+    no error — the whole credit-fraud sweep ran flat-table. Now it drops cleanly
+    and is reported."""
+    raw = {
+        "assemble": {
+            "table": "products",
+            "main_key": "ID",
+            "aux_key": "basket_ID",
+            "operations": [{"cols": ["cash_price"], "operations": ["sum"]}],
+        },
+        "model": ["sklearn.ensemble.RandomForestClassifier"],
+    }
+    spec = resolve_spec(
+        raw,
+        task_type="classification",
+        aux_schemas={"products": ["basket_ID", "cash_price"]},
+        main_columns=["ID", "fraud_flag"],
+    )
+    assert "assemble" not in spec  # malformed -> dropped, no crash
+    assert "assemble" in spec["dropped_sections"]
+
+
+def test_single_option_and_dropped_stages_are_flagged():
+    spec = resolve_spec(
+        {
+            "encoder_options": ["skip"],  # required stage -> vanishes entirely
+            "clean_options": ["skrub.Cleaner"],  # one option, nothing to search
+            "model": ["sklearn.ensemble.RandomForestClassifier"],
+        },
+        task_type="classification",
+    )
+    assert "encoder_options" in spec["dropped_sections"]
+    assert "clean_options" in spec["single_option_stages"]
+
+
+def test_lone_encoder_gets_skrub_default_companion():
+    """`encoder` is required (no auto-skip), so a single option leaves it
+    un-searchable. The resolver appends skrub's TableVectorizer default
+    high-cardinality encoder so the stage becomes a real 2-option search, and
+    the single-option diagnostic no longer fires."""
+    import skrub
+
+    spec = resolve_spec(
+        {
+            "encoder_options": ["skrub.MinHashEncoder"],
+            "model": ["sklearn.ensemble.HistGradientBoostingRegressor"],
+        },
+        task_type="regression",
+    )
+    enc = spec["encoder_options"]
+    assert len(enc) == 2
+    assert any(isinstance(o, skrub.MinHashEncoder) for o in enc)  # LLM's pick
+    assert any(isinstance(o, skrub.StringEncoder) for o in enc)   # skrub default
+    assert enc[0].__class__ is skrub.MinHashEncoder  # LLM's pick stays the root
+    assert "encoder_options" not in (spec.get("single_option_stages") or [])
+
+
+def test_lone_encoder_that_is_already_the_default_stays_flagged():
+    """No meaningful companion to add — so it is left single and flagged."""
+    spec = resolve_spec(
+        {
+            "encoder_options": ["skrub.StringEncoder"],
+            "model": ["sklearn.ensemble.HistGradientBoostingRegressor"],
+        },
+        task_type="regression",
+    )
+    assert len(spec["encoder_options"]) == 1
+    assert "encoder_options" in spec["single_option_stages"]

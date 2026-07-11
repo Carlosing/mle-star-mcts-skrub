@@ -11,6 +11,7 @@ Determinism requirements (UCT values never converge otherwise):
 """
 
 import functools
+import numbers
 import re
 import signal
 import threading
@@ -20,7 +21,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 import skrub
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 from skrub import selectors as _selectors
 from skrub._data_ops import _evaluation as _ev
 
@@ -118,6 +119,29 @@ def _option_names(choice) -> list[str]:
     return [str(outcome) for outcome in choice.outcomes]
 
 
+def _numeric_default(choice):
+    """skrub's default outcome for a numeric choice, or None if unavailable.
+
+    `Choice.default` is a plain value on some skrub versions and a method on
+    others; anything non-numeric means "no usable default". Tested with
+    `numbers.Number`, not `(int, float)` — skrub returns `np.int64`, which is
+    not a Python `int` (though `np.float64` *is* a `float`, so an isinstance
+    check silently keeps the float dims and drops the integer ones).
+
+    Example:
+        _numeric_default(skrub.choose_int(100, 1000, name="n"))  # -> 550
+    """
+    default = getattr(choice, "default", None)
+    if callable(default):
+        try:
+            default = default()
+        except Exception:
+            return None
+    if isinstance(default, bool) or not isinstance(default, numbers.Number):
+        return None
+    return default
+
+
 def get_action_space(plan, n_numeric_options: int = 4) -> dict[str, list]:
     """The authoritative MCTS action space: {choice_name: [options]}.
 
@@ -131,8 +155,8 @@ def get_action_space(plan, n_numeric_options: int = 4) -> dict[str, list]:
     Example:
         get_action_space(plan)
         # -> {"encoder": ["GapEncoder()", "MinHashEncoder()"],
-        #     "n_trees": [50, 100, 150, 200],     # choose_int(50, 200) discretized
-        #     "lr": [0.01, 0.031, 0.097, 0.3],    # choose_float(.01,.3,log) geomspaced
+        #     "n_trees": [50, 100, 125, 150, 200],  # choose_int(50, 200) + default
+        #     "lr": [0.01, 0.031, 0.055, 0.097, 0.3],  # geomspaced + default
         #     "model": ["GBM", "RF"]}
     """
     space: dict[str, list] = {}
@@ -142,11 +166,17 @@ def get_action_space(plan, n_numeric_options: int = 4) -> dict[str, list]:
         else:
             spacing = np.geomspace if choice.log else np.linspace
             values = spacing(choice.low, choice.high, n_numeric_options)
-            if choice.to_int:
-                values = sorted({int(round(v)) for v in values})
-            else:
-                values = [float(v) for v in values]
-            space[name] = list(values)
+            cast = (lambda v: int(round(v))) if choice.to_int else float
+            options = {cast(v) for v in values}
+            # linspace/geomspace hit the endpoints and skip the centre, but
+            # `get_default_state` seeds the root from skrub's default — the
+            # range midpoint. Without it the root is unreachable by `expand`,
+            # so every HP child is a jump to a far grid corner and the search
+            # can only ever leave the default, never refine around it.
+            default = _numeric_default(choice)
+            if default is not None and choice.low <= default <= choice.high:
+                options.add(cast(default))
+            space[name] = sorted(options)
     return space
 
 
@@ -480,6 +510,43 @@ class _ScalarizeAggregates(BaseEstimator, TransformerMixin):
         return np.asarray(list(names))
 
 
+class _ChainedAggJoiner(BaseEstimator, TransformerMixin):
+    """Apply several ``AggJoiner`` steps in sequence, composing their columns.
+
+    The ``assemble`` stage is a single exclusive ``choose_from``, so on a
+    multi-table task (country-happiness: gdp + life_expectancy + legal_rights)
+    the search can pick only ONE table's aggregates and discards the rest —
+    yet the task's whole signal is spread across all of them. This wraps every
+    join into one option so "use all aux tables" becomes selectable alongside
+    each single-table option and ``skip``. Each joiner adds its columns to the
+    growing frame; the shared main key (e.g. ``Country``) survives every join,
+    so the chain is well-defined. Joiners are cloned per fit for determinism
+    across CV folds.
+
+    Example:
+        _ChainedAggJoiner([AggJoiner(gdp, ...), AggJoiner(life, ...)])
+        # fit_transform(main) -> main + gdp aggregates + life aggregates
+    """
+
+    def __init__(self, joiners):
+        self.joiners = joiners
+
+    def fit(self, X, y=None):
+        self.fitted_ = []
+        current = X
+        for joiner in self.joiners:
+            fitted = clone(joiner)
+            current = fitted.fit_transform(current)
+            self.fitted_.append(fitted)
+        return self
+
+    def transform(self, X):
+        current = X
+        for fitted in self.fitted_:
+            current = fitted.transform(current)
+        return current
+
+
 def _apply_scope_group(node, group: dict, cols: list[str]):
     """Insert one scoped-encoding group into the DAG at the current node.
 
@@ -605,12 +672,13 @@ def build_staged_plan(
     # --- assemble (relational): aggregate-join auxiliary tables ---
     if spec.get("assemble"):
         joiners = {"skip": None}
+        made = []
         for cfg in spec["assemble"]:
             label = (
                 cfg.get("name")
                 or f"{cfg['table']}_{'_'.join(cfg['operations'])}"
             )
-            joiners[label] = skrub.AggJoiner(
+            joiner = skrub.AggJoiner(
                 aux_vars[cfg["table"]],
                 cfg["operations"],
                 key=cfg.get("key"),
@@ -618,6 +686,12 @@ def build_staged_plan(
                 aux_key=cfg.get("aux_key"),
                 cols=cfg.get("cols"),
             )
+            joiners[label] = joiner
+            made.append(joiner)
+        # multi-table tasks: let the search combine ALL aux joins, not just one
+        # (assemble is exclusive, so without this the other tables are lost).
+        if len(made) >= 2:
+            joiners["all_aggregates"] = _ChainedAggJoiner(made)
         node = node.skb.apply(skrub.choose_from(joiners, name="assemble"))
         # `mode` aggregation leaves an array in the cell on a tie, which kills
         # the TableVectorizer downstream (see _ScalarizeAggregates). Fixed
@@ -650,6 +724,14 @@ def build_staged_plan(
     node = _scope_pass(node, "pre_encode")
 
     # --- encode / vectorize ---
+    # The vectorization backbone is ALWAYS a skrub.TableVectorizer (this has
+    # been true since the project's start): it routes numeric/datetime/low-card
+    # columns through skrub's built-in transformers, and the searchable
+    # `encoder` stage only chooses its `high_cardinality` slot. With no
+    # `encoder_options`, that slot silently uses skrub's own default
+    # (StringEncoder in 0.9) — so "no encoder in the plan" is NOT "no encoding".
+    # `spec_resolver` adds that default as a companion to a lone encoder option
+    # (`_default_high_cardinality_encoder`) so a required stage stays searchable.
     enc_opts = spec.get("encoder_options")
     if enc_opts:
         vectorizer = skrub.TableVectorizer(
@@ -1000,8 +1082,9 @@ def make_rollout_fn(
     scoring: str | None = None,
     stratify: bool = False,
     target: str | None = None,
-    timeout_s: float | None = 45.0,
+    timeout_s: float | None = 60.0,
     n_subsample_seeds: int = 1,
+    n_jobs: int = 1,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -1037,13 +1120,25 @@ def make_rollout_fn(
     stays the plain seeded `df.sample` of before. Per-fold NaNs (degenerate
     folds) are skipped via `_fold_mean` instead of failing the config.
 
-    `timeout_s` (default 45s) is a per-config wall-clock cap: a config whose CV
+    `timeout_s` (default 60s) is a per-config wall-clock cap: a config whose CV
     exceeds it scores 0.0 like any other failure (via `_time_limit`), so a
     free-form hyperparameter range that makes a single fit pathologically slow
     can't stall the search. `None`/0 disables the cap. Best-effort — see
     `_time_limit` (main-thread + SIGALRM only; can't preempt a non-yielding C
     call). With `n_subsample_seeds > 1` the cap scales with the seed count
-    (the whole averaged rollout gets `timeout_s * n_subsample_seeds`).
+    (the whole averaged rollout gets `timeout_s * n_subsample_seeds`). Note the
+    cap is wall-clock, so on a loaded machine a config near the limit can flip
+    between its real reward and 0.0 — raising `timeout_s` or `n_jobs` restores
+    determinism by giving slow encoders (GapEncoder on high-cardinality text)
+    headroom under the cap.
+
+    `n_jobs` (default 1) is forwarded to sklearn's `cross_validate` to run CV
+    folds in parallel — a clean ~n-fold speedup on high-cardinality-text tasks.
+    It is inter-process (joblib forks each fold into its own address space), so
+    it is SAFE with lightgbm/xgboost: their macOS-ARM double-libomp segfault
+    comes from intra-process OpenMP threads (the ESTIMATOR's own n_jobs, pinned
+    to 1 in REGISTRY), not from forking folds. Determinism is preserved: folds
+    are averaged, order-independent.
 
     `n_subsample_seeds` (default 1) averages the reward over that many
     distinct seeded subsamples (seeds `seed`, `seed+1`, ...) — a pure-code
@@ -1093,6 +1188,8 @@ def make_rollout_fn(
                         "environment": environment,
                         **_cv_kwarg(stratify, seed, n_splits=n_splits),
                     }
+                    if n_jobs != 1:
+                        cv_kwargs["n_jobs"] = n_jobs
                     if scorer is not None:
                         cv_kwargs["scoring"] = scorer
                     result = plan.skb.cross_validate(**cv_kwargs)

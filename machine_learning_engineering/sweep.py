@@ -128,8 +128,44 @@ def _is_quota_error(exc: Exception) -> bool:
     return "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower()
 
 
+def _gemini_proposer(out_dir):
+    """Default proposer factory: one Gemini proposer bound to ``out_dir``."""
+    return make_llm_proposer(log_dir=out_dir)
+
+
+def _claude_setup(tasks, spec_cache):
+    """Pre-seed ``spec_cache`` with Claude-authored plans and return a
+    ``make_proposer(task) -> (out_dir -> propose)`` factory.
+
+    Fully offline: the plan comes from ``claude_agents.spec_raw`` (so the sweep
+    never fetches via Gemini) and the Option-3 proposer is a deterministic
+    replay of ``claude_agents.proposal_for`` (so refine points never call
+    Gemini either). Requires the task's authored plan or a task_type fallback.
+    """
+    from scripts import claude_agents
+
+    proposals: dict = {}
+    for task in tasks:
+        # task_type drives the model family in both the plan and the proposal
+        _, _, task_type, _, _, _ = pipeline.load_task(task)
+        spec_cache[task] = claude_agents.spec_raw(task, task_type)
+        proposals[task] = claude_agents.proposal_for(task, task_type)
+
+    def make_proposer(task):
+        extension = proposals[task]
+        return lambda out_dir: claude_agents.make_replay_proposer(
+            extension, log_dir=out_dir
+        )
+
+    return make_proposer
+
+
 def run_one(
-    cfg: dict, spec_raw: str | None, out_dir: str, retry_wait: int = 65
+    cfg: dict,
+    spec_raw: str | None,
+    out_dir: str,
+    retry_wait: int = 65,
+    make_proposer=None,
 ) -> dict:
     """Run one sweep point through ``run_pipeline`` and return a result row.
 
@@ -169,7 +205,7 @@ def run_one(
                 out_dir=out_dir,
                 seed=cfg["seed"],
                 outer_steps=cfg["outer_steps"],
-                propose=make_llm_proposer(log_dir=out_dir)
+                propose=(make_proposer or _gemini_proposer)(out_dir)
                 if cfg["refine"]
                 else None,
                 top_k=cfg["top_k"],
@@ -281,6 +317,13 @@ def _main() -> None:
         help="JSON {task: raw_spec}; read if present, updated "
         "after each fetch — shares agent calls across sweeps",
     )
+    parser.add_argument(
+        "--driver",
+        choices=("gemini", "claude"),
+        default="gemini",
+        help="gemini = live agents (default); claude = fully offline, plans "
+        "and Option-3 proposals from scripts/claude_agents.py (zero network)",
+    )
     args = parser.parse_args()
 
     configs = load_sweep_spec(args.spec)
@@ -297,6 +340,11 @@ def _main() -> None:
 
     tasks = list(dict.fromkeys(c["task"] for c in configs))
     many_tasks = len(tasks) > 1
+    make_proposer = None
+    if args.driver == "claude":
+        # Fully offline: plans + Option-3 proposals come from claude_agents,
+        # so NO Gemini call ever fires (spec pre-seeded, proposer is a replay).
+        make_proposer = _claude_setup(tasks, spec_cache)
     rows, seen = [], set()
     for task in tasks:  # task-outermost so each spec fetch serves its block
         for cfg in (c for c in configs if c["task"] == task):
@@ -306,7 +354,13 @@ def _main() -> None:
             seen.add(name)
             reuse = None if args.no_reuse_spec else spec_cache.get(task)
             row = run_one(
-                cfg, reuse, os.path.join(sweep_dir, name), args.retry_wait
+                cfg,
+                reuse,
+                os.path.join(sweep_dir, name),
+                args.retry_wait,
+                make_proposer=(
+                    make_proposer(task) if make_proposer else None
+                ),
             )
             fetched = row.pop("spec_raw", None)
             if fetched and task not in spec_cache:

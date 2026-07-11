@@ -8,13 +8,32 @@ LLM never does the search; it only proposes the space (**O(1) LLM calls per
 task**, plus at most one call between search slices for Option 3 — never inside
 the inner search loop).
 
-_Last updated: 2026-07-10 (pre-ship quality upgrades landed: whole-plan
+_Last updated: 2026-07-11. Pre-ship quality upgrades (2026-07-10): whole-plan
 extending injection replaces stage-targeted Option 3, focused-refinement bonus
 phase replaces the HP-only one, structure-aware subsampling + seed-averaged
 rewards fix the noisy imbalanced-task proxy, `_SanitizeColumns` makes injected
-boosters fit through skrub's special-character column names). Offline suite:
-**pytest tests/ green** (`uv run python -m pytest tests/ -q`, ~7 min; the 1
-skipped is the gated live Gemini smoke test)._
+boosters fit through skrub's special-character column names. 2026-07-11 session:
+robustness + perf + second provider — parser rejects truncated JSON fragments;
+numeric grids include each dim's default (root reachable by `expand`);
+sparse/tuple params coerced; ensemble deduped on effective state; malformed/
+single-option stages surfaced (`dropped_sections`/`single_option_stages`);
+`all_aggregates` chains multi-table joins; rollout wall-clock cap 45→60s;
+**CV fold-parallelism `n_jobs=6` (default, booster-safe — the segfault is the
+estimator's own OpenMP, not joblib forking); `--n-jobs` CLI + `NJOBS` make var**;
+**two-provider env scheme (`PROVIDER=google|school`) live-validated on GWDG's
+qwen3.5-397b** (16k LiteLlm max_tokens for reasoning models, search hints
+stripped off-Gemini, `make probe-school`). Offline suite: **pytest tests/ green**
+(285 passed, 1 skipped — the gated live Gemini smoke; ~3.5 min now with n_jobs=6).
+Option-3 proposer is now provider-agnostic (Gemini or school/OpenAI-compat, same
+env switch as the agents) — PROVIDER=school has full Option-3 parity, validated
+live on qwen3.5-397b (injected KMeans/QuantileTransformer/Spline). A malformed
+proposed HP (log scale + 0.0 low) that used to raise out of `resolve_spec` and
+silently drop the whole injection is fixed (`_build_choice` linear-fallback +
+per-param guard in `_make`); a merge that still won't resolve is recorded in
+`result["proposal_injection_error"]` and surfaced in summary.md, so a failed
+injection is distinguishable from "proposer added nothing". Friend-facing usage
+guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=`/`DRIVER=`
+flags. Owed: `llm_calls` miscounts offline replay proposers as real calls._
 
 ## Architecture — three layers
 

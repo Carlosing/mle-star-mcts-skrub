@@ -14,6 +14,7 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.ensemble import RandomForestRegressor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -133,3 +134,42 @@ def test_seed_averaging_reduces_reward_variance(reg_plan, reg_df):
         ]
 
     assert np.var(rewards(3)) < np.var(rewards(1))
+
+
+def test_action_space_contains_each_numeric_dims_default():
+    """`get_default_state` seeds the root from skrub's default (the range
+    midpoint), but linspace/geomspace hit the endpoints and skip the centre.
+    If the default is absent, `expand` cannot reach the root and the search can
+    only ever jump away from it, never refine around it. Integer dims are the
+    regression: skrub returns np.int64, which is not a Python int."""
+    import pandas as pd
+    import skrub
+
+    from machine_learning_engineering.skrub_ops import (
+        build_staged_plan,
+        get_action_space,
+        get_default_state,
+    )
+
+    spec = {
+        "encoder_options": [skrub.StringEncoder()],
+        "model": {
+            "RandomForestRegressor": RandomForestRegressor(
+                n_estimators=skrub.choose_int(
+                    100, 1000, name="model__RandomForestRegressor__n_estimators"
+                ),
+                max_features=skrub.choose_float(
+                    0.1, 1.0, name="model__RandomForestRegressor__max_features"
+                ),
+                random_state=42,
+            )
+        },
+    }
+    df = pd.DataFrame({"a": range(40), "b": [f"t{i%4}" for i in range(40)],
+                       "y": [float(i) for i in range(40)]})
+    plan = build_staged_plan(spec, df, target="y")
+    space, root = get_action_space(plan), get_default_state(plan)
+
+    unreachable = [k for k, v in root.items() if k in space and v not in space[k]]
+    assert not unreachable, f"root dims expand() can never select: {unreachable}"
+    assert 550 in space["model__RandomForestRegressor__n_estimators"]

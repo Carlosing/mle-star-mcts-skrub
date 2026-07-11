@@ -16,8 +16,16 @@ REFINE ?=
 N_PROPOSES ?=
 # ensemble the top-k incumbents from the score cache (1 = off)
 TOP_K ?= 1
+# LLM provider for the live agents: google (native Gemini) or school (OpenAI-
+# compat via LiteLlm). Picks {PROVIDER}_ROOT_AGENT_MODEL/_API_KEY/_API_BASE
+# from .env (see machine_learning_engineering.__init__._select_provider).
+PROVIDER ?= google
+# CV fold-parallelism for rollouts (default 6 P-cores; safe with boosters)
+NJOBS ?= 6
 # JSON sweep spec for `make sweep` (defaults + runs; see sweeps/example.json)
 SWEEP ?= sweeps/example.json
+# sweep driver: empty = live agents (PROVIDER); claude = fully offline, no quota
+DRIVER ?=
 # --- Claude-driven (offline, zero Gemini quota) --------------------------------
 # proposer calls interleaved between BUDGET-sized slices (0 = Option 1 + HP-refine only)
 CLAUDE_PROPOSES ?= 2
@@ -26,19 +34,21 @@ CLAUDE_TOP_K ?= 3
 # artifact parent dir (empty = runs/claude_<timestamp>)
 OUT ?=
 
-.PHONY: help sync test test-live probe run-live run-refine sweep sweep-live \
-        run-claude sweep-claude stage-tasks stage-credit-fraud
+.PHONY: help sync test test-live probe probe-school run-live run-refine sweep \
+        sweep-live run-claude sweep-claude stage-tasks stage-credit-fraud
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
 	@echo "make test       - run the offline test suite (mocked agents, no API)"
 	@echo "make test-live  - run the suite including the gated live Gemini test"
-	@echo "make probe      - probe Gemini models + live quota (probe_gemini.py)"
+	@echo "make probe        - probe Gemini models + live quota (probe_gemini.py)"
+	@echo "make probe-school - list school (GWDG) models; SMOKE=1 to health-check each"
 	@echo "make run-live   - full pipeline on the REAL API; writes runs/<task>_<ts>/"
-	@echo "                  vars: BUDGET=$(BUDGET) TASK=<name> OUTER_STEPS=$(OUTER_STEPS) REFINE=1 N_PROPOSES=<n>"
+	@echo "                  vars: PROVIDER=$(PROVIDER) (google|school) BUDGET=$(BUDGET) TASK=<name> TOP_K=<k> N_PROPOSES=<n> NJOBS=$(NJOBS)"
+	@echo "                  full usage guide: docs/USAGE.md"
 	@echo "make run-refine - run-live with Option 1 + Option 3 on (OUTER_STEPS=3, REFINE=1)"
-	@echo "make sweep      - run a JSON sweep spec on the REAL API; writes runs/sweep_<ts>/"
-	@echo "                  vars: SWEEP=$(SWEEP) (agents run once per task, spec reused)"
+	@echo "make sweep      - run a JSON sweep spec; writes runs/sweep_<ts>/"
+	@echo "                  vars: SWEEP=$(SWEEP) DRIVER=claude (offline, no quota)"
 	@echo "make sweep-live - alias for 'make sweep' (explicit: it hits the real Gemini API)"
 	@echo ""
 	@echo "-- Claude-driven, offline, ZERO Gemini quota (plans+proposals in scripts/claude_agents.py) --"
@@ -61,9 +71,14 @@ test-live:
 probe:
 	uv run python probe_gemini.py
 
+# list (and with SMOKE=1, health-check) the school OpenAI-compat models
+probe-school:
+	uv run python probe_school.py $(if $(SMOKE),--smoke,) $(if $(MODEL),--model $(MODEL),)
+
 run-live:
-	uv run python -m machine_learning_engineering.pipeline \
+	PROVIDER=$(PROVIDER) uv run python -m machine_learning_engineering.pipeline \
 		--budget $(BUDGET) --outer-steps $(OUTER_STEPS) --top-k $(TOP_K) \
+		--n-jobs $(NJOBS) \
 		$(if $(TASK),--task $(TASK),) $(if $(REFINE),--refine,) \
 		$(if $(N_PROPOSES),--n-proposes $(N_PROPOSES),)
 
@@ -71,7 +86,8 @@ run-refine:
 	$(MAKE) run-live OUTER_STEPS=3 REFINE=1 BUDGET=$(BUDGET) TASK=$(TASK)
 
 sweep:
-	uv run python -m machine_learning_engineering.sweep $(SWEEP)
+	PROVIDER=$(PROVIDER) uv run python -m machine_learning_engineering.sweep \
+		$(SWEEP) $(if $(DRIVER),--driver $(DRIVER),)
 
 # same thing, named so it is obvious at the call site that this spends quota
 sweep-live: sweep

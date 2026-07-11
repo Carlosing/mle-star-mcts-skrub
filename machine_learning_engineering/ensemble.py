@@ -14,17 +14,37 @@ from sklearn import metrics as _sk_metrics
 from machine_learning_engineering.skrub_ops import apply_state
 
 
-def top_k_states(score_cache: dict, k: int = 3) -> list[dict]:
-    """The k best distinct configurations from the persisted score cache.
+def top_k_states(
+    score_cache: dict, k: int = 3, defaults: dict | None = None
+) -> list[dict]:
+    """The k best *distinct pipelines* from the persisted score cache.
 
-    Cache keys are `mcts.state_key` tuples, so states reconstruct exactly.
+    Cache keys are `mcts.state_key` tuples, so states reconstruct exactly. Two
+    keys can still name one pipeline: `apply_state` resets any omitted choice to
+    its default, so {"model": "LGBM"} and {"model": "LGBM", "n_trees": <default>}
+    fit identically. Passing `defaults` (from `skrub_ops.get_default_state`)
+    fills omitted keys before de-duplicating, so k really is k distinct fits —
+    otherwise the ensemble silently averages the same model k times and its
+    score equals the incumbent's exactly.
 
     Example:
         top_k_states({(("model", "HGB"),): 0.9, (("model", "RF"),): 0.8}, k=1)
         # -> [{"model": "HGB"}]
     """
     ranked = sorted(score_cache.items(), key=lambda kv: -kv[1])
-    return [dict(key) for key, _ in ranked[:k]]
+    picked: list[dict] = []
+    seen: set[tuple] = set()
+    for key, _ in ranked:
+        state = dict(key)
+        effective = {**(defaults or {}), **state}
+        fingerprint = tuple(sorted(effective.items(), key=lambda kv: kv[0]))
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        picked.append(state)
+        if len(picked) == k:
+            break
+    return picked
 
 
 # report-scorer name -> (metric fn, needs_proba, sign)

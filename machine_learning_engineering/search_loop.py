@@ -185,8 +185,9 @@ def run_search_loop(
     context_text: str | None = None,
     stratify: bool = False,
     hp_refine: bool = True,
-    timeout_s: float | None = 45.0,
+    timeout_s: float | None = 60.0,
     n_subsample_seeds: int = 1,
+    n_jobs: int = 6,
 ) -> dict:
     """Run the persisted, optionally-refined search and return a results dict.
 
@@ -250,6 +251,11 @@ def run_search_loop(
         plan = build_staged_plan(
             current_spec, df, target=target, aux_tables=aux_tables
         )
+        # Fold parallelism is inter-process (joblib forks CV folds into separate
+        # address spaces), which is orthogonal to the intra-process OpenMP
+        # double-init that segfaults boosters — that trigger is the ESTIMATOR's
+        # own n_jobs, pinned to 1 in REGISTRY. Verified safe over 80 booster
+        # rollouts at CV n_jobs=6, so booster plans keep the full parallelism.
         rollout = make_rollout_fn(
             plan,
             df,
@@ -261,6 +267,7 @@ def run_search_loop(
             target=target,
             timeout_s=timeout_s,
             n_subsample_seeds=n_subsample_seeds,
+            n_jobs=n_jobs,
         )
         return plan, get_action_space(plan), get_choice_gating(plan), rollout
 
@@ -277,6 +284,7 @@ def run_search_loop(
     target_key = None
     injected: list[str] = []
     refined_dims: list[str] = []
+    proposal_injection_error: str | None = None
     explicit_priors = priors is not None
 
     for step in range(max(1, outer_steps)):
@@ -312,8 +320,14 @@ def run_search_loop(
                 try:
                     new_spec = resolve(merged)
                     rebuilt = _build(new_spec)
-                except Exception:
-                    pass  # unusable extension: keep searching the current plan
+                except Exception as exc:
+                    # a proposal that merges but won't resolve/build is dropped
+                    # so the search keeps going — but record WHY, so an empty
+                    # `injected_options` from a failed injection is
+                    # distinguishable from one where the proposer added nothing.
+                    proposal_injection_error = f"{type(exc).__name__}: {exc}"[
+                        :300
+                    ]
                 else:
                     old_space = action_space
                     spec, raw_spec = new_spec, merged
@@ -417,10 +431,11 @@ def run_search_loop(
         "target_key": target_key,
         "injected_options": injected,
         "refined_dims": refined_dims,
+        "proposal_injection_error": proposal_injection_error,
     }
 
 
-# --- the real LLM proposer (one Gemini call between search slices) ------------
+# --- the real LLM proposer (one provider call between search slices) ----------
 
 import json as _json  # noqa: E402
 
@@ -447,7 +462,11 @@ def make_llm_proposer(
     temperature: float = 0.4,
     log_dir: str | None = None,
 ):
-    """Return a `propose(plan_json, context) -> dict | None` backed by Gemini.
+    """Return `propose(plan_json, context) -> dict | None` for the active provider.
+
+    Native Gemini (`gemini-*`, with `google_search` grounding) or any
+    OpenAI-compatible endpoint (school), selected exactly like the ADK agents —
+    so `PROVIDER=school` gets Option 3 too, no code change.
 
     One `google.genai` call between search slices (the LLM never enters the
     inner search loop). The proposer sees the WHOLE current raw plan plus the
@@ -478,22 +497,59 @@ def make_llm_proposer(
     import os
     from datetime import datetime, timezone
 
-    from google import genai  # lazy
-    from google.genai import types as genai_types  # lazy
-
     from machine_learning_engineering.shared_libraries import config
 
-    client = genai.Client()  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI
     model = model or config.CONFIG.agent_model
-    # `google_search` is a Gemini-native tool (same safety net as the analyst /
-    # plan_author): attach it only on the Gemini path, so an OpenAI/compatible
-    # model id silently runs without search instead of erroring.
+    # Provider-agnostic, mirroring the analyst/plan_author agents: a `gemini-*`
+    # id calls native Gemini (with the Gemini-only `google_search` grounding);
+    # any other id (school / OpenAI-compatible) calls that endpoint via the
+    # OpenAI client, no web search. Option 3 follows PROVIDER with no code
+    # change. Clients imported lazily so the module stays importable offline.
     use_search = isinstance(model, str) and "gemini" in model.lower()
-    search_tools = (
-        [genai_types.Tool(google_search=genai_types.GoogleSearch())]
-        if use_search
-        else None
-    )
+    if use_search:
+        from google import genai  # lazy
+        from google.genai import types as genai_types  # lazy
+
+        _gclient = genai.Client()  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI
+        search_tools = [
+            genai_types.Tool(google_search=genai_types.GoogleSearch())
+        ]
+
+        def _complete(prompt: str, tools) -> str:
+            resp = _gclient.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=16384,  # reasoning + a whole extended plan
+                    tools=tools,
+                ),
+            )
+            return resp.text or ""
+    else:
+        from openai import OpenAI  # lazy
+
+        _oclient = OpenAI(
+            api_key=os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY"),
+            base_url=os.environ.get("API_BASE")
+            or os.environ.get("OPENAI_API_BASE"),
+        )
+        # the OpenAI API wants the bare model id; strip the LiteLlm `openai/`
+        # routing prefix carried by SCHOOL_ROOT_AGENT_MODEL.
+        _omodel = (
+            model.split("/", 1)[1] if model.startswith("openai/") else model
+        )
+        search_tools = None
+
+        def _complete(prompt: str, tools) -> str:  # tools unused off-Gemini
+            resp = _oclient.chat.completions.create(
+                model=_omodel,
+                temperature=temperature,
+                max_tokens=16384,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return resp.choices[0].message.content or ""
+
     call_count = [0]  # proposer-call counter; first call is logged as 1
 
     def _log(call_num: int, phase: str, record: dict) -> None:
@@ -514,18 +570,15 @@ def make_llm_proposer(
             json.dump(records, f, ensure_ascii=False, indent=2)
 
     def _attempt(prompt: str, tools):
-        """One genai call -> (raw_text, parsed_plan_or_None); ("", None) on failure."""
+        """One completion -> (raw_text, parsed_plan | None); ("", None) on error.
+
+        Reasoning models (school) burn output tokens thinking; the 16384 cap and
+        the plan-shape check in `_parse_plan` together turn a truncated,
+        fragment-yielding response into a clean None (no injection) rather than
+        a silently-wrong partial plan.
+        """
         try:
-            resp = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(
-                    temperature=temperature,
-                    max_output_tokens=4096,  # a whole extended plan, not a list
-                    tools=tools,
-                ),
-            )
-            text = resp.text or ""
+            text = _complete(prompt, tools)
             return text, _parse_plan(text)
         except Exception:
             return "", None

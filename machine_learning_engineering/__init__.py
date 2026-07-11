@@ -17,6 +17,31 @@ from dotenv import load_dotenv
 # the agents seeing the same environment as before.
 load_dotenv()
 
+
+def _select_provider() -> None:
+    """Map ``{PROVIDER}_*`` env vars onto the canonical names the code reads.
+
+    ``PROVIDER=google`` (default) or ``PROVIDER=school`` picks which credential
+    set in ``.env`` is active: ``{PREFIX}_ROOT_AGENT_MODEL``/``_API_KEY``/
+    ``_API_BASE`` are copied to the plain ``ROOT_AGENT_MODEL``/``API_KEY``/
+    ``API_BASE`` that ``config.py`` and ``adk_agent._resolve_model`` consume.
+    Runs before any submodule (this is the package ``__init__``), so config
+    sees the resolved values. Backward-compatible: a missing prefixed var
+    leaves the canonical one untouched, so an old ``.env`` with a bare
+    ``ROOT_AGENT_MODEL`` still works. The native-Gemini path reads
+    ``GOOGLE_API_KEY`` directly, which is already the ``google`` prefix.
+    """
+    prefix = {"school": "SCHOOL"}.get(
+        os.environ.get("PROVIDER", "google").strip().lower(), "GOOGLE"
+    )
+    for canonical in ("ROOT_AGENT_MODEL", "API_KEY", "API_BASE"):
+        value = os.environ.get(f"{prefix}_{canonical}")
+        if value:
+            os.environ[canonical] = value
+
+
+_select_provider()
+
 # Plain env read, no side effects — safe as an eager module attribute.
 MODEL_NAME = os.environ.get("ROOT_AGENT_MODEL", "meta-llama-3.1-8b-instruct")
 

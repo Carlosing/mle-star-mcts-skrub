@@ -125,3 +125,20 @@ def test_evaluate_top_k_rejects_unknown_scorer(toy_search):
             "classification",
             scoring="not_a_scorer",
         )
+
+
+def test_top_k_states_collapses_states_that_are_the_same_pipeline():
+    """`apply_state` resets omitted choices to their default, so a state that
+    omits an HP and one that names it at its default fit identically. Without
+    `defaults` the ensemble averages the same model k times and its score
+    equals the incumbent's exactly."""
+    defaults = {"model": "LGBM", "n_trees": 550}
+    cache = {
+        (("model", "LGBM"), ("n_trees", 550)): 0.90,  # explicit default
+        (("model", "LGBM"),): 0.90,                   # same pipeline, omitted
+        (("model", "LGBM"), ("n_trees", 100)): 0.85,  # genuinely different
+    }
+    assert len(ensemble.top_k_states(cache, k=3)) == 3  # old behaviour
+    picked = ensemble.top_k_states(cache, k=3, defaults=defaults)
+    assert len(picked) == 2
+    assert {"model": "LGBM", "n_trees": 100} in picked

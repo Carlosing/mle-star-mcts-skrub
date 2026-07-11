@@ -83,19 +83,31 @@ def _resolve_model(model):
         kwargs["api_key"] = api_key
     if api_base:
         kwargs["api_base"] = api_base
+    # Reasoning models (qwen3.*, gpt-oss, deepseek) burn output tokens THINKING
+    # before the answer; a low cap ends the response mid-thought (content=None,
+    # finish_reason=length) and the plan silently falls back. Give the whole
+    # plan + its reasoning room. Tunable via LITELLM_MAX_TOKENS.
+    kwargs["max_tokens"] = int(os.environ.get("LITELLM_MAX_TOKENS", "16384"))
     return LiteLlm(model=model, **kwargs), False
 
 
 # --- Instructions (module constants so the factory stays readable) ----------
 
+# The search hints are their own fragments so build_root_agent can strip them
+# when search is off (non-Gemini providers): telling a reasoning model to use a
+# tool it doesn't have wastes thinking tokens and invites hallucinated results.
+_ANALYST_SEARCH_FRAGMENT = (
+    "Use the google_search tool to retrieve current state-of-the-art encoders "
+    "and model families for this kind of tabular task before you commit to "
+    "recommendations.\n\n"
+)
+
 _ANALYST_INSTRUCTION = (
     "You are a tabular-data analyst. You are given a task description and a "
     "compact summary of the dataset (column names, dtypes, cardinality, "
     "missing-value rates, target column). Do NOT write Python code.\n\n"
-    "Use the google_search tool to retrieve current state-of-the-art encoders "
-    "and model families for this kind of tabular task before you commit to "
-    "recommendations.\n\n"
-    "Produce a short structured analysis covering:\n"
+    + _ANALYST_SEARCH_FRAGMENT
+    + "Produce a short structured analysis covering:\n"
     "  - the task type (regression vs classification) and target column;\n"
     "  - which columns are high-cardinality / dirty categoricals, datetime, "
     "or numeric;\n"
@@ -112,18 +124,25 @@ _ANALYST_INSTRUCTION = (
     "at each stage, not a single fixed choice."
 )
 
-_PLAN_AUTHOR_INSTRUCTION = (
-    "You are the skrub plan author. Using {dataset_analysis}, output a JSON "
-    "object describing, FOR EACH PIPELINE STAGE, the list of candidate "
-    "operators to search over (not a single choice). The downstream engine "
-    "searches this menu with MCTS, so offer 2-3 real options per stage wherever "
-    "it is reasonable.\n\n"
+_PLANNER_SEARCH_FRAGMENT = (
     "When the google_search tool is available, use it to check for current "
     "state-of-the-art operators and sensible hyperparameter ranges for this kind "
     "of tabular task before you finalize the menu (e.g. gradient-boosting "
     "settings, encoders) — but only propose operators on the allowed list "
     "below.\n\n"
-    "Pipeline stages, in order: assemble (relational, optional) -> clean "
+)
+
+_PLAN_AUTHOR_INSTRUCTION = (
+    "Your entire reply must be a single JSON object and nothing else. Do not "
+    "explain, justify or comment on your choices — not before the JSON, not "
+    "after it. Your reply is parsed by a machine, never read by a human.\n\n"
+    "You are the skrub plan author. Using {dataset_analysis}, output a JSON "
+    "object describing, FOR EACH PIPELINE STAGE, the list of candidate "
+    "operators to search over (not a single choice). The downstream engine "
+    "searches this menu with MCTS, so offer 2-3 real options per stage wherever "
+    "it is reasonable.\n\n"
+    + _PLANNER_SEARCH_FRAGMENT
+    + "Pipeline stages, in order: assemble (relational, optional) -> clean "
     "(optional) -> scoped operators pre-encode (optional) -> encode (required) "
     "-> scoped operators post-encode (optional) -> scale/feature-eng (optional) "
     "-> model (required). For optional stages, include a 'skip' option.\n\n"
@@ -187,6 +206,9 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "date). The engine concatenates the derived columns by row index "
     "automatically; leave false (default) to replace the columns.\n\n"
     + format_allowed_for_prompt()
+    + "\n\nOUTPUT CONTRACT: reply with the JSON object alone. The first "
+    "character is '{' and the last is '}'. No preamble, no markdown fence, no "
+    "trailing remarks about the ranges you picked. Any prose is a failure."
 )
 
 
@@ -213,6 +235,18 @@ def build_root_agent(
     resolved, is_gemini = _resolve_model(model)
     use_search = with_search and is_gemini
 
+    # Strip the search hints when the tool isn't attached, so the prompt never
+    # instructs the model to use a tool it doesn't have.
+    analyst_instruction = _ANALYST_INSTRUCTION
+    planner_instruction = _PLAN_AUTHOR_INSTRUCTION
+    if not use_search:
+        analyst_instruction = analyst_instruction.replace(
+            _ANALYST_SEARCH_FRAGMENT, ""
+        )
+        planner_instruction = planner_instruction.replace(
+            _PLANNER_SEARCH_FRAGMENT, ""
+        )
+
     before_cb, after_cb = (None, None)
     if log_dir is not None:
         before_cb, after_cb = make_prompt_logging_callbacks(log_dir)
@@ -227,7 +261,7 @@ def build_root_agent(
         "current SOTA tabular approaches via web search, and reasons about "
         "column types, cardinality, missingness, and useful preprocessing/model "
         "families.",
-        instruction=_ANALYST_INSTRUCTION,
+        instruction=analyst_instruction,
         output_key="dataset_analysis",
     )
 
@@ -239,7 +273,7 @@ def build_root_agent(
         after_model_callback=after_cb,
         description="Turns the analyst's findings into a rich, per-stage menu of "
         "operator options — the skrub 'spec' that MCTS searches over.",
-        instruction=_PLAN_AUTHOR_INSTRUCTION,
+        instruction=planner_instruction,
         output_key="skrub_spec_raw",
     )
 

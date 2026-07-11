@@ -143,3 +143,56 @@ def test_build_free_choice_structural_sanity():
     )  # log needs low > 0
     assert bc("n", {"int": ["x", "y"]}) is None  # non-numeric bounds
     assert bc("n", "not-a-dict") is None
+
+
+def test_json_list_options_become_tuples_for_sklearn_tuple_params():
+    """JSON has no tuple type, so {"choice": [[1,1],[1,2]]} arrives as lists.
+    sklearn validates ngram_range / quantile_range as tuples specifically and
+    raises InvalidParameterError on a list — the rollout scores 0.0 and the
+    option loses by forfeit, not on merit."""
+    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    spec = spec_resolver.resolve_spec(
+        {
+            "stages": [
+                {
+                    "name": "feature_eng",
+                    "options": [
+                        {
+                            "name": "sklearn.feature_extraction.text.TfidfVectorizer",
+                            "params": {
+                                "ngram_range": {"choice": [[1, 1], [1, 2]]}
+                            },
+                        }
+                    ],
+                }
+            ],
+            "model": ["sklearn.ensemble.RandomForestClassifier"],
+        },
+        task_type="classification",
+    )
+    vec = next(
+        o for o in spec["stages"][0]["options"] if isinstance(o, TfidfVectorizer)
+    )
+    outcomes = vec.ngram_range.outcomes
+    assert all(isinstance(o, tuple) for o in outcomes), outcomes
+
+
+def test_log_scale_with_zero_low_does_not_kill_resolve():
+    """An LLM commonly pairs log=true with a 0.0 lower bound (learning_rate).
+    skrub's choose_float rejects log at low<=0; that raise used to propagate
+    out of resolve_spec and silently drop a whole Option-3 injection. The
+    curated path now falls back to linear, and a per-param guard drops any other
+    malformed range without dropping the operator or the plan."""
+    spec = spec_resolver.resolve_spec(
+        {
+            "model": [
+                {
+                    "name": "sklearn.ensemble.GradientBoostingRegressor",
+                    "params": {"learning_rate": {"float": [0.0, 0.3], "log": True}},
+                }
+            ]
+        },
+        task_type="regression",
+    )
+    assert "GradientBoostingRegressor" in spec["model"]  # operator survived

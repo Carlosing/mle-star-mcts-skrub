@@ -134,6 +134,13 @@ REGISTRY = {
         "defaults": {"include_bias": False, "degree": 2},
         "tunable": {"degree": _int(2, 3)},
     },
+    # handle_unknown defaults to "error": a CV fold holding a category the train
+    # fold never saw would raise. sparse_output is forced False (_SPARSE_PARAMS).
+    "sklearn.preprocessing.OneHotEncoder": {
+        "kind": "transformer",
+        "defaults": {"handle_unknown": "infrequent_if_exist"},
+        "tunable": {"min_frequency": _int(1, 10)},
+    },
     "sklearn.decomposition.PCA": {
         "kind": "transformer",
         "defaults": {},
@@ -229,21 +236,86 @@ def _load_class(path):
 # --- parsing -----------------------------------------------------------------
 
 
+# Top-level keys that make an object a *plan* rather than some inner fragment
+# of one ({"float": [0.7, 1.0]} and {"name": ..., "params": ...} both parse).
+_PLAN_KEYS = frozenset(
+    {
+        "model",
+        "encoder_options",
+        "clean_options",
+        "stages",
+        "scoped_encodings",
+        "assemble",
+    }
+)
+
+
+def _is_plan_shaped(obj) -> bool:
+    """True if `obj` is a dict carrying at least one top-level plan key.
+
+    Example:
+        _is_plan_shaped({"model": ["sklearn.svm.SVC"]})   # -> True
+        _is_plan_shaped({"float": [0.7, 1.0]})            # -> False (fragment)
+    """
+    return isinstance(obj, dict) and bool(_PLAN_KEYS & obj.keys())
+
+
 def parse_spec_json(raw):
-    """Parse LLM output into a dict, tolerating ```json fences and prose."""
+    """Parse LLM output into a plan dict, tolerating ```json fences and prose.
+
+    Every candidate must be *plan-shaped*. A truncated response (the model hit
+    its output-token cap mid-object) leaves valid JSON fragments scattered in
+    the text, and a brace-scan will happily return one — `{"float": [0.7, 1.0]}`
+    silently became "the extended plan" and Option 3 no-op'd with no error.
+    A fragment now raises instead, so the caller can retry or fail loudly.
+
+    Example:
+        >>> parse_spec_json('Ranges like {"int": [1, 9]} are typical.\\n'
+        ...                 '```json\\n{"model": ["sklearn.svm.SVC"]}\\n```')
+        {'model': ['sklearn.svm.SVC']}
+    """
     if isinstance(raw, dict):
         return raw
     s = str(raw).strip()
-    if s.startswith("```"):
-        s = re.sub(r"^```[a-zA-Z0-9]*\s*", "", s)
-        s = re.sub(r"\s*```$", "", s).strip()
-    try:
-        return json.loads(s)
-    except json.JSONDecodeError:
-        start, end = s.find("{"), s.rfind("}")
-        if 0 <= start < end:
-            return json.loads(s[start : end + 1])
-        raise
+
+    candidates = []
+    # A fenced block is the model's own delimiter for "this is the answer", but
+    # a model may fence the plan AND fence an illustrative snippet after it, so
+    # collect every block rather than trusting the first or the last.
+    candidates += re.findall(r"```(?:[a-zA-Z0-9]*)\s*\n(.*?)```", s, re.S)
+
+    stripped = s
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```[a-zA-Z0-9]*\s*", "", stripped)
+        stripped = re.sub(r"\s*```$", "", stripped).strip()
+    candidates.append(stripped)
+
+    # Unfenced: try each '{' as a start rather than only the first, so a brace
+    # in the prose cannot poison the parse. Widest span first.
+    end = s.rfind("}")
+    candidates += [
+        s[start : end + 1]
+        for start, ch in enumerate(s)
+        if ch == "{" and 0 <= start < end
+    ]
+
+    fragment_seen = False
+    for cand in candidates:
+        try:
+            parsed = json.loads(cand.strip())
+        except json.JSONDecodeError:
+            continue
+        if _is_plan_shaped(parsed):
+            return parsed
+        fragment_seen = True
+
+    hint = (
+        " (parsed a JSON fragment but no top-level plan key — the response was "
+        "probably truncated at its output-token cap)"
+        if fragment_seen
+        else ""
+    )
+    raise json.JSONDecodeError(f"no plan-shaped JSON in LLM output{hint}", s, 0)
 
 
 # --- resolution --------------------------------------------------------------
@@ -310,6 +382,22 @@ def _ensure_seeded(est, seed=SEED):
     return est
 
 
+def _default_high_cardinality_encoder(seed=SEED):
+    """A fresh, seeded copy of skrub's TableVectorizer default high-card encoder.
+
+    The whole pipeline vectorizes through a ``skrub.TableVectorizer``; the
+    ``encoder`` stage only chooses its ``high_cardinality`` slot, and when the
+    plan gives none, the TableVectorizer's own default (``StringEncoder`` in
+    skrub 0.9) is used silently. Reading it from a fresh TableVectorizer keeps
+    this correct across skrub versions rather than hard-coding the class.
+
+    Example:
+        _default_high_cardinality_encoder()  # -> StringEncoder(random_state=42)
+    """
+    default = skrub.TableVectorizer().high_cardinality
+    return _ensure_seeded(type(default)(), seed)
+
+
 def _is_skip(name) -> bool:
     return name is None or (
         isinstance(name, str) and name.strip().lower() in _SKIP_TOKENS
@@ -334,6 +422,23 @@ def _clip(rng, rule):
     return low, high
 
 
+def _json_options(opts):
+    """Coerce list-valued choice options to tuples.
+
+    JSON cannot express a tuple, so `{"choice": [[1, 1], [1, 2]]}` reaches us as
+    lists. sklearn validates several params as tuples specifically
+    (`ngram_range`, `RobustScaler.quantile_range`, `hidden_layer_sizes`, ...) and
+    raises `InvalidParameterError` on a list — the rollout scores 0.0 and the
+    option loses by forfeit rather than on merit. Params that accept a list
+    accept a tuple too, so the coercion is safe in the other direction.
+
+    Example:
+        _json_options([[1, 1], [1, 2]])   # -> [(1, 1), (1, 2)]
+        _json_options(["sqrt", "log2"])   # -> ['sqrt', 'log2']
+    """
+    return [tuple(o) if isinstance(o, list) else o for o in opts]
+
+
 def _build_choice(choice_name, llm_rule, rule):
     """Turn one allowed param + LLM range into a skrub choose_* node (or None)."""
     if not isinstance(llm_rule, dict):
@@ -344,6 +449,10 @@ def _build_choice(choice_name, llm_rule, rule):
         if low is None or low >= high:
             return None
         log = bool(llm_rule.get("log", rule.get("log", False)))
+        if log and low <= 0:
+            log = False  # skrub's choose_* rejects a log scale at low<=0; keep
+            # the param on a linear scale rather than raising (an LLM commonly
+            # pairs log=true with a 0.0 lower bound — e.g. learning_rate)
         if typ == "int":
             return skrub.choose_int(
                 int(low), int(high), log=log, name=choice_name
@@ -352,7 +461,7 @@ def _build_choice(choice_name, llm_rule, rule):
     if typ == "choice":
         allowed = rule["options"]
         wanted = llm_rule.get("choice") or llm_rule.get("options") or allowed
-        opts = [o for o in wanted if o in allowed] or allowed
+        opts = [o for o in _json_options(wanted) if o in allowed] or allowed
         return skrub.choose_from(opts, name=choice_name)
     return None
 
@@ -360,6 +469,11 @@ def _build_choice(choice_name, llm_rule, rule):
 # Params whose tuning would break the determinism invariant (seeded centrally
 # in `_ensure_seeded`), so they are never exposed as search dimensions.
 _RNG_PARAMS = frozenset({"random_state"})
+
+# skrub's DataOps carry pandas frames, which cannot hold a sparse matrix, so a
+# sparse-emitting transformer raises inside `build_staged_plan` and takes the
+# whole run down. Forced to False on any operator that accepts them.
+_SPARSE_PARAMS = frozenset({"sparse_output", "sparse"})
 
 
 def _accepts_param(cls, pname) -> bool:
@@ -380,6 +494,24 @@ def _accepts_param(cls, pname) -> bool:
         return True
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
         return True
+    return pname in params
+
+
+def _names_param(cls, pname) -> bool:
+    """True only if ``cls.__init__`` names ``pname`` explicitly.
+
+    Unlike ``_accepts_param`` this is False for a ``**kwargs`` constructor, so a
+    param can be *injected* rather than merely tolerated. LGBM/XGB swallow any
+    keyword, and forcing e.g. ``sparse_output`` on them would reach the booster.
+
+    Example:
+        _names_param(OneHotEncoder, "sparse_output")   # -> True
+        _names_param(LGBMClassifier, "sparse_output")  # -> False (**kwargs)
+    """
+    try:
+        params = inspect.signature(cls.__init__).parameters
+    except (TypeError, ValueError):
+        return False
     return pname in params
 
 
@@ -422,7 +554,7 @@ def _build_free_choice(choice_name, llm_rule):
         return skrub.choose_float(low, high, log=log, name=choice_name)
     opts = llm_rule.get("choice") or llm_rule.get("options")
     if isinstance(opts, list) and opts:
-        return skrub.choose_from(list(opts), name=choice_name)
+        return skrub.choose_from(_json_options(opts), name=choice_name)
     return None
 
 
@@ -447,17 +579,27 @@ def _make(path, params, seed, context):
     tunable = entry.get("tunable", {})
     kwargs = dict(entry.get("defaults", {}))
     for pname, llm_rule in (params or {}).items():
-        if pname in _RNG_PARAMS or not _accepts_param(cls, pname):
+        if pname in _RNG_PARAMS or pname in _SPARSE_PARAMS:
             continue  # omit this param, keep building the operator
+        if not _accepts_param(cls, pname):
+            continue
         name = f"{context}__{cls.__name__}__{pname}"
         rule = tunable.get(pname)
-        choice = (
-            _build_choice(name, llm_rule, rule)
-            if rule is not None
-            else _build_free_choice(name, llm_rule)
-        )
+        try:
+            choice = (
+                _build_choice(name, llm_rule, rule)
+                if rule is not None
+                else _build_free_choice(name, llm_rule)
+            )
+        except Exception:
+            choice = None  # a malformed range (skrub choose_* rejected it)
+            # drops just this param — never the operator, and never the whole
+            # resolve (which would silently kill an entire Option-3 injection)
         if choice is not None:
             kwargs[pname] = choice
+    for pname in _SPARSE_PARAMS:
+        if _names_param(cls, pname):
+            kwargs[pname] = False
     try:
         return _ensure_seeded(cls(**kwargs), seed)
     except Exception:
@@ -615,10 +757,20 @@ def _resolve_assemble(
             aux_schemas={"products": ["ID", "price"]}, main_columns=["ID", "x"])
         # -> [{"table": "products", "key": "ID", "operations": ["mean"], ...}]
     """
+    # A model sometimes emits a single dict instead of a list of them (the
+    # schema wants a list). Wrap it so it validates rather than iterating its
+    # keys — and, if its nested shape is still wrong, drops cleanly below
+    # instead of raising `unhashable type: dict` on `op in _AGG_OPERATIONS`.
+    if isinstance(entries, dict):
+        entries = [entries]
+
     out = []
     for cfg in entries or []:
         if not isinstance(cfg, dict):
             continue
+        operations_raw = cfg.get("operations") or []
+        if not all(isinstance(op, str) for op in operations_raw):
+            continue  # nested per-column groups etc. — not our flat schema
         table = cfg.get("table")
         if not aux_schemas or table not in aux_schemas:
             continue
@@ -727,6 +879,17 @@ def resolve_spec(
         out["clean_options"] = clean
     enc = _options_with_priors(spec.get("encoder_options"), False, "encoder")
     if enc:
+        # `encoder` is a REQUIRED stage (no auto-skip), so a single LLM option
+        # leaves it un-searchable. It sets the TableVectorizer's
+        # `high_cardinality` slot; the silent fallback when empty is skrub's own
+        # default (StringEncoder in 0.9). Add that default as a companion so the
+        # search can pick "skrub default vs the model's encoder" — appended, so
+        # the LLM's pick stays the root. Skipped when the single option already
+        # IS that default (nothing to compare against — genuinely un-repairable,
+        # so `single_option_stages` still flags it).
+        default_hc = _default_high_cardinality_encoder(seed)
+        if len(enc) == 1 and type(enc[0]) is not type(default_hc):
+            enc = [*enc, default_hc]
         out["encoder_options"] = enc
 
     scoped = _resolve_scoped(
@@ -760,6 +923,44 @@ def resolve_spec(
         priors["model"] = model_priors
     if priors:
         out["priors"] = priors
+
+    # Diagnostics: a malformed section resolves to nothing and vanishes with no
+    # error (the assemble dict-vs-list bug, encoder_options=["skip"]); a stage
+    # left with <2 options has no choice node and is not searched. Both are
+    # silent quality losses — surface them so the driver/summary can flag them.
+    dropped: list[str] = []
+    single_option: list[str] = []
+    _raw_present = {
+        "assemble": spec.get("assemble"),
+        "clean_options": spec.get("clean_options"),
+        "encoder_options": spec.get("encoder_options"),
+        "scoped_encodings": spec.get("scoped_encodings"),
+    }
+    for name, raw_val in _raw_present.items():
+        if raw_val and not out.get(name):
+            dropped.append(name)
+    for stage in spec.get("stages", []) or []:
+        nm = stage.get("name", "stage")
+        if stage.get("options") and not any(
+            s["name"] == nm for s in out.get("stages", [])
+        ):
+            dropped.append(f"stage:{nm}")
+    for name in ("clean_options", "encoder_options"):
+        opts = out.get(name)
+        if isinstance(opts, list) and len(opts) < 2:
+            single_option.append(name)
+    for stage in out.get("stages", []):
+        if len(stage.get("options") or []) < 2:
+            single_option.append(f"stage:{stage['name']}")
+    for grp in out.get("scoped_encodings", []):
+        # each scoped group gets an implicit skip at build, so <1 real option
+        # is the degenerate case
+        if len(grp.get("options") or []) < 1:
+            single_option.append(f"scope:{grp.get('name', '?')}")
+    if dropped:
+        out["dropped_sections"] = dropped
+    if single_option:
+        out["single_option_stages"] = single_option
     return out
 
 

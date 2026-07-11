@@ -317,8 +317,9 @@ def test_score_cache_bounds_cv_calls_across_slices():
     assert len(res["score_cache"]) <= 3 * 4 + 3 + 1
 
 
-# A single HP-tuned model: the only searchable dims are its hyperparameters,
-# so the bonus phase's single-edit neighbors are all HP edits here.
+# A single HP-tuned model. The lone encoder gains skrub's default companion
+# (resolver repair), so the searchable dims are its gated HPs PLUS the 2-option
+# encoder — the bonus phase refines both structure and HPs.
 _HP_RAW = {
     "encoder_options": ["skrub.GapEncoder"],
     "model": [
@@ -342,11 +343,15 @@ def test_bonus_phase_refines_incumbent_hps_after_main_budget():
     )
     # the bonus phase ran ceil(b/4) extra rollouts on the SAME persisted root
     assert res["root"].N == b + -(-b // 4)
-    # with a single model, every neighbor of the incumbent is a gated HP edit
+    # the bonus phase refines single-edit neighbors — gated HPs AND structural
+    # stages (the now-2-option encoder) — so every refined dim is a real search
+    # dimension, and at least one gated HP was among them
     gating = get_choice_gating(res["plan"])
-    assert res["refined_dims"] and all(
-        k in gating for k in res["refined_dims"]
+    assert res["refined_dims"]
+    assert all(
+        k in gating or k in res["action_space"] for k in res["refined_dims"]
     )
+    assert any(k in gating for k in res["refined_dims"])
     # HP space was actually explored: some evaluated config sets a gated HP
     assert any(k in gating for key in res["score_cache"] for k in dict(key))
 
@@ -418,3 +423,73 @@ def test_run_states_are_model_gated_canonical():
             if k in gating:
                 parent, activating = gating[k]
                 assert state.get(parent) == activating
+
+
+def test_booster_plan_rolls_out_at_full_n_jobs():
+    """CV fold-parallelism is inter-process (joblib), orthogonal to the
+    intra-process OpenMP double-init that segfaults boosters (that trigger is
+    the estimator's own n_jobs, pinned to 1 in REGISTRY). A booster plan must
+    therefore roll out end-to-end at the requested n_jobs without crashing."""
+    import numpy as np
+    import pandas as pd
+
+    from machine_learning_engineering.spec_resolver import resolve_spec
+
+    n = 200
+    rs = np.random.RandomState(0)
+    df = pd.DataFrame(
+        {"a": rs.rand(n), "b": [f"t{i % 5}" for i in range(n)],
+         "y": [i % 2 for i in range(n)]}
+    )
+    spec = resolve_spec(
+        {"model": ["lightgbm.LGBMClassifier"]}, task_type="classification"
+    )
+    out = run_search_loop(
+        spec, df, "y", scoring="accuracy", budget_per_step=6,
+        stratify=True, hp_refine=False, n_jobs=6,
+    )
+    assert out["best_score"] > 0.0  # searched + fit boosters, no segfault
+
+
+def test_proposal_injection_error_is_surfaced():
+    """A proposal that merges but won't resolve/build is dropped so the search
+    continues — but the reason is recorded, so an empty injected_options from a
+    FAILED injection is distinguishable from one where nothing was proposed."""
+    def fake_propose(plan_json, context):
+        return _EXTENSION  # a real, mergeable extension (Ridge + RobustScaler)
+
+    def failing_resolve(plan):
+        raise ValueError("simulated unresolvable extension")
+
+    res = run_search_loop(
+        _spec(),
+        _california(),
+        TARGET,
+        scoring="r2",
+        outer_steps=2,
+        budget_per_step=6,
+        propose=fake_propose,
+        raw_spec=RAW,
+        resolve=failing_resolve,
+    )
+
+    assert res["proposal_injection_error"] is not None
+    assert "simulated unresolvable extension" in res["proposal_injection_error"]
+    assert res["injected_options"] == []  # the failed injection was NOT applied
+
+
+def test_no_proposal_injection_error_when_injection_succeeds():
+    """Baseline: a resolvable proposal injects and leaves the error field None."""
+    res = run_search_loop(
+        _spec(),
+        _california(),
+        TARGET,
+        scoring="r2",
+        outer_steps=2,
+        budget_per_step=6,
+        propose=lambda plan_json, context: _EXTENSION,
+        raw_spec=RAW,
+        resolve=_resolve,
+    )
+    assert res["proposal_injection_error"] is None
+    assert res["injected_options"]  # it did inject

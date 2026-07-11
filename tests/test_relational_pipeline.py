@@ -346,3 +346,60 @@ def test_run_pipeline_relational_end_to_end_offline(rel_task_dir):
     assert "Auxiliary table 'aux'" in result["data_summary"]
     assert isinstance(result["best_search_score"], float)
     assert result["report"] is not None  # accuracy on the incumbent, aux passed
+
+
+def test_multi_table_assemble_offers_all_aggregates_and_composes():
+    """assemble is exclusive, so a multi-table task could use only ONE aux
+    join and silently drop the others (country-happiness needs all three).
+    A >=2-table plan now exposes an `all_aggregates` option that chains every
+    join, and it must add ALL aux columns, not just one table's."""
+    import numpy as np
+    import pandas as pd
+
+    from machine_learning_engineering.spec_resolver import resolve_spec
+    from machine_learning_engineering.skrub_ops import (
+        apply_state,
+        build_staged_plan,
+        get_action_space,
+        get_default_state,
+    )
+
+    n = 60
+    main = pd.DataFrame({"id": range(n), "y": [float(i % 3) for i in range(n)]})
+    aux_a = pd.DataFrame({"id": list(range(n)), "a": np.linspace(0, 1, n)})
+    aux_b = pd.DataFrame({"id": list(range(n)), "b": np.linspace(1, 0, n)})
+    aux = {"aux_a": aux_a, "aux_b": aux_b}
+
+    raw = {
+        "assemble": [
+            {"name": "a_mean", "table": "aux_a", "key": "id",
+             "operations": ["mean"], "cols": ["a"]},
+            {"name": "b_mean", "table": "aux_b", "key": "id",
+             "operations": ["mean"], "cols": ["b"]},
+        ],
+        "model": ["sklearn.ensemble.RandomForestClassifier"],
+    }
+    spec = resolve_spec(
+        raw,
+        task_type="classification",
+        aux_schemas={"aux_a": ["id", "a"], "aux_b": ["id", "b"]},
+        main_columns=["id", "y"],
+    )
+    plan = build_staged_plan(spec, main, target="y", aux_tables=aux)
+    space = get_action_space(plan)
+    assert "all_aggregates" in space["assemble"]
+
+    # the chained joiner must surface BOTH aux columns' aggregates, not one
+    import skrub
+
+    from machine_learning_engineering.skrub_ops import _ChainedAggJoiner
+
+    chained = _ChainedAggJoiner(
+        [
+            skrub.AggJoiner(aux_a, ["mean"], key="id", cols=["a"]),
+            skrub.AggJoiner(aux_b, ["mean"], key="id", cols=["b"]),
+        ]
+    )
+    out = chained.fit_transform(main)
+    cols = " ".join(map(str, out.columns))
+    assert "a" in cols and "b" in cols  # both tables composed, not just one

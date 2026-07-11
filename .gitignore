@@ -14,3 +14,4 @@ temp/
 
 # Pipeline run artifacts (presentation outputs)
 runs/
+sweeps/
