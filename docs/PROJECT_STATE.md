@@ -23,7 +23,7 @@ estimator's own OpenMP, not joblib forking); `--n-jobs` CLI + `NJOBS` make var**
 **two-provider env scheme (`PROVIDER=google|school`) live-validated on GWDG's
 qwen3.5-397b** (16k LiteLlm max_tokens for reasoning models, search hints
 stripped off-Gemini, `make probe-school`). Offline suite: **pytest tests/ green**
-(292 passed, 1 skipped — the gated live Gemini smoke; ~3.5 min with n_jobs=6).
+(292 passed, 1 skipped — the gated live Gemini smoke; ~2 min with CV n_jobs=6).
 Option-3 proposer is now provider-agnostic (Gemini or school/OpenAI-compat, same
 env switch as the agents) — PROVIDER=school has full Option-3 parity, validated
 live on qwen3.5-397b (injected KMeans/QuantileTransformer/Spline). A malformed

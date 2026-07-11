@@ -12,21 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # Tree artifacts are written here (a gitignored scratch dir at the repo root).
 ARTIFACT_DIR = Path(__file__).resolve().parent.parent / "temp"
 
-# Import the module file directly so the test does not trigger
-# machine_learning_engineering/__init__.py (which requires API credentials).
-import importlib.util
-
-_spec = importlib.util.spec_from_file_location(
-    "mcts",
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "machine_learning_engineering",
-        "mcts.py",
-    ),
-)
-mcts = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(mcts)
+from machine_learning_engineering import mcts
 
 
 ACTION_SPACE = {

@@ -9,7 +9,6 @@ model, the step is invisible to the search (no new choice), and a booster
 scores through a plan whose encoder produces dirty names.
 """
 
-import importlib.util
 import os
 import sys
 
@@ -21,15 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 skrub = pytest.importorskip("skrub")
 
-_BASE = os.path.join(
-    os.path.dirname(__file__), "..", "machine_learning_engineering"
-)
-_spec = importlib.util.spec_from_file_location(
-    "skrub_ops", os.path.join(_BASE, "skrub_ops.py")
-)
-skrub_ops = importlib.util.module_from_spec(_spec)
-sys.modules[_spec.name] = skrub_ops
-_spec.loader.exec_module(skrub_ops)
+from machine_learning_engineering import skrub_ops
 
 
 # --- _safe_names (pure) -------------------------------------------------------

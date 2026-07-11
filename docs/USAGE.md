@@ -26,7 +26,7 @@ Create a `.env` file in the project root for the API keys (only needed for the
 ## Quick start
 
 ```bash
-make test                       # 1. run the offline test suite (no API, ~3.5 min)
+make test                       # 1. run the offline test suite (no API, ~2 min)
 make probe                      # 2. check your Google/Gemini key has quota
 make run-live TASK=california-housing-prices BUDGET=40   # 3. a real run
 ```
@@ -47,7 +47,7 @@ make test-live     # same, plus one real Gemini smoke test (needs a key)
 
 **Expect:** a pytest progress bar ending in `292 passed, 1 skipped`. The 1
 skipped is the live Gemini test that only runs under `make test-live`. Takes
-~3.5 minutes. If this is green, the code is healthy — run it first whenever you
+~2 minutes. If this is green, the code is healthy — run it first whenever you
 pull changes.
 
 ### Probes — "is my API key working?"

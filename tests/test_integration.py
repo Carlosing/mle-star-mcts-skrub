@@ -15,7 +15,6 @@ exact scores:
   * per-iteration statistics update by the right amounts.
 """
 
-import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -29,23 +28,7 @@ ARTIFACT_DIR = Path(__file__).resolve().parent.parent / "temp"
 
 skrub = pytest.importorskip("skrub")
 
-_BASE = os.path.join(
-    os.path.dirname(__file__), "..", "machine_learning_engineering"
-)
-
-
-def _load(name):
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_BASE, f"{name}.py")
-    )
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-skrub_ops = _load("skrub_ops")
-mcts = _load("mcts")
+from machine_learning_engineering import mcts, skrub_ops
 
 from fixtures.golden_plan import build_golden_plan, make_toy_df
 

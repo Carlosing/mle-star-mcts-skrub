@@ -1,7 +1,6 @@
-"""Smoke tests for the skrub wrapper layer — run these INSIDE the Docker
-container (skrub is not installed on the host):
+"""Smoke tests for the skrub wrapper layer.
 
-    docker run --rm -v "$PWD":/app mle-star python -m pytest tests/test_skrub_ops.py -v
+    uv run python -m pytest tests/test_skrub_ops.py -v
 
 These pin down the skrub 0.9 API behavior the project depends on
 (see the module docstring in skrub_ops.py). If a skrub upgrade changes the
@@ -12,22 +11,13 @@ import os
 import sys
 
 import pytest
-import importlib.util
 from fixtures.golden_plan import build_golden_plan, make_toy_df
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 skrub = pytest.importorskip("skrub")
 
-
-_BASE = os.path.join(
-    os.path.dirname(__file__), "..", "machine_learning_engineering"
-)
-_spec = importlib.util.spec_from_file_location(
-    "skrub_ops", os.path.join(_BASE, "skrub_ops.py")
-)
-skrub_ops = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(skrub_ops)
+from machine_learning_engineering import skrub_ops
 
 
 @pytest.fixture(scope="module")
@@ -184,11 +174,7 @@ def test_pick_target_node_prefers_high_variance():
 
 
 def test_mcts_search_improves_over_default(plan, df):
-    _spec2 = importlib.util.spec_from_file_location(
-        "mcts", os.path.join(_BASE, "mcts.py")
-    )
-    mcts = importlib.util.module_from_spec(_spec2)
-    _spec2.loader.exec_module(mcts)
+    from machine_learning_engineering import mcts
 
     root_state = skrub_ops.get_state(plan)
     rollout = skrub_ops.make_rollout_fn(plan, df)

@@ -1081,7 +1081,7 @@ def make_rollout_fn(
     target: str | None = None,
     timeout_s: float | None = 60.0,
     n_subsample_seeds: int = 1,
-    n_jobs: int = 1,
+    n_jobs: int = 6,
 ) -> Callable[[dict], float]:
     """Build a rollout_fn(state) -> float for mcts.mcts_search.
 
@@ -1129,8 +1129,9 @@ def make_rollout_fn(
     determinism by giving slow encoders (GapEncoder on high-cardinality text)
     headroom under the cap.
 
-    `n_jobs` (default 1) is forwarded to sklearn's `cross_validate` to run CV
-    folds in parallel — a clean ~n-fold speedup on high-cardinality-text tasks.
+    `n_jobs` (default 6, matching `run_pipeline`/`run_search_loop`) is forwarded
+    to sklearn's `cross_validate` to run CV folds in parallel — a clean ~n-fold
+    speedup on high-cardinality-text tasks.
     It is inter-process (joblib forks each fold into its own address space), so
     it is SAFE with lightgbm/xgboost: their macOS-ARM double-libomp segfault
     comes from intra-process OpenMP threads (the ESTIMATOR's own n_jobs, pinned
@@ -1215,6 +1216,7 @@ def evaluate_full(
     main_var: str | None = None,
     scoring: str | None = None,
     stratify: bool = False,
+    n_jobs: int = 6,
 ) -> float:
     """Score a configuration on the FULL data — the final h(s), not a proxy.
 
@@ -1224,12 +1226,16 @@ def evaluate_full(
     is an sklearn scorer name (e.g. the task/report metric like
     "neg_root_mean_squared_error"); None keeps the estimator default.
     `stratify=True` for (imbalanced) classification — see `_cv_kwarg`.
+    `n_jobs` parallelizes the CV folds, as in `make_rollout_fn` (same default,
+    same booster-safety: inter-process, not intra-process OpenMP).
 
     Example:
         evaluate_full(plan, {"model": "GBM"}, df)  # -> 0.88  (full-data mean CV score)
     """
     apply_state(plan, state)
     cv_kwargs: dict = dict(_cv_kwarg(stratify, seed=42))
+    if n_jobs != 1:
+        cv_kwargs["n_jobs"] = n_jobs
     if df is not None:
         var_name = main_var or _single_var_name(plan)
         cv_kwargs["environment"] = {var_name: df, **(aux or {})}
