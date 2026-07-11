@@ -45,7 +45,7 @@ make test          # the full suite; agents are faked, so zero network calls
 make test-live     # same, plus one real Gemini smoke test (needs a key)
 ```
 
-**Expect:** a pytest progress bar ending in `289 passed, 1 skipped`. The 1
+**Expect:** a pytest progress bar ending in `292 passed, 1 skipped`. The 1
 skipped is the live Gemini test that only runs under `make test-live`. Takes
 ~3.5 minutes. If this is green, the code is healthy — run it first whenever you
 pull changes.

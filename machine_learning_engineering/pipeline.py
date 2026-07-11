@@ -555,7 +555,7 @@ def _main() -> None:
         type=int,
         default=20,
         help="MCTS evaluations per phase (20 small / 80 large; a further "
-        "ceil(budget/4) HP-refinement rollouts run after)",
+        "ceil(budget/4) focused-refinement rollouts run after)",
     )
     parser.add_argument(
         "--out",
@@ -571,7 +571,7 @@ def _main() -> None:
     parser.add_argument(
         "--refine",
         action="store_true",
-        help="enable LLM per-stage option injection (Option 3); needs --outer-steps>1",
+        help="enable LLM whole-plan extending injection (Option 3); needs --outer-steps>1",
     )
     parser.add_argument(
         "--n-proposes",

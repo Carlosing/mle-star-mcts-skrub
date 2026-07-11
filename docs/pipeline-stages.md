@@ -29,12 +29,19 @@ with **skip as its default outcome**, so an undecided stage means
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
 | 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
-| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims — conditional (model-gated) nesting is **shipped** (`get_choice_gating`), and a post-budget **HP-refinement bonus phase** (`search_loop`, `ceil(budget/4)` rollouts from the incumbent node) spends extra budget only on the incumbent model's untested HPs |
+| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims — conditional (model-gated) nesting is **shipped** (`get_choice_gating`), and a post-budget **focused-refinement bonus phase** (`search_loop`, `ceil(budget/4)` rollouts from the incumbent node) spends extra budget on all of the incumbent's single-edit neighbors, its gated HPs included |
 | 8 | **Post-process / ensemble** | `concat` (stacking), `if_else`, `match`, `apply_func` | ❌ future | Combine feature sets / predictions; conditional branches |
 
 Not pipeline stages, but relevant: `TableReport` and `column_associations` are
 **EDA** utilities — useful as *input to the LLM planner* (à la SELA's EDA
 stage), not as runtime transforms.
+
+`build_staged_plan` also inserts two **fixed, non-searchable** steps that are
+invisible to the action space: `_ScalarizeAggregates` right after the assemble
+stage (collapses the array cells `AggJoiner(operations="mode")` leaves on modal
+ties) and `_SanitizeColumns` just before the model (renames skrub's
+special-character feature names, which LightGBM/XGBoost reject). See
+[BUG_LEDGER.md](BUG_LEDGER.md) for the bugs behind both.
 
 ## Spec schema (the LLM "rich plan" hand-off)
 

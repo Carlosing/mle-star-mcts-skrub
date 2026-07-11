@@ -26,13 +26,23 @@ imports no LLM client at all.
 **The logic layer never imports an LLM client.** `mcts.py` / `skrub_ops.py` /
 `spec_resolver.py` / `search_loop.py` stay import-clean and offline-testable;
 the only lazy provider imports are inside `search_loop.make_llm_proposer`
-(`google.genai`) and `adk_agent._resolve_model` (`LiteLlm`, only on the
-non-Gemini path).
+(`google.genai` on a `gemini-*` model, `openai` otherwise — the Option-3
+proposer follows the same provider switch as the agents) and
+`adk_agent._resolve_model` (`LiteLlm`, only on the non-Gemini path).
 
 ## Choosing a provider (env only)
 
-Set the model + key in `.env` (see [`.env.example`](../.env.example)); the model
-id is the switch (`adk_agent._resolve_model`):
+`.env` holds both credential sets, prefixed `GOOGLE_*` and `SCHOOL_*`
+(`_ROOT_AGENT_MODEL` / `_API_KEY` / `_API_BASE`); `PROVIDER=google|school`
+(default `google`) picks which set is copied onto the canonical
+`ROOT_AGENT_MODEL` / `API_KEY` / `API_BASE` names before config loads
+(`machine_learning_engineering.__init__._select_provider`). A bare
+`ROOT_AGENT_MODEL` in an old `.env` still works. Note: the school model id
+MUST carry the `openai/` prefix (e.g. `openai/qwen3.5-397b-a17b`) or
+`_resolve_model` misroutes it. See [`.env.example`](../.env.example) and
+[USAGE.md](USAGE.md).
+
+The model id is the switch (`adk_agent._resolve_model`):
 
 | `ROOT_AGENT_MODEL` | Routes to | Key(s) | Web search |
 |---|---|---|---|
@@ -52,7 +62,18 @@ alongside other tools (the Gemini 1.x single-tool restriction does not apply —
 keep the model on 2.x). On the OpenAI/LiteLlm path there is no equivalent
 built-in tool, so the analyst simply runs without web search: an OpenAI-only
 contributor still gets the full analyst → plan_author → MCTS pipeline, just
-without the SOTA-lookup step.
+without the SOTA-lookup step. When search is off, the search-instruction
+fragments are also stripped from both agents' prompts, so the model is never
+told to use a tool it doesn't have.
+
+## Reasoning models (school endpoint)
+
+The capable school (GWDG) models are *reasoning* models: they burn output
+tokens thinking before the answer, and a low `max_tokens` ends them mid-thought
+with empty content → fallback spec. The LiteLlm path therefore sets
+`max_tokens=16384` by default (env override `LITELLM_MAX_TOKENS`). Probe what
+the endpoint currently serves with `make probe-school` (`SMOKE=1` health-checks
+each model).
 
 ## Deprecated: the standalone OpenAI `ManagerAgent`
 

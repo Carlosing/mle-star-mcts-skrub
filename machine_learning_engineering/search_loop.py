@@ -237,7 +237,7 @@ def run_search_loop(
     exhausted.) The dims actually edited during the phase are returned in
     `refined_dims`.
 
-    `timeout_s` (default 45s) caps each rollout's wall clock: a config whose CV
+    `timeout_s` (default 60s) caps each rollout's wall clock: a config whose CV
     runs longer scores 0.0, so a free-form HP range that makes one fit
     pathologically slow can't stall the search (see `skrub_ops._time_limit`).
 

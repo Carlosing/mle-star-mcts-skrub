@@ -102,8 +102,7 @@ def expand(
     is at the activating outcome in this node, and new states are canonicalized
     so inactive HPs are dropped. `target_key`, if given, restricts expansion to
     a single choice (Option 1 — lock all other stages) or, as a set/list of
-    names, to that group of choices (the HP-refinement bonus phase targets the
-    incumbent model's untested hyperparameters this way).
+    names, to that group of choices.
     """
     children = []
     if target_key is None:
@@ -167,8 +166,8 @@ def mcts_search(
     make the rated ones *less* attractive than their unseeded siblings.
     The first rollout after an expansion goes to the highest-UCT child.
     `gating`/`target_key` are forwarded to `expand` (model-gated HPs / stage
-    locking; `target_key` may be a set of names for the HP-refinement bonus
-    phase). `score_cache` memoizes `state_key -> reward`; deterministic
+    locking; `target_key` may be a set of names to lock all but a group of
+    choices). `score_cache` memoizes `state_key -> reward`; deterministic
     rollouts make this exact, so a config is evaluated at most once.
     `start_node`, if given, is where selection begins each iteration instead of
     the root — a descendant node lets a bonus phase explore *locally* around

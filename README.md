@@ -1,5 +1,15 @@
 # Machine Learning Engineering with Multiple Agents (MLE-STAR)
 
+> **⚠️ Fork note — read this first.** This README is the *upstream* MLE-STAR
+> template and describes the original Google agent, **not** what this repo
+> does. This fork adapts MLE-STAR into an **MCTS search over skrub DataOps
+> pipelines**: LLM agents author a JSON plan of operators + hyperparameter
+> ranges; a pure-code MCTS engine searches that space. Start at
+> [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) (status + roadmap),
+> [docs/USAGE.md](docs/USAGE.md) (how to run), and `CLAUDE.md` (architecture
+> and conventions). The upstream code paths described below (`agent.py`,
+> `sub_agents/`, `eval/`) are legacy and off the MCTS path.
+
 ## Overview
 
 The Machine Learning Engineering Agent is an approach to building Machine Learning Engineering (MLE) agents that can train state-of-the-art machine learning models on various tasks (including classification and regression tasks), through a novel approach of leveraging web search and targeted code block refinement. Using the example of predicting California housing prices, we show how MLE-STAR can create a regression model based on factors like population, income, etc. that outperforms traditional approaches to training ML models. The experimental results show that MLE-STAR achieves medals in 63.6% of the Kaggle competitions on the MLE-bench-Lite, significantly outperforming the best alternative. The implementation is based on the Google Cloud AI Research paper "MLE-STAR: Machine Learning Engineering Agent via Search and Targeted Refinement" (https://www.arxiv.org/abs/2506.15692).

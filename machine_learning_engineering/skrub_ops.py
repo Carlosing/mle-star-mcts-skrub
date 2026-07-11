@@ -51,7 +51,7 @@ def _time_limit(seconds: float | None):
     cannot preempt a single non-yielding C call.
 
     Example:
-        with _time_limit(45):          # aborts to _RolloutTimeout after 45s
+        with _time_limit(60):          # aborts to _RolloutTimeout after 60s
             plan.skb.cross_validate(...)
     """
     armable = (
@@ -473,7 +473,7 @@ class _ScalarizeAggregates(BaseEstimator, TransformerMixin):
     ``TableVectorizer`` then dies inside ``CleanNullStrings`` (pandas
     ``replace`` does ``operator.eq`` on the array -> "truth value of an empty
     array is ambiguous"). Every CV fold fails, so the whole assemble option
-    silently scores 0.0 — credit-fraud's ``basket_mode`` did exactly that.
+    silently scores 0.0.
 
     A fixed, non-searchable step right after the assemble stage (it adds no
     ``choose_from``, so the action space and gating are untouched). Ties are
@@ -893,12 +893,9 @@ def _profile_subsample_n(
 ) -> tuple[int, int]:
     """Size the rollout subsample from the data *profile*, not just row count.
 
-    Returns ``(n, floor)`` for `_stratified_subsample`. The old fixed rule
-    (``max(min_rows, 1% of rows)`` with a minority floor of 10) made rewards
-    near-noise on imbalanced data: credit-fraud at 1.25% positive gave ~6-10
-    positives in 500 rows, so CV folds tested on 1-2 each — observed directly
-    when a budget-80 run chased that noisy proxy to a WORSE held-out config
-    than budget-20. Profile-aware sizing:
+    Returns ``(n, floor)`` for `_stratified_subsample`. A fixed row-count rule
+    makes rewards near-noise on imbalanced data (at ~1% positive, 500 rows hold
+    ~6 minority rows, so CV folds test on 1-2 each). Profile-aware sizing:
 
     - imbalance: target ``floor = min(minority_count, 40)`` REAL minority rows
       (~8 per fold at 5 folds) and grow ``n`` toward ``floor / prevalence`` so

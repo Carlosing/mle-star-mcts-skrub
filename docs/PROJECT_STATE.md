@@ -23,7 +23,7 @@ estimator's own OpenMP, not joblib forking); `--n-jobs` CLI + `NJOBS` make var**
 **two-provider env scheme (`PROVIDER=google|school`) live-validated on GWDG's
 qwen3.5-397b** (16k LiteLlm max_tokens for reasoning models, search hints
 stripped off-Gemini, `make probe-school`). Offline suite: **pytest tests/ green**
-(285 passed, 1 skipped — the gated live Gemini smoke; ~3.5 min now with n_jobs=6).
+(292 passed, 1 skipped — the gated live Gemini smoke; ~3.5 min with n_jobs=6).
 Option-3 proposer is now provider-agnostic (Gemini or school/OpenAI-compat, same
 env switch as the agents) — PROVIDER=school has full Option-3 parity, validated
 live on qwen3.5-397b (injected KMeans/QuantileTransformer/Spline). A malformed
@@ -33,7 +33,9 @@ per-param guard in `_make`); a merge that still won't resolve is recorded in
 `result["proposal_injection_error"]` and surfaced in summary.md, so a failed
 injection is distinguishable from "proposer added nothing". Friend-facing usage
 guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=`/`DRIVER=`
-flags. Owed: `llm_calls` miscounts offline replay proposers as real calls._
+flags. Owed: `llm_calls` miscounts offline replay proposers as real calls.
+Historical bugs (symptom → cause → fix → test) are catalogued in
+[BUG_LEDGER.md](BUG_LEDGER.md)._
 
 ## Architecture — three layers
 
@@ -65,9 +67,9 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 | File | Role |
 |---|---|
 | `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook, DOT/ASCII viz) |
-| `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble` + a fixed `_SanitizeColumns` rename before the model so boosters accept skrub's special-character feature names), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`; profile-aware subsample sizing `_profile_subsample_n` — imbalance/high-cardinality grow it, capped at 2000; optional seed-averaged rewards `n_subsample_seeds`; per-rollout 45s wall-clock cap via `_time_limit`/`timeout_s` → slow config scores 0.0), `run_ablation`, `pick_target_node` |
-| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 **whole-plan extending injection** between slices (`propose(plan_json, context) -> extended plan`, merged strictly additively via `_merge_raw_plans`, re-resolved + rebuilt — injected operators arrive tuned), `make_llm_proposer` (≤ one Gemini call between slices); post-budget **focused-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over ALL its single-edit neighbors — `hp_refine=`, edited dims in `refined_dims`) |
-| `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`) is the safety envelope; free-form HP ranges (`_build_free_choice`) unless curated in `REGISTRY` (then clipped); per-param safety nets (`_accepts_param`, `_RNG_PARAMS`) drop unknown/RNG params without dropping the operator; `assemble` passthrough |
+| `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble` + a fixed `_SanitizeColumns` rename before the model so boosters accept skrub's special-character feature names), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`; profile-aware subsample sizing `_profile_subsample_n` — imbalance/high-cardinality grow it, capped at 2000; optional seed-averaged rewards `n_subsample_seeds`; per-rollout 60s wall-clock cap via `_time_limit`/`timeout_s` → slow config scores 0.0; CV folds parallel via `n_jobs`, default 6), `run_ablation`, `pick_target_node` |
+| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 **whole-plan extending injection** between slices (`propose(plan_json, context) -> extended plan`, merged strictly additively via `_merge_raw_plans`, re-resolved + rebuilt — injected operators arrive tuned), `make_llm_proposer` (≤ one provider call between slices — native Gemini or OpenAI-compatible, same env switch as the agents); post-budget **focused-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over ALL its single-edit neighbors — `hp_refine=`, edited dims in `refined_dims`) |
+| `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`/`lightgbm`/`xgboost`) is the safety envelope; free-form HP ranges (`_build_free_choice`) unless curated in `REGISTRY` (then clipped); per-param safety nets (`_accepts_param`, `_RNG_PARAMS`) drop unknown/RNG params without dropping the operator; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `build_root_agent` factory; `_resolve_model` env-switches native Gemini vs `LiteLlm` (OpenAI/compatible); `google_search` attached only on the Gemini path |
 | `metrics.py` | search-reward scorer (per task; adopts a bounded task metric like roc_auc) vs report metric (competition) |
@@ -76,7 +78,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 | `scripts/stage_credit_fraud.py` | stages the relational credit-fraud task under `tasks/` (`make stage-credit-fraud`) |
 | `run_logging.py` | sanity log of prompts+outputs to JSONL (`log_dir`) |
 | `agent.py`, `sub_agents/`, `eval/` | **deprecated** standalone OpenAI `ManagerAgent` template (OpenAI now runs *through* ADK via `LiteLlm`; decoupled, **off the MCTS path**) |
-| `probe_gemini.py` | standalone model/quota probe |
+| `probe_gemini.py`, `probe_school.py` | standalone model/quota probes (Gemini; GWDG school endpoint) |
 
 ---
 
@@ -98,14 +100,16 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
   mines per-stage deltas from the persisted tree (no fresh rollouts), `pick_target_node`
   chooses the highest-variance stage, `target_key` locks the rest and refocuses expansion
   on that stage (`test_targeting_picks_an_operator_stage`, `test_target_key_restricts_expansion`).
-  This is the *between-slice, stage-level* targeting; the *post-budget* targeting that
-  focuses on the incumbent model's hyperparameters is the **HP-refinement bonus phase**
-  below (`expand` now accepts a *set* of target keys, and `mcts_search` a `start_node`).
-- ✅ **Option 3 — LLM per-stage option injection** — after targeting, one proposer call/outer
-  step suggests new operator paths for the target stage; `_inject` allow-lists + de-dupes
-  them, the plan is rebuilt, and search continues on the same tree. **A run keeps a pipeline
+  This is the *between-slice, stage-level* targeting; the *post-budget* local search
+  around the incumbent is the **focused-refinement bonus phase** (see Pre-ship upgrades
+  item 2; `expand` accepts a *set* of target keys, and `mcts_search` a `start_node`).
+- ✅ **Option 3 — LLM option injection between slices** — with a proposer, one call per
+  outer step extends the plan mid-search; the LLM never enters the inner loop
+  (≤ `outer_steps - 1` calls total; `make_llm_proposer`). **A run keeps a pipeline
   containing an option not in the original plan** (`test_run_keeps_an_option_not_in_the_plan`).
-  The LLM never enters the inner loop (≤ `outer_steps` calls total; `make_llm_proposer`).
+  Originally per-stage path injection (`_inject`); replaced 2026-07-10 by the
+  **whole-plan extending injection** (Pre-ship upgrades item 1) — the proposer now
+  returns a whole extended plan with HP ranges, merged additively via `_merge_raw_plans`.
 
 **Logic + agent layers (pre-existing, still green)**
 - ✅ **skrub layer** — staged plan build, action space, `apply_state`, seeded rollouts, `run_ablation`.
@@ -168,7 +172,10 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
   string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_encoder_options_have_tuned_hps`.)
 
 **Week 2 — follow-ups (landed 2026-07-07, all offline-tested)**
-- ✅ **HP-refinement bonus phase** — after the main budget, `run_search_loop`
+- ✅ **HP-refinement bonus phase** *(superseded 2026-07-10 by the focused-refinement
+  phase — Pre-ship upgrades item 2 — which explores ALL single-edit neighbors of the
+  incumbent, not just its HPs, and reports `refined_dims` instead of `hp_refined`)* —
+  after the main budget, `run_search_loop`
   spends `ceil(total/4)` extra rollouts starting selection at the incumbent
   node (`mcts.start_node` local descent; UCT + backprop unchanged) and
   restricting expansion to the incumbent model's *active, still-untested*
@@ -209,9 +216,9 @@ Run live pipeline: `make run-live BUDGET=20` (small) / `BUDGET=80` (large) · wi
 
 ## What's left to implement — prioritized, with timeline
 
-We are at **end of Week 1 (~Jul 1)**; deadline **Tue Jul 15, 18:00**. Week 1 landed on
-schedule, so the remaining work is Week 2 (second axis + amplifiers + sweeps) and Week 3
-(evaluation + writeup). Judged by the invariant: *reduces rollouts / adds a real flexibility
+We are in **Week 3 (evaluation + writeup)**; deadline **Tue Jul 15, 18:00**. Weeks 1–2
+landed on schedule (feature freeze passed 2026-07-09; pre-ship upgrades 2026-07-10), so
+what remains is the evaluation, figures and writeup below. Judged by the invariant: *reduces rollouts / adds a real flexibility
 axis without moving the LLM into the inner loop.*
 
 ### Week 2 — second axis + amplifiers + experimentation (Jul 3 – Jul 9)
@@ -235,13 +242,13 @@ Remaining notes:
   report 0.5781, top-3 ensemble 0.6032 (beats the single incumbent). Assemble stayed
   `"skip"` in the final incumbent this run (explored but not converged on within
   budget 15×3) — a longer/bigger live run is the natural next check, not a bug.
-- **Known residual issue (non-blocking):** some individual CV folds during the live
-  run still raise `ValueError: y should be a 1d array, got shape (100, 2)` from the
-  `roc_auc` scorer — a different failure mode than the stratified-CV fix above (looks
-  like a train fold with too few positives for `StratifiedKFold` to fully balance,
-  or skrub's own scoring wrapper not slicing predict_proba the way sklearn's builtin
-  scorer does). `pandas.Series.mean()` skips the NaN'd fold so it doesn't zero the
-  run, but it deserves a closer look before the Week-3 write-up.
+- ~~**Known residual issue:** some CV folds raise `ValueError: y should be a 1d
+  array, got shape (100, 2)` from the `roc_auc` scorer.~~ ✅ Root-caused and fixed
+  2026-07-08: skrub's learner reports `_estimator_type == "transformer"`, so sklearn's
+  builtin scorer never reduced a binary `predict_proba` to the positive column —
+  proba-only classifiers (RF/LGBM/XGB) silently scored 0.0 on roc_auc tasks. Fixed in
+  `skrub_ops._resolve_scoring` (positive-column callable). See
+  [BUG_LEDGER.md](BUG_LEDGER.md).
 
 4. ~~**Experimentation harness + sweeps (the A-grade differentiator).**~~ ✅ done Jul 7:
    `machine_learning_engineering/sweep.py` runs a JSON sweep spec (`sweeps/example.json`;
@@ -355,7 +362,7 @@ future work. **Protect Week-3 evaluation time above any single feature.**
 - **Structured JSON plan, not code-gen** — no `eval` of model output, central
   seeding (determinism MCTS needs), schema-validated, MCTS-friendly named choices.
 - **Import-level allow-list** (not dynamic import) — the safety envelope is the
-  import root (`sklearn`/`skrub`), so a hallucinated/unlisted operator is dropped,
+  import root (`sklearn`/`skrub`/`lightgbm`/`xgboost`), so a hallucinated/unlisted operator is dropped,
   never executed. HP ranges are free-form (used as given) unless the param is
   curated in `REGISTRY` (then clipped); a param the class can't accept, or an
   RNG-identity param, is dropped individually without dropping the operator.

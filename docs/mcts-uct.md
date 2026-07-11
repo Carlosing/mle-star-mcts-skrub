@@ -76,13 +76,14 @@ toward promising *regions* of the config space, not just individual points.
 - **Targeting narrows what `expand` grows, not where selection starts.** The
   outer loop (`search_loop.py`) can pass `target_key` — a single choice name,
   or a *set* of them — so `expand` only edits those stages while UCT selection
-  and backprop are untouched. The **HP-refinement bonus phase** additionally
+  and backprop are untouched. The **focused-refinement bonus phase** instead
   passes `start_node` so selection *descends from the incumbent node* rather
-  than the root, spending a final `ceil(budget/4)` rollouts locally on the
-  incumbent model's untested hyperparameters (backprop still walks the full
-  path to the root, so global `Q/N` stays consistent). Gating guarantees it
-  only ever tunes the incumbent's own model. This is the deterministic form of
-  the "biased HP exploration" the stage-targeting was originally conceived for.
+  than the root, spending a final `ceil(budget/4)` rollouts locally on ALL of
+  the incumbent's single-edit neighbors — structural stages and gated HPs
+  alike (backprop still walks the full path to the root, so global `Q/N`
+  stays consistent; gating still keeps a non-selected model's HPs out). This
+  is the deterministic form of the "biased exploration around the best
+  config" the stage-targeting was originally conceived for.
 
 ## Optimization-MCTS, not game-MCTS
 
@@ -126,9 +127,10 @@ There is a design fork worth being explicit about:
   level commits one more choice, only leaves are fully specified, and interior
   nodes need a rollout. Depth = number of parameters.
 - **Edit-distance / local search** (what our `expand` actually builds): every
-  node is a *complete* config — `expand` starts from `describe_defaults()` and
-  changes one key — edges are single-parameter edits, and depth = number of
-  edits from the seed. Every node is evaluable.
+  node is a *complete* config — the root is the plan's default config
+  (`skrub_ops.get_default_state`) and `expand` changes one key — edges are
+  single-parameter edits, and depth = number of edits from the seed. Every
+  node is evaluable.
 
 Our code currently uses the second. "Descending the subtree" therefore means
 "making more single-parameter edits to the config," and there are no terminal
@@ -167,8 +169,9 @@ case, where a leaf whose single-edit neighbours are all already tried is
 re-selected and its state re-evaluated; the persisted **score cache**
 (`mcts_search`'s `score_cache`) makes that a free lookup rather than a repeated
 rollout, so those iterations cost nothing but a UCT bookkeeping update. (The
-HP-refinement bonus phase leans on exactly this: once the incumbent's untested
-HPs are exhausted, remaining bonus rollouts are cache hits.)
+focused-refinement bonus phase leans on exactly this: once the incumbent's
+untested single-edit neighbors are exhausted, remaining bonus rollouts are
+cache hits.)
 
 ### Extensions worth knowing (optimization-specific)
 

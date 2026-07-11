@@ -7,27 +7,31 @@ one call and run in seconds. For the full status + roadmap see
 
 ## Where the project is right now
 
-**Working & tested** (`uv run python -m pytest tests/ -q`):
+**Working & tested** (`make test`):
 
 - **MCTS engine** ([mcts.py](../machine_learning_engineering/mcts.py)) — UCT
-  select / expand / backprop, persistent tree, optional LLM-prior hook. Pure
-  Python, no skrub/LLM needed.
+  select / expand / backprop, persistent tree, score cache, model-gated HPs,
+  optional LLM-prior hook. Pure Python, no skrub/LLM needed.
 - **skrub layer** ([skrub_ops.py](../machine_learning_engineering/skrub_ops.py))
-  — action space, apply-config, seeded rollouts (configurable scoring), ablation.
+  — action space, apply-config, seeded profile-aware rollouts, ablation.
 - **Constructive staged pipeline** (`build_staged_plan`) — searches the
   *construction* of a pipeline across stages:
-  **assemble (relational join) → clean → encode → scale → feature-eng → model**.
+  **assemble (relational join) → clean → scope → encode → scale →
+  feature-eng → model → hyperparameters**.
   See [docs/pipeline-stages.md](pipeline-stages.md).
-- **Agent layer (ADK + native Gemini)** — `data_analyst` → `plan_author`
+- **Agent layer (ADK, two providers)** — `data_analyst` → `plan_author`
   ([adk_agent.py](../machine_learning_engineering/adk_agent.py)) author a rich
-  JSON plan; `spec_resolver` resolves it to seeded estimators **with
-  hyperparameter choices** (allowed-list only, no `eval`).
+  JSON plan on native Gemini or an OpenAI-compatible endpoint
+  (`PROVIDER=google|school`, see [agent-architecture.md](agent-architecture.md));
+  `spec_resolver` resolves it to seeded estimators **with hyperparameter
+  choices** (import allow-list only, no `eval`).
 - **End-to-end driver** ([pipeline.py](../machine_learning_engineering/pipeline.py))
-  — `run_pipeline`: task → data digest → agents → resolve → MCTS search → report.
-  The LLM now authors plans; the hand-written menu is no longer required.
+  — `run_pipeline`: task → data digest → agents → resolve → MCTS search
+  (Option 1 targeting, Option 3 injection, focused refinement, top-k
+  ensemble) → report.
 
-See [PROJECT_STATE.md](PROJECT_STATE.md) for what's left (conditional HP nesting,
-LLM prior, ablation loop, relational/ensemble).
+[PROJECT_STATE.md](PROJECT_STATE.md) is the canonical status; what's left is
+Week-3 evaluation and writeup.
 
 ## What the demo shows
 
@@ -54,7 +58,20 @@ Pick datasets that **exercise the capabilities above** and stay small:
 - ⚠️ Avoid: huge datasets, image/audio, anything needing heavy text embedding
   (TextEncoder pulls in torch — slower, save for later).
 
-## Recommended datasets (all built into skrub — one-call load)
+## Recommended datasets
+
+All 13 demo datasets are already **staged as task dirs** under
+`machine_learning_engineering/tasks/<name>/` (`train.csv`, `test.csv`,
+optional `aux_*.csv`, `task_description.txt`) by
+[scripts/stage_tasks.py](../scripts/stage_tasks.py) /
+`make stage-credit-fraud` — run them directly with
+`make run-live TASK=<name>` or offline with `make run-claude TASK=<name>`
+(see [USAGE.md](USAGE.md) for the full task list and commands). Note that
+three relational tasks (`country-happiness`, `flight-delays`, `movielens`)
+are machinery stress tests, not performance benchmarks — on the latter two
+every config scores r2 < 0.
+
+The originals are skrub built-ins, one call to load:
 
 ```python
 from skrub.datasets import fetch_employee_salaries, fetch_credit_fraud  # etc.
@@ -67,7 +84,7 @@ from skrub.datasets import fetch_employee_salaries, fetch_credit_fraud  # etc.
 | `fetch_midwest_survey` | classification | ~2.7k | Small, messy categoricals → clean + encode + model flow |
 | `fetch_california_housing` | regression | ~20k (subsample) | All-numeric → feature-engineering + model-choice (enrichment) demo; already our default task |
 | `fetch_bike_sharing` | regression | ~17k (subsample) | Datetime features → DatetimeEncoder |
-| `fetch_country_happiness` | regression | tiny | Fast smoke tests |
+| `fetch_country_happiness` | regression | tiny | Fast smoke tests; staged as relational (all signal via aggregate joins) |
 
 **Suggested split:** `fetch_employee_salaries` (encoder choice) +
 `fetch_credit_fraud` (relational assemble) cover our two headline capabilities;
@@ -103,7 +120,5 @@ For relational (`fetch_credit_fraud`), pass the auxiliary table:
 Notes:
 - `HistGradientBoosting*` is the fast default model (uses all cores via OpenMP);
   prefer it over plain `GradientBoosting`.
-- Keep it small: rollouts subsample to ~500 rows by default and are seeded, so
-  scores are reproducible.
-- The notebook [dataops_playground.ipynb](../notebooks/dataops_playground.ipynb)
-  is the easiest place to poke at any dataset interactively.
+- Keep it small: rollouts subsample to ~500–2000 rows (profile-aware — imbalance
+  and high-cardinality text grow it) and are seeded, so scores are reproducible.
