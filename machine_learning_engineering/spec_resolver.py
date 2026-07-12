@@ -34,6 +34,7 @@ import json
 import math
 import re
 
+import json_repair
 import skrub  # needed for choose_* nodes
 
 SEED = 42
@@ -287,6 +288,46 @@ def _is_plan_shaped(obj) -> bool:
     return isinstance(obj, dict) and bool(_PLAN_KEYS & obj.keys())
 
 
+def _relax_py_literals(text: str) -> str:
+    """Map Python constants to JSON *outside* string contents.
+
+    A model (esp. reasoning models via the OpenAI-compatible path) often emits
+    ``None`` / ``True`` / ``False`` where JSON wants ``null`` / ``true`` /
+    ``false`` — e.g. ``{"class_weight": {"choice": ["balanced", None]}}`` — which
+    fails ``json.loads`` outright. Splitting on double-quoted spans keeps the
+    substitution off any string that legitimately contains those words, and off
+    ``json_repair`` too, which would otherwise turn a bare ``None`` into the
+    STRING ``"None"`` (a semantically wrong class_weight, not JSON ``null``).
+
+    Example:
+        _relax_py_literals('{"a": None, "b": "None here"}')
+        # -> '{"a": null, "b": "None here"}'
+    """
+    parts = re.split(r'("(?:[^"\\]|\\.)*")', text)
+    for i in range(0, len(parts), 2):  # even indices are outside strings
+        parts[i] = re.sub(r"\bNone\b", "null", parts[i])
+        parts[i] = re.sub(r"\bTrue\b", "true", parts[i])
+        parts[i] = re.sub(r"\bFalse\b", "false", parts[i])
+    return "".join(parts)
+
+
+def _brackets_balanced(text: str) -> bool:
+    """True if ``{}``/``[]`` structural brackets balance (outside strings).
+
+    A truncated response (model hit its output-token cap mid-object) leaves
+    brackets OPEN; a complete-but-malformed one (trailing comma, single quotes,
+    Python constants) balances. We only hand the balanced ones to ``json_repair``
+    so it never fabricates closing structure for a genuinely cut-off response —
+    that still fails to parse and is rejected as a truncated fragment.
+    """
+    parts = re.split(r'("(?:[^"\\]|\\.)*")', text)
+    opens = closes = 0
+    for i in range(0, len(parts), 2):
+        opens += parts[i].count("{") + parts[i].count("[")
+        closes += parts[i].count("}") + parts[i].count("]")
+    return opens > 0 and opens == closes
+
+
 def parse_spec_json(raw):
     """Parse LLM output into a plan dict, tolerating ```json fences and prose.
 
@@ -295,6 +336,13 @@ def parse_spec_json(raw):
     the text, and a brace-scan will happily return one — `{"float": [0.7, 1.0]}`
     silently became "the extended plan" and Option 3 no-op'd with no error.
     A fragment now raises instead, so the caller can retry or fail loudly.
+
+    Strict `json.loads` is the happy path. Only when NO candidate parses
+    strictly does a repair pass run: Python constants are normalized
+    (`_relax_py_literals`), and any *complete* (bracket-balanced) candidate is
+    additionally passed through `json_repair` (trailing commas, single quotes,
+    unquoted keys). Truncated candidates stay unbalanced, so they are never
+    repaired into a fake plan — the fragment rejection is preserved.
 
     Example:
         >>> parse_spec_json('Ranges like {"int": [1, 9]} are typical.\\n'
@@ -336,6 +384,23 @@ def parse_spec_json(raw):
             return parsed
         fragment_seen = True
 
+    # Repair pass: no candidate parsed strictly. Fix Python constants, and hand
+    # only COMPLETE candidates to json_repair (see `_brackets_balanced`), so a
+    # truncated response is never fabricated into a plan.
+    for cand in candidates:
+        text = _relax_py_literals(cand.strip())
+        try:
+            parsed = json.loads(text)  # constants-only issue -> now valid
+        except json.JSONDecodeError:
+            if not _brackets_balanced(text):
+                continue  # truncated -> leave it for the fragment error below
+            try:
+                parsed = json_repair.loads(text)
+            except Exception:
+                continue
+        if _is_plan_shaped(parsed):
+            return parsed
+
     hint = (
         " (parsed a JSON fragment but no top-level plan key — the response was "
         "probably truncated at its output-token cap)"
@@ -348,6 +413,60 @@ def parse_spec_json(raw):
 # --- resolution --------------------------------------------------------------
 
 _XGB_CLASSIFIER_SHIM = None
+
+# One resident sentence-transformers backbone per distinct load key, shared
+# across every clone of the TextEncoder shim below (see `_text_encoder_shim`).
+_TEXT_ENCODER_SHIM = None
+_TEXT_BACKBONE_CACHE: dict = {}
+
+
+def _text_encoder_shim():
+    """A ``skrub.TextEncoder`` that shares ONE loaded backbone per model+device.
+
+    skrub builds the ``SentenceTransformer`` in a *per-instance*
+    ``functools.cached_property`` (``_estimator``), so every ``clone()`` — one
+    per CV fold, per subsample seed, per rollout — reloads the ~130 MB weights
+    from disk (and each forked CV worker re-loads its own copy). This subclass
+    memoizes the loaded backbone in a MODULE-level dict keyed by the
+    load-determining params, so N distinct ``model_name`` s coexist (each loaded
+    once) and a repeated config reuses the resident model. The class name stays
+    ``TextEncoder`` so action-space labels / gating are unchanged, and it is a
+    genuine ``skrub.TextEncoder`` subclass — still ``make_learner``-able, so the
+    shipped incumbent stays a pure skrub DataOps operator. Imported lazily (and
+    cached) so this module stays importable without sentence-transformers.
+
+    Example:
+        cls = _text_encoder_shim()
+        a = cls(model_name="intfloat/e5-small-v2")
+        b = cls(model_name="intfloat/e5-small-v2")  # clone-like second instance
+        a._estimator is b._estimator                # -> True (one resident load)
+    """
+    global _TEXT_ENCODER_SHIM
+    if _TEXT_ENCODER_SHIM is not None:
+        return _TEXT_ENCODER_SHIM
+    import skrub
+
+    # The base builds + returns the SentenceTransformer (and, as a side effect,
+    # sets self._cache_folder); reuse that construction verbatim on a miss.
+    _base_build = skrub.TextEncoder.__dict__["_estimator"].func
+
+    class TextEncoder(skrub.TextEncoder):
+        @property
+        def _estimator(self):
+            key = (
+                self.model_name,
+                self.device,
+                self.cache_folder,
+                self.token_env_variable,
+            )
+            est = _TEXT_BACKBONE_CACHE.get(key)
+            if est is None:
+                est = _base_build(self)
+                _TEXT_BACKBONE_CACHE[key] = est
+            return est
+
+    _TEXT_ENCODER_SHIM = TextEncoder
+    return _TEXT_ENCODER_SHIM
 
 
 def _xgb_classifier_shim():
@@ -647,6 +766,8 @@ def _make(path, params, seed, context):
         return None
     if path == "xgboost.XGBClassifier":
         cls = _xgb_classifier_shim()  # string-label safety, same class name
+    if path == "skrub.TextEncoder":
+        cls = _text_encoder_shim()  # one resident backbone per model, same name
     # Sparse-output screen: an sklearn transformer that emits scipy-sparse (the
     # text vectorizers) cannot live in skrub's pandas DataOps and crashes
     # build_staged_plan. Drop it here instead. Only sklearn-rooted transformer

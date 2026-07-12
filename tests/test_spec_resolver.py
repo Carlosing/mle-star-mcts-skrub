@@ -204,6 +204,60 @@ def test_operator_with_missing_optional_dep_is_dropped(monkeypatch):
     assert any(isinstance(o, skrub.MinHashEncoder) for o in opts)
 
 
+def test_text_encoder_routed_to_shim():
+    # skrub.TextEncoder resolves to the caching subclass, not the stock class —
+    # same class name (so action-space labels/gating are unchanged) but a
+    # genuine skrub.TextEncoder subclass. No model is loaded here: _make only
+    # constructs the operator; the backbone loads lazily at fit.
+    spec = resolve_spec(
+        {
+            "stages": [{"name": "text", "options": ["skrub.TextEncoder"]}],
+            "model": ["sklearn.ensemble.RandomForestRegressor"],
+        }
+    )
+    (enc,) = spec["stages"][0]["options"]
+    assert isinstance(enc, skrub.TextEncoder)
+    assert type(enc).__name__ == "TextEncoder"
+    assert type(enc) is not skrub.TextEncoder  # the shim subclass
+
+
+def test_text_encoder_shim_shares_one_backbone_per_model(monkeypatch):
+    # The shim memoizes the loaded backbone in a MODULE-level dict keyed by the
+    # load-determining params, so two distinct model_names coexist (each loaded
+    # once) and a repeat config reuses the resident model. Sentinels stand in
+    # for real SentenceTransformers, so nothing is downloaded.
+    cls = spec_resolver._text_encoder_shim()
+    cache = {}
+    monkeypatch.setattr(spec_resolver, "_TEXT_BACKBONE_CACHE", cache)
+    sentinel_a, sentinel_b = object(), object()
+    cache[("model-a", None, None, None)] = sentinel_a
+    cache[("model-b", None, None, None)] = sentinel_b
+
+    a1 = cls(model_name="model-a")
+    a2 = cls(model_name="model-a")  # a "clone" — different instance, same key
+    b1 = cls(model_name="model-b")
+    assert a1._estimator is sentinel_a
+    assert a2._estimator is sentinel_a  # reused, not reloaded per instance
+    assert b1._estimator is sentinel_b  # a different model coexists
+
+
+def test_plan_has_text_encoder_detection(monkeypatch):
+    enc = spec_resolver._text_encoder_shim()(model_name="model-a")
+
+    class _FakeChoice:
+        outcomes = [None, enc]
+
+    class _PlainChoice:
+        outcomes = ["GBM", "RF"]
+
+    monkeypatch.setattr(skrub_ops._ev, "choices", lambda plan: {0: _PlainChoice()})
+    assert skrub_ops.plan_has_text_encoder(object()) is False
+    monkeypatch.setattr(
+        skrub_ops._ev, "choices", lambda plan: {0: _PlainChoice(), 1: _FakeChoice()}
+    )
+    assert skrub_ops.plan_has_text_encoder(object()) is True
+
+
 def test_strict_raises_on_unknown():
     with pytest.raises(ValueError):
         resolve_spec(
@@ -400,6 +454,41 @@ def test_parse_json_rejects_a_fragment_from_a_truncated_response():
     )
     with pytest.raises(json.JSONDecodeError, match="truncated"):
         parse_spec_json(truncated)
+
+
+def test_parse_json_relaxes_python_none_literal():
+    # A reasoning model (e.g. the school/OpenAI-compatible path) emitted Python
+    # `None` instead of JSON `null` in class_weight, failing json.loads and
+    # dropping the WHOLE plan to the minimal fallback spec (live on
+    # traffic-violations). The repair pass now recovers it — and `None` becomes
+    # real JSON null (Python None), NOT the string "None" (json_repair's own
+    # default, which would be an invalid class_weight).
+    raw = (
+        'Thinking...\n```json\n{\n "model": [{"name": '
+        '"sklearn.linear_model.LogisticRegression", "params": '
+        '{"class_weight": {"choice": ["balanced", None]}}}]\n}\n```'
+    )
+    plan = parse_spec_json(raw)
+    choice = plan["model"][0]["params"]["class_weight"]["choice"]
+    assert choice == ["balanced", None]
+    assert None in choice  # real null, not the string "None"
+
+
+def test_parse_json_none_inside_a_string_is_preserved():
+    # the literal relaxation must not touch words inside string values
+    plan = parse_spec_json('{"model": ["x"], "note": "None of True/False apply"}')
+    assert plan["note"] == "None of True/False apply"
+
+
+def test_parse_json_repairs_trailing_comma_on_complete_object():
+    # json_repair handles complete-but-malformed JSON (trailing comma)
+    plan = parse_spec_json('{"model": ["sklearn.svm.SVC"], "stages": [],}')
+    assert plan == {"model": ["sklearn.svm.SVC"], "stages": []}
+
+
+def test_parse_json_valid_input_still_takes_the_strict_path():
+    # the repair pass is a fallback; already-valid JSON is unchanged
+    assert parse_spec_json('{"model": ["a"]}') == {"model": ["a"]}
 
 
 def test_parse_json_prefers_the_plan_over_an_illustrative_snippet():

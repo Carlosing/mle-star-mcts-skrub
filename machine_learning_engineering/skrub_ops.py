@@ -101,6 +101,26 @@ def get_choices(plan) -> dict[str, tuple[int, object]]:
     }
 
 
+def plan_has_text_encoder(plan) -> bool:
+    """True if any choice option in the plan is a ``skrub.TextEncoder``.
+
+    Text encoders load a large transformer backbone at fit; the
+    ``spec_resolver`` shim keeps one resident copy per model, but that copy is
+    per-process, so forked CV workers (``n_jobs>1``) each reload it. When a text
+    encoder is in the search space we therefore run folds in-process
+    (``n_jobs=1``) so the single resident backbone is reused across every fold.
+    Catches the shim subclass too (it *is* a ``skrub.TextEncoder``).
+
+    Example:
+        plan_has_text_encoder(plan)   # -> True if any stage/slot option is one
+    """
+    for _, choice in _ev.choices(plan).items():
+        for outcome in getattr(choice, "outcomes", None) or []:
+            if isinstance(outcome, skrub.TextEncoder):
+                return True
+    return False
+
+
 def _option_names(choice) -> list[str]:
     """Human-readable option labels for a discrete choice.
 
@@ -1157,6 +1177,10 @@ def make_rollout_fn(
         # relational:
         rollout = make_rollout_fn(plan, main_df, aux={"aux": aux_df}, main_var="data")
     """
+    if n_jobs != 1 and plan_has_text_encoder(plan):
+        # keep folds in-process so the resident text backbone (spec_resolver's
+        # TextEncoder shim) is reused instead of each forked worker reloading it
+        n_jobs = 1
     if target is not None and target in df.columns and df[target].isna().any():
         # unlabeled rows: sklearn raises "Input y contains NaN" on every fit,
         # so a handful of missing targets would zero the WHOLE search silently
@@ -1236,6 +1260,8 @@ def evaluate_full(
         evaluate_full(plan, {"model": "GBM"}, df)  # -> 0.88  (full-data mean CV score)
     """
     apply_state(plan, state)
+    if n_jobs != 1 and plan_has_text_encoder(plan):
+        n_jobs = 1  # reuse the resident text backbone; see make_rollout_fn
     cv_kwargs: dict = dict(_cv_kwarg(stratify, seed=42))
     if n_jobs != 1:
         cv_kwargs["n_jobs"] = n_jobs
