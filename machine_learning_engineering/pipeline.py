@@ -270,6 +270,7 @@ def run_pipeline(
     subsample_seeds: int | None = None,
     n_jobs: int = 6,
     time_budget_s: float | None = None,
+    ensemble_pool: int = 10,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -371,6 +372,7 @@ def run_pipeline(
         time_budget_s=time_budget_s,
     )
 
+    scoring_errors: dict = {}  # populated by _report/_holdout_report/_top_k_report
     result = {
         "method": "extension",
         "task": task_name or config.CONFIG.task_name,
@@ -395,10 +397,12 @@ def run_pipeline(
             metric,
             aux=aux_tables or None,
             stratify=(task_type == "classification"),
+            errors=scoring_errors,
         ),
         # incumbent on the SHARED holdout — the cross-method comparable number
         "holdout": _holdout_report(
-            search, df, target, task_type, metric, aux_tables, seed
+            search, df, target, task_type, metric, aux_tables, seed,
+            errors=scoring_errors,
         ),
         "action_space": search["action_space"],
         "target_key": search["target_key"],
@@ -407,11 +411,15 @@ def run_pipeline(
         "refined_dims": search.get("refined_dims", []),
         "subsample_seeds": subsample_seeds,
         "ensemble": _top_k_report(
-            search, df, target, task_type, metric, aux_tables, top_k, seed
+            search, df, target, task_type, metric, aux_tables, top_k, seed,
+            errors=scoring_errors, pool=ensemble_pool,
         ),
         "used_fallback_spec": used_fallback,
         "dropped_sections": spec.get("dropped_sections", []),
         "single_option_stages": spec.get("single_option_stages", []),
+        # scoring-phase exceptions (report/holdout/ensemble), so a failed final
+        # score is a visible error string, not a silent None
+        "scoring_errors": scoring_errors or None,
         "reused_spec": spec_raw is not None,
         "llm_calls": (0 if spec_raw is not None else 2)
         + ((outer_steps - 1) if propose is not None else 0),
@@ -506,9 +514,15 @@ def _result_markdown(r: dict) -> str:
     ens = r.get("ensemble")
     if ens:
         lines.append(
-            f"- top-{ens['k']} ensemble ({ens['scorer']}): {ens['ensemble_score']:.4f} "
+            f"- Caruana ensemble ({ens['scorer']}, {ens['k']} of "
+            f"{ens.get('pool_size', '?')} pool): {ens['ensemble_score']:.4f} "
+            f"(unweighted mean-combine {ens.get('ensemble_score_mean', float('nan')):.4f}) "
             f"vs individuals {['%.4f' % s for s in ens['individual_scores']]}"
         )
+        if ens.get("weights"):
+            lines.append(
+                f"  - ensemble weights: {['%.2f' % w for w in ens['weights']]}"
+            )
     if r.get("target_key"):
         lines.append(f"- targeted stage (Option 1): {r['target_key']}")
     if r.get("refined_dims"):
@@ -519,6 +533,11 @@ def _result_markdown(r: dict) -> str:
         lines.append(
             f"- injected options not in the original plan (Option 3): "
             f"{r['injected_options']}"
+        )
+    if r.get("scoring_errors"):
+        lines.append(
+            f"- ⚠️ scoring-phase failures (report/holdout/ensemble): "
+            f"{r['scoring_errors']}"
         )
     lines += [
         "",
@@ -536,35 +555,52 @@ def _result_markdown(r: dict) -> str:
 
 
 def _top_k_report(
-    search, df, target, task_type, metric, aux_tables, top_k, seed
+    search, df, target, task_type, metric, aux_tables, top_k, seed,
+    errors=None, pool=10,
 ):
-    """Top-k ensemble vs incumbent on a holdout (None when top_k <= 1 fails)."""
+    """Caruana ensemble over a candidate pool vs incumbent on a holdout.
+
+    Fits the top-``max(2*top_k, pool)`` distinct cache configs (a pool wider than
+    ``top_k`` so buried model-family diversity is reachable) and Caruana-selects
+    a weighted ensemble of at most ``top_k`` members. None when top_k <= 1 or on
+    any failure (recorded via ``errors``).
+    """
     if top_k <= 1:
         return None
     scorer = metrics.report_scorer(metric) or metrics.search_scorer(
         task_type, metric
     )
     try:
-        states = ensemble.top_k_states(
+        pool_states = ensemble.top_k_states(
             search["score_cache"],
-            top_k,
+            max(2 * top_k, pool),
             defaults=skrub_ops.get_default_state(search["plan"]),
         )
         return ensemble.evaluate_top_k(
             search["plan"],
-            states,
+            pool_states,
             df,
             target,
             task_type,
             scoring=scorer,
             aux=aux_tables or None,
             seed=seed,
+            size=top_k,
         )
-    except Exception:
+    except Exception as e:
+        _note_error(errors, "ensemble", e)
         return None
 
 
-def _holdout_report(search, df, target, task_type, metric, aux_tables, seed):
+def _note_error(errors, key, exc) -> None:
+    """Record a scoring-phase exception so a failed report isn't a silent None."""
+    if errors is not None:
+        errors[key] = f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _holdout_report(
+    search, df, target, task_type, metric, aux_tables, seed, errors=None
+):
     """Score the incumbent on the SHARED seeded holdout (the cross-method bench).
 
     Uses the same split + scorer as the top-k ensemble (`ensemble.holdout_split`
@@ -590,7 +626,8 @@ def _holdout_report(search, df, target, task_type, metric, aux_tables, seed):
             seed=seed,
         )
         return {"scorer": scorer, "score": res["individual_scores"][0]}
-    except Exception:
+    except Exception as e:
+        _note_error(errors, "holdout", e)
         return None
 
 
@@ -601,6 +638,7 @@ def _report(
     metric: str,
     aux: dict | None = None,
     stratify: bool = False,
+    errors=None,
 ):
     """Score the incumbent on the task/competition metric, for reporting only."""
     scorer = metrics.report_scorer(metric)
@@ -619,7 +657,8 @@ def _report(
                 stratify=stratify,
             ),
         }
-    except Exception:
+    except Exception as e:
+        _note_error(errors, "report", e)
         return None
 
 
@@ -664,7 +703,13 @@ def _main() -> None:
         "--top-k",
         type=int,
         default=1,
-        help="ensemble the top-k incumbents from the score cache (1 = off)",
+        help="max Caruana ensemble size selected from the score cache (1 = off)",
+    )
+    parser.add_argument(
+        "--ensemble-pool",
+        type=int,
+        default=10,
+        help="candidate-pool size for the Caruana ensemble (>= 2*top-k used)",
     )
     parser.add_argument(
         "--c", type=float, default=0.5, help="UCT exploration constant"
@@ -714,6 +759,7 @@ def _main() -> None:
         outer_steps=outer_steps,
         propose=propose,
         top_k=args.top_k,
+        ensemble_pool=args.ensemble_pool,
         c=args.c,
         retarget=not args.no_retarget,
         subsample_seeds=args.subsample_seeds,

@@ -604,6 +604,54 @@ def _apply_scope_group(node, group: dict, cols: list[str]):
     )
 
 
+class _ImputeNumeric(BaseEstimator, TransformerMixin):
+    """Median-impute numeric columns that contain NaN, before the vectorizer.
+
+    Relational aggregate joins leave NaN in numeric columns for main rows with
+    no aux match (country-happiness: 28/117 countries unmatched on name, so the
+    GDP/life-expectancy aggregates are NaN). skrub's *default* numeric handling
+    tolerates that, but an LLM/proposer-chosen numeric-slot transformer
+    (``KBinsDiscretizer``, ``StandardScaler``, ``PCA``, ...) REPLACES that
+    default and crashes on NaN — silently 0.0 in a rollout, but a hard crash to
+    a ``None`` report at final scoring. A fixed, non-searchable median impute (it
+    adds no ``choose_from``, so the action space / gating are untouched) makes
+    every downstream numeric transformer NaN-safe. It is a strict no-op on
+    NaN-free numeric columns, so tasks without missing data are unchanged; a
+    column that is entirely NaN falls back to 0.0. Fit per fold (medians from the
+    train fold only), so it is leakage-free.
+    """
+
+    def fit(self, X, y=None):
+        self.feature_names_in_ = (
+            list(X.columns) if hasattr(X, "columns") else None
+        )
+        self.medians_ = {}
+        if hasattr(X, "columns"):
+            for c in X.columns:
+                s = X[c]
+                if pd.api.types.is_numeric_dtype(s) and s.isna().any():
+                    m = s.median()
+                    self.medians_[c] = 0.0 if pd.isna(m) else m
+        return self
+
+    def transform(self, X):
+        if not self.medians_ or not hasattr(X, "columns"):
+            return X
+        X = X.copy()
+        for c, m in self.medians_.items():
+            if c in X.columns:
+                X[c] = X[c].fillna(m)
+        return X
+
+    def get_feature_names_out(self, input_features=None):
+        names = (
+            self.feature_names_in_
+            if self.feature_names_in_ is not None
+            else input_features
+        )
+        return np.asarray(names)
+
+
 def build_staged_plan(
     spec: dict, df, target: str = "target", aux_tables: dict | None = None
 ):
@@ -732,6 +780,14 @@ def build_staged_plan(
     # choose_* nodes by spec_resolver); when the spec omits it, a bare Cleaner()
     # at skrub defaults is the robust root.
     node = node.skb.apply(spec.get("cleaner") or skrub.Cleaner())
+
+    # --- impute numeric NaN so a chosen numeric-slot transformer can't crash ---
+    # Fixed, non-searchable (no choose_from). Relational-join aggregates leave
+    # NaN that skrub's default numeric path tolerates but an LLM-chosen numeric
+    # transformer (KBinsDiscretizer, ...) does not — see _ImputeNumeric. Runs
+    # before scope/encode so every downstream numeric op sees complete columns;
+    # a no-op when there is no NaN.
+    node = node.skb.apply(_ImputeNumeric())
 
     # --- scope: searchable operator on an explicit column subset ---
     scoped_groups = spec.get("scoped_encodings", []) or []

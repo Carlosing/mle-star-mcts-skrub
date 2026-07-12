@@ -60,11 +60,13 @@ def test_evaluate_top_k_classification(toy_search):
         "classification",
         scoring="accuracy",
     )
-    assert report["k"] == len(states)
-    assert len(report["individual_scores"]) == report["k"]
+    assert report["pool_size"] == len(states)
+    assert 1 <= report["k"] <= len(states)  # Caruana caps at the pool size
+    assert len(report["individual_scores"]) == report["pool_size"]
     assert 0.0 <= report["ensemble_score"] <= 1.0
-    # sanity: the ensemble is at least in the ballpark of its members
-    assert report["ensemble_score"] >= min(report["individual_scores"]) - 0.05
+    # Caruana seeds with the best single member + early-stops, so it is never
+    # worse than the best pool member on this holdout
+    assert report["ensemble_score"] >= max(report["individual_scores"]) - 1e-6
     # deterministic: same states, same split, same result
     again = ensemble.evaluate_top_k(
         result["plan"],
@@ -125,6 +127,60 @@ def test_evaluate_top_k_rejects_unknown_scorer(toy_search):
             "classification",
             scoring="not_a_scorer",
         )
+
+
+def test_caruana_selects_both_members_when_they_decorrelate():
+    """Two individually-mediocre members whose errors cancel -> Caruana picks
+    both and the ensemble strictly beats either alone."""
+    import numpy as np
+
+    y = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    m0 = y + np.array([1.0, -1, 1, -1, 1, -1])
+    m1 = y + np.array([-1.0, 1, -1, 1, -1, 1])  # opposite error -> mean is exact
+    members = [m0, m1]
+
+    def score_idx(idx):
+        pred = np.mean([members[i] for i in idx], axis=0)
+        return ensemble._score("neg_root_mean_squared_error", y, pred, None)
+
+    selected = ensemble._caruana_select(2, score_idx, size=2)
+    assert set(selected) == {0, 1}
+    assert score_idx(selected) > max(score_idx([0]), score_idx([1]))
+
+
+def test_caruana_collapses_to_one_on_near_duplicate_pool():
+    """A pool of identical members -> Caruana early-stops at size 1 (no spurious
+    lift). This is the 'all configs very similar' case."""
+    import numpy as np
+
+    y = np.array([0.0, 1.0, 2.0, 3.0])
+    biased = y + 0.5
+    members = [biased, biased.copy(), biased.copy()]
+
+    def score_idx(idx):
+        pred = np.mean([members[i] for i in idx], axis=0)
+        return ensemble._score("neg_root_mean_squared_error", y, pred, None)
+
+    selected = ensemble._caruana_select(3, score_idx, size=3)
+    assert len(selected) == 1  # adding a duplicate never improves -> stop
+
+
+def test_evaluate_top_k_pool_and_weights(toy_search):
+    """Caruana over a pool wider than `size`: pool_size is the fitted pool, k is
+    the (capped) number of distinct selected members, weights normalise to 1,
+    and the legacy unweighted score is reported for the A/B."""
+    result, df = toy_search
+    pool = ensemble.top_k_states(result["score_cache"], k=5)
+    report = ensemble.evaluate_top_k(
+        result["plan"], pool, df, "target", "classification",
+        scoring="accuracy", size=3,
+    )
+    assert report["pool_size"] == len(pool)
+    assert 1 <= report["k"] <= 3
+    assert len(report["weights"]) == report["k"]
+    assert abs(sum(report["weights"]) - 1.0) < 1e-9
+    assert "ensemble_score_mean" in report
+    assert report["ensemble_score"] >= max(report["individual_scores"]) - 1e-6
 
 
 def test_top_k_states_collapses_states_that_are_the_same_pipeline():

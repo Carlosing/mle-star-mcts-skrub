@@ -247,3 +247,31 @@ def test_mcts_search_improves_over_default(plan, df):
     )
     assert best_score >= default_score
     assert root.N == 15
+
+
+def test_impute_numeric_fills_nan_and_is_noop_when_clean():
+    """`_ImputeNumeric` median-fills numeric NaN (leakage-free, per-fit) and is
+    a strict no-op on NaN-free / non-numeric columns."""
+    import numpy as np
+    import pandas as pd
+
+    imp = skrub_ops._ImputeNumeric()
+    X = pd.DataFrame(
+        {"num": [1.0, np.nan, 3.0], "clean": [10, 20, 30], "txt": ["a", "b", "c"]}
+    )
+    out = imp.fit_transform(X)
+    assert out["num"].tolist() == [1.0, 2.0, 3.0]  # median(1,3)=2 fills the NaN
+    assert out["clean"].tolist() == [10, 20, 30]  # untouched
+    assert out["txt"].tolist() == ["a", "b", "c"]  # non-numeric untouched
+    # a NaN-free frame is returned unchanged (medians_ empty -> no copy path)
+    clean = pd.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})
+    pd.testing.assert_frame_equal(imp.fit_transform(clean), clean)
+
+
+def test_impute_numeric_all_nan_column_falls_back_to_zero():
+    import numpy as np
+    import pandas as pd
+
+    imp = skrub_ops._ImputeNumeric()
+    out = imp.fit_transform(pd.DataFrame({"g": [np.nan, np.nan, np.nan]}))
+    assert out["g"].tolist() == [0.0, 0.0, 0.0]

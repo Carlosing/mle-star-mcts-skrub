@@ -7,6 +7,8 @@ predictions on the held-out rows are averaged (regression) or soft-voted
 (classification). No LLM, no extra rollouts — the only cost is k fits.
 """
 
+from collections import Counter
+
 import numpy as np
 import pandas as pd
 from sklearn import metrics as _sk_metrics
@@ -78,6 +80,41 @@ def _score(scoring: str, y_true, y_pred, proba):
     return sign * float(value)
 
 
+def _caruana_select(n_members: int, score_indices, size: int) -> list[int]:
+    """Caruana greedy ensemble selection (with replacement + early stop).
+
+    ``score_indices(indices) -> float`` scores the ensemble formed by averaging
+    the members at ``indices`` (repeats = weight), higher-is-better. Seeds with
+    the single best member (so the ensemble is never worse than the best model
+    on this holdout), then for up to ``size-1`` rounds adds the member whose
+    inclusion most improves the score, STOPPING as soon as no member gives a
+    positive gain. Selection with replacement means a strong member can repeat
+    (implicit weighting); the early stop means a pool of near-duplicates
+    collapses to a single member (no spurious lift) — which is exactly what
+    makes it robust when the search returns very similar configs.
+
+    Returns the selected member indices WITH repetition, e.g. ``[2, 0, 2]``.
+
+    Reference: Caruana et al. 2004, "Ensemble Selection from Libraries of
+    Models" — the method behind auto-sklearn's / AutoGluon's post-hoc ensembler.
+
+    Example:
+        _caruana_select(3, score_fn, size=3)  # -> [1, 1, 2]  (member 1 twice)
+    """
+    singles = [score_indices([i]) for i in range(n_members)]
+    best_i = int(np.argmax(singles))
+    selected = [best_i]
+    best = singles[best_i]
+    for _ in range(max(0, size - 1)):
+        cand = [score_indices(selected + [i]) for i in range(n_members)]
+        j = int(np.argmax(cand))
+        if cand[j] <= best:  # no member improves the ensemble -> stop
+            break
+        selected.append(j)
+        best = cand[j]
+    return selected
+
+
 def holdout_split(
     df: pd.DataFrame,
     target: str,
@@ -117,24 +154,37 @@ def evaluate_top_k(
     main_var: str = "data",
     seed: int = 42,
     holdout_frac: float = 0.25,
+    size: int | None = None,
 ) -> dict:
-    """Fit the top-k configs and score the averaged/soft-voted ensemble.
+    """Fit a candidate POOL and Caruana-select a weighted holdout ensemble.
 
-    A seeded holdout split of the MAIN table serves as the comparison bench:
-    each state is applied to the plan, a learner is fitted on the train rows
-    (aux tables pass whole, as in CV), and predictions on the holdout are
-    combined — mean for regression, mean predict_proba (argmax for label
-    metrics) for classification. Returns the ensemble score next to each
-    individual score so the lift over the single incumbent is explicit.
+    ``states`` is a candidate pool (e.g. the top-N distinct cache configs, N > k)
+    — reaching past the incumbent's near-duplicate neighbours to whatever
+    model-family diversity the search buried below the very top. A seeded holdout
+    split of the MAIN table is the comparison bench: each pool member is fitted
+    on the train rows (aux tables pass whole, as in CV) and predicts the holdout;
+    then ``_caruana_select`` greedily builds an ensemble of at most ``size``
+    members (default = the whole pool) that maximises the holdout score,
+    weighting by selection multiplicity and adding a member only if it helps.
+
+    Predictions are combined weightedly — weighted mean for regression, weighted
+    mean ``predict_proba`` (argmax for label metrics) for classification,
+    weighted vote when no proba. The legacy *unweighted* mean over the top-``size``
+    members is returned too (``ensemble_score_mean``), computed on the same fits,
+    so every call is a free A/B of Caruana vs the old combiner.
 
     Example:
-        evaluate_top_k(plan, top_k_states(cache, 3), df, "target",
-                       "classification", scoring="accuracy")
-        # -> {"scorer": "accuracy", "ensemble_score": 0.91,
-        #     "individual_scores": [0.89, 0.88, 0.85], "states": [...]}
+        evaluate_top_k(plan, top_k_states(cache, 10), df, "target",
+                       "classification", scoring="accuracy", size=3)
+        # -> {"scorer": "accuracy", "k": 2, "pool_size": 10,
+        #     "ensemble_score": 0.92, "ensemble_score_mean": 0.90,
+        #     "weights": [0.67, 0.33], "selected_states": [...],
+        #     "individual_scores": [0.89, ...]}
     """
     if scoring not in _METRIC_FNS:
         raise ValueError(f"unsupported scoring for ensembling: {scoring!r}")
+    if size is None or size > len(states):
+        size = len(states)
     train, holdout = holdout_split(
         df, target, task_type, seed=seed, holdout_frac=holdout_frac
     )
@@ -162,24 +212,45 @@ def evaluate_top_k(
         probas.append(proba)
         individual.append(_score(scoring, y_true, pred, proba))
 
-    if task_type == "classification" and all(p is not None for p in probas):
-        mean_proba = np.mean(probas, axis=0)
-        labels = np.unique(y_true) if classes is None else np.asarray(classes)
-        ens_pred = labels[np.argmax(mean_proba, axis=1)]
-        ens_score = _score(scoring, y_true, ens_pred, mean_proba)
-    elif task_type == "classification":
-        # no probabilities available -> majority vote over predicted labels
-        stacked = np.stack(predictions)
-        ens_pred = pd.DataFrame(stacked).mode(axis=0).iloc[0].to_numpy()
-        ens_score = _score(scoring, y_true, ens_pred, None)
-    else:
-        ens_pred = np.mean(predictions, axis=0)
-        ens_score = _score(scoring, y_true, ens_pred, None)
+    have_proba = task_type == "classification" and all(
+        p is not None for p in probas
+    )
+    labels = np.unique(y_true) if classes is None else np.asarray(classes)
+
+    def _combine(indices):
+        """(pred, proba) for a weighted ensemble of the members at `indices`
+        (repeats carry weight)."""
+        if have_proba:
+            mean_proba = np.mean([probas[i] for i in indices], axis=0)
+            return labels[np.argmax(mean_proba, axis=1)], mean_proba
+        if task_type == "classification":
+            stacked = np.stack([predictions[i] for i in indices])
+            return pd.DataFrame(stacked).mode(axis=0).iloc[0].to_numpy(), None
+        return np.mean([predictions[i] for i in indices], axis=0), None
+
+    def _score_indices(indices):
+        pred, proba = _combine(indices)
+        return _score(scoring, y_true, pred, proba)
+
+    # Caruana greedy weighted ensemble (robust to near-duplicate configs)
+    selected = _caruana_select(len(states), _score_indices, size)
+    ens_score = _score_indices(selected)
+    # legacy unweighted mean over the top-`size` pool members (the pool is
+    # score-ranked, so this reproduces the old plain top-k ensemble) — a free A/B
+    mean_score = _score_indices(list(range(size)))
+
+    counts = Counter(selected)
+    distinct = list(counts)  # pool indices, first-selected order
+    total = len(selected)
 
     return {
         "scorer": scoring,
-        "k": len(states),
+        "k": len(distinct),
+        "pool_size": len(states),
         "states": states,
+        "selected_states": [states[i] for i in distinct],
+        "weights": [counts[i] / total for i in distinct],
         "individual_scores": individual,
         "ensemble_score": ens_score,
+        "ensemble_score_mean": mean_score,
     }
