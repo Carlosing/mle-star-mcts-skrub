@@ -268,8 +268,8 @@ def _load_class(path):
 _PLAN_KEYS = frozenset(
     {
         "model",
-        "encoder_options",
-        "clean_options",
+        "cleaner",
+        "vectorizer",
         "stages",
         "scoped_encodings",
         "assemble",
@@ -409,22 +409,6 @@ def _ensure_seeded(est, seed=SEED):
     return est
 
 
-def _default_high_cardinality_encoder(seed=SEED):
-    """A fresh, seeded copy of skrub's TableVectorizer default high-card encoder.
-
-    The whole pipeline vectorizes through a ``skrub.TableVectorizer``; the
-    ``encoder`` stage only chooses its ``high_cardinality`` slot, and when the
-    plan gives none, the TableVectorizer's own default (``StringEncoder`` in
-    skrub 0.9) is used silently. Reading it from a fresh TableVectorizer keeps
-    this correct across skrub versions rather than hard-coding the class.
-
-    Example:
-        _default_high_cardinality_encoder()  # -> StringEncoder(random_state=42)
-    """
-    default = skrub.TableVectorizer().high_cardinality
-    return _ensure_seeded(type(default)(), seed)
-
-
 def _is_skip(name) -> bool:
     return name is None or (
         isinstance(name, str) and name.strip().lower() in _SKIP_TOKENS
@@ -501,6 +485,17 @@ _RNG_PARAMS = frozenset({"random_state"})
 # sparse-emitting transformer raises inside `build_staged_plan` and takes the
 # whole run down. Forced to False on any operator that accepts them.
 _SPARSE_PARAMS = frozenset({"sparse_output", "sparse"})
+
+# Document-frequency thresholds on the sklearn text vectorizers. skrub eagerly
+# PREVIEWS every `.skb.apply` on a SINGLE row, and `min_df >= 2` is impossible on
+# one document (skrub uses a choose_int's midpoint for that preview, so a range
+# like [1,5] previews at 3) -> sklearn raises "max_df corresponds to < documents
+# than min_df" and build_staged_plan takes the run down. Dropped like
+# _SPARSE_PARAMS; the vectorizer's own defaults (min_df=1, max_df=1.0) are
+# 1-row-safe. These operators are usually also removed by the sparse-output
+# screen (`_emits_dataframe`), but dropping the param keeps the 1-row build
+# preview safe for anything that slips through. See docs/BUG_LEDGER.md.
+_DOC_FREQ_PARAMS = frozenset({"min_df", "max_df"})
 
 
 def _accepts_param(cls, pname) -> bool:
@@ -585,6 +580,56 @@ def _build_free_choice(choice_name, llm_rule):
     return None
 
 
+# A tiny multi-word text sample for the sparse-output screen. Tokens are 2+
+# chars (sklearn's default token_pattern drops single chars) and shared across
+# rows so a vocabulary forms; sklearn's text vectorizers accept a bare list.
+_PROBE_DOCS = [
+    "alpha beta gamma delta",
+    "beta gamma alpha epsilon",
+    "alpha gamma delta zeta",
+    "beta alpha gamma eta",
+]
+
+
+def _emits_dataframe(cls) -> bool:
+    """False only if `cls` is a transformer that positively emits a non-pandas
+    container (scipy sparse) on text input; True otherwise (keep).
+
+    skrub's DataOps carry pandas frames; a column transformer whose
+    ``fit_transform`` returns a scipy-sparse matrix — sklearn's text vectorizers
+    (``TfidfVectorizer``/``CountVectorizer``/``HashingVectorizer``) — raises
+    inside ``build_staged_plan`` and takes the whole run down, and (unlike
+    ``sparse_output``) has no constructor flag to force dense. Output container
+    type is a property of the CLASS, not its hyperparameters, so we probe a bare
+    default instance — needing none of the tuned params, dodging choose_* /
+    min_df quirks. Anything that can't consume the text probe (every numeric
+    transformer, or a predictor with no ``fit_transform``) raises and is KEPT:
+    the screen only removes operators it positively proves emit non-frames.
+    skrub's own encoders always return frames (and probing ``skrub.TextEncoder``
+    would download a model), so ``_make`` screens only sklearn-rooted operators.
+
+    Example:
+        _emits_dataframe(TfidfVectorizer)   # -> False (drop)
+        _emits_dataframe(StandardScaler)    # -> True  (keep; raises on text)
+    """
+    import pandas as pd
+
+    try:
+        est = cls()
+    except Exception:
+        return True  # needs constructor args -> can't cheaply probe, keep
+    try:
+        if hasattr(est, "set_output"):
+            est.set_output(transform="pandas")  # what skrub would request
+    except Exception:
+        pass
+    try:
+        out = est.fit_transform(_PROBE_DOCS)
+    except Exception:
+        return True  # can't consume the text probe -> not a sparse vectorizer
+    return isinstance(out, pd.DataFrame)
+
+
 def _make(path, params, seed, context):
     """Lazily import `path` and instantiate it, wrapping tuned params in skrub
     choose_* nodes. Returns None only if the class can't be imported/built.
@@ -602,11 +647,26 @@ def _make(path, params, seed, context):
         return None
     if path == "xgboost.XGBClassifier":
         cls = _xgb_classifier_shim()  # string-label safety, same class name
+    # Sparse-output screen: an sklearn transformer that emits scipy-sparse (the
+    # text vectorizers) cannot live in skrub's pandas DataOps and crashes
+    # build_staged_plan. Drop it here instead. Only sklearn-rooted transformer
+    # slots are screened — skrub's own encoders always emit frames, and models
+    # (context "model") are predictors, not transformers.
+    if (
+        context != "model"
+        and path.split(".", 1)[0] == "sklearn"
+        and not _emits_dataframe(cls)
+    ):
+        return None
     entry = REGISTRY.get(path, {})
     tunable = entry.get("tunable", {})
     kwargs = dict(entry.get("defaults", {}))
     for pname, llm_rule in (params or {}).items():
-        if pname in _RNG_PARAMS or pname in _SPARSE_PARAMS:
+        if (
+            pname in _RNG_PARAMS
+            or pname in _SPARSE_PARAMS
+            or pname in _DOC_FREQ_PARAMS
+        ):
             continue  # omit this param, keep building the operator
         if not _accepts_param(cls, pname):
             continue
@@ -629,6 +689,98 @@ def _make(path, params, seed, context):
             kwargs[pname] = False
     try:
         return _ensure_seeded(cls(**kwargs), seed)
+    except Exception:
+        return None
+
+
+def _class_default(cls, pname):
+    """The constructor default for ``pname``, or ``inspect._empty`` if none."""
+    try:
+        param = inspect.signature(cls.__init__).parameters.get(pname)
+    except (ValueError, TypeError):
+        return inspect._empty
+    return param.default if param is not None else inspect._empty
+
+
+def _default_first(cls, pname, rule):
+    """Reorder a ``{"choice": [...]}`` rule so the class default is FIRST.
+
+    A skrub ``choose_from`` defaults to its first option, and that option seeds
+    the search's ROOT config — so putting the operator's own constructor default
+    first keeps the root at stock behavior (the robust root) regardless of how
+    the LLM ordered the list. No-op for non-choice rules or when the default is
+    not among the options.
+
+    Example:
+        _default_first(skrub.Cleaner, "drop_if_constant", {"choice": [True, False]})
+        # -> {"choice": [False, True]}   (Cleaner's default is False)
+    """
+    if not (isinstance(rule, dict) and "choice" in rule):
+        return rule
+    opts = list(rule["choice"])
+    default = _class_default(cls, pname)
+    if default is not inspect._empty and default in opts:
+        opts = [default] + [o for o in opts if o != default]
+    return {**rule, "choice": opts}
+
+
+def _resolve_backbone(path, spec_obj, seed, context, priors=None):
+    """Build an ALWAYS-ON backbone operator (``Cleaner`` / ``TableVectorizer``).
+
+    Its searchable knobs come only from the LLM ``spec_obj`` — there is NO
+    code-owned fallback menu: an unspecified knob simply keeps skrub's own
+    constructor default, so the bare ``cls()`` is the robust root. ``spec_obj``
+    is ``{"params": {<scalar HP-rules>}, "slots": {<slot>: [<operator paths>]}}``:
+
+    - scalar ``params`` (e.g. ``cardinality_threshold``, ``drop_if_constant``)
+      become ``choose_*`` nodes, HP-style; a ``choice`` list is reordered
+      default-first so the root stays at stock behavior.
+    - each ``slots`` entry (an estimator-valued slot like ``low_cardinality`` /
+      ``high_cardinality`` / ``numeric`` / ``datetime``) resolves its option
+      list to instances and, if >1, a ``choose_from`` for that slot.
+
+    Unknown / unaccepted params and slots are dropped individually (never the
+    operator); returns the instance, or None only if the class can't be imported.
+
+    Example:
+        _resolve_backbone("skrub.Cleaner",
+            {"params": {"drop_if_constant": {"choice": [False, True]}}}, 42, "cleaner")
+        # -> Cleaner(drop_if_constant=choose_from([False, True], name=...))
+    """
+    cls = _load_class(path)
+    if cls is None:
+        return None
+    kwargs: dict = {}
+    if isinstance(spec_obj, dict):
+        for pname, rule in (spec_obj.get("params") or {}).items():
+            if pname in _RNG_PARAMS or not _accepts_param(cls, pname):
+                continue
+            name = f"{context}__{cls.__name__}__{pname}"
+            try:
+                node = _build_free_choice(
+                    name, _default_first(cls, pname, rule)
+                )
+            except Exception:
+                node = None
+            if node is not None:
+                kwargs[pname] = node
+        for slot, items in (spec_obj.get("slots") or {}).items():
+            if not _accepts_param(cls, slot):
+                continue
+            name = f"{context}__{slot}"
+            slot_priors: dict = {}
+            insts = _resolve_options(
+                items, seed, False, name, priors_out=slot_priors
+            )
+            if len(insts) == 1:
+                kwargs[slot] = insts[0]
+            elif len(insts) >= 2:
+                kwargs[slot] = skrub.choose_from(insts, name=name)
+                # priors only matter for a real (>=2 option) search dimension
+                if priors is not None and slot_priors:
+                    priors[name] = slot_priors
+    try:
+        return cls(**kwargs)
     except Exception:
         return None
 
@@ -772,11 +924,14 @@ def _resolve_assemble(
     """Validate LLM assemble (AggJoiner) configs against the real table schemas.
 
     Same philosophy as HP clipping: hallucinated names are dropped, never
-    executed. An entry survives only if its table is a known auxiliary table,
-    its join keys exist in the respective tables, and at least one operation is
-    supported; ``cols`` is intersected with the aux columns (dropped entirely
-    if nothing survives, meaning "aggregate all"). Without ``aux_schemas``
-    (single-table run) every entry is dropped.
+    executed. An entry survives only if its table is a known auxiliary table and
+    its join keys exist in the respective tables; ``cols`` is intersected with
+    the aux columns (dropped entirely if nothing survives, meaning "aggregate
+    all"). Operations that were GIVEN but are all unsupported drop the entry (a
+    hallucination); operations left EMPTY default to ``["mean"]`` — the planner
+    correctly emits none for a 1-to-1 lookup join, where mean of the single
+    matched row is the identity, so the enrichment join still runs. Without
+    ``aux_schemas`` (single-table run) every entry is dropped.
 
     Example:
         _resolve_assemble(
@@ -802,11 +957,17 @@ def _resolve_assemble(
         if not aux_schemas or table not in aux_schemas:
             continue
         aux_cols = set(aux_schemas[table])
-        operations = [
-            op for op in (cfg.get("operations") or []) if op in _AGG_OPERATIONS
-        ]
+        operations = [op for op in operations_raw if op in _AGG_OPERATIONS]
         if not operations:
-            continue
+            if operations_raw:
+                continue  # operations were given but ALL invalid -> hallucinated
+            # None given: a 1-to-1 relational table (country-happiness: one
+            # GDP/life-exp row per country) has nothing to aggregate, so the
+            # planner rightly emits `operations: []` — but AggJoiner requires
+            # one. Default to "mean": on a single matched row it is the identity
+            # (the value itself) and stays valid for a genuine 1-to-many join,
+            # so the feature-enrichment join is never silently dropped.
+            operations = ["mean"]
         key, main_key, aux_key = (
             cfg.get("key"),
             cfg.get("main_key"),
@@ -854,9 +1015,11 @@ def resolve_spec(
 ) -> dict:
     """Turn an LLM spec (dotted paths + HP ranges) into a build_staged_plan spec.
 
-    Returns instance-valued clean_options / encoder_options / stages and a
-    ``{class_name: instance}`` ``model`` dict, where tuned params are skrub
-    choose_* nodes. ``assemble`` entries are validated against ``aux_schemas``
+    Returns the always-on ``cleaner`` / ``vectorizer`` backbone instances (their
+    LLM knobs wrapped in choose_* nodes, bare defaults when unauthored),
+    instance-valued ``stages``, and a ``{class_name: instance}`` ``model`` dict
+    where tuned params are skrub choose_* nodes. ``assemble`` entries are
+    validated against ``aux_schemas``
     (``{table_name: [columns]}``) and ``main_columns`` — invalid tables / keys /
     operations / cols are dropped, and without ``aux_schemas`` the stage is
     dropped entirely (see ``_resolve_assemble``). ``scoped_encodings`` groups
@@ -901,23 +1064,22 @@ def resolve_spec(
             priors[context] = stage_priors
         return opts
 
-    clean = _options_with_priors(spec.get("clean_options"), True, "clean")
-    if clean:
-        out["clean_options"] = clean
-    enc = _options_with_priors(spec.get("encoder_options"), False, "encoder")
-    if enc:
-        # `encoder` is a REQUIRED stage (no auto-skip), so a single LLM option
-        # leaves it un-searchable. It sets the TableVectorizer's
-        # `high_cardinality` slot; the silent fallback when empty is skrub's own
-        # default (StringEncoder in 0.9). Add that default as a companion so the
-        # search can pick "skrub default vs the model's encoder" — appended, so
-        # the LLM's pick stays the root. Skipped when the single option already
-        # IS that default (nothing to compare against — genuinely un-repairable,
-        # so `single_option_stages` still flags it).
-        default_hc = _default_high_cardinality_encoder(seed)
-        if len(enc) == 1 and type(enc[0]) is not type(default_hc):
-            enc = [*enc, default_hc]
-        out["encoder_options"] = enc
+    # Always-on backbones. The pipeline ALWAYS runs a skrub.Cleaner then a
+    # skrub.TableVectorizer; their searchable knobs come only from the LLM
+    # ``cleaner`` / ``vectorizer`` specs (params + estimator slots, resolved like
+    # hyperparameters). Any knob left unauthored keeps skrub's own default, so a
+    # bare ``Cleaner()`` / ``TableVectorizer()`` is the robust root — there is no
+    # code-owned fallback menu.
+    out["cleaner"] = _resolve_backbone(
+        "skrub.Cleaner", spec.get("cleaner"), seed, "cleaner", priors=priors
+    )
+    out["vectorizer"] = _resolve_backbone(
+        "skrub.TableVectorizer",
+        spec.get("vectorizer"),
+        seed,
+        "vectorizer",
+        priors=priors,
+    )
 
     scoped = _resolve_scoped(
         spec.get("scoped_encodings"), seed, main_columns, priors=priors
@@ -952,15 +1114,14 @@ def resolve_spec(
         out["priors"] = priors
 
     # Diagnostics: a malformed section resolves to nothing and vanishes with no
-    # error (the assemble dict-vs-list bug, encoder_options=["skip"]); a stage
-    # left with <2 options has no choice node and is not searched. Both are
-    # silent quality losses — surface them so the driver/summary can flag them.
+    # error (the assemble dict-vs-list bug); a stage left with <2 options has no
+    # choice node and is not searched. Both are silent quality losses — surface
+    # them so the driver/summary can flag them. (The cleaner/vectorizer backbones
+    # always resolve to at least a bare default, so they can't be "dropped".)
     dropped: list[str] = []
     single_option: list[str] = []
     _raw_present = {
         "assemble": spec.get("assemble"),
-        "clean_options": spec.get("clean_options"),
-        "encoder_options": spec.get("encoder_options"),
         "scoped_encodings": spec.get("scoped_encodings"),
     }
     for name, raw_val in _raw_present.items():
@@ -972,10 +1133,6 @@ def resolve_spec(
             s["name"] == nm for s in out.get("stages", [])
         ):
             dropped.append(f"stage:{nm}")
-    for name in ("clean_options", "encoder_options"):
-        opts = out.get(name)
-        if isinstance(opts, list) and len(opts) < 2:
-            single_option.append(name)
     for stage in out.get("stages", []):
         if len(stage.get("options") or []) < 2:
             single_option.append(f"stage:{stage['name']}")
@@ -1005,8 +1162,11 @@ def unknown_operators(raw, task_type=None) -> list[str]:
             if not _is_skip(path) and _load_class(path) is None:
                 unknown.append(path)
 
-    check(spec.get("clean_options"))
-    check(spec.get("encoder_options"))
+    for key in ("cleaner", "vectorizer"):
+        obj = spec.get(key)
+        if isinstance(obj, dict):
+            for items in (obj.get("slots") or {}).values():
+                check(items)
     for stage in spec.get("stages", []) or []:
         check(stage.get("options"))
     for it in _iter_model_items(spec.get("model")):
@@ -1058,7 +1218,13 @@ def format_allowed_for_prompt() -> str:
         "the task-appropriate class (Regressor for regression, Classifier for "
         "classification). Only sklearn.*, skrub.*, lightgbm.* and xgboost.* "
         "paths are allowed (lightgbm/xgboost are gradient-boosting model "
-        "families — often the strongest on tabular data). The "
+        "families — often the strongest on tabular data). For FREE-TEXT columns "
+        "use skrub's own encoders — skrub.StringEncoder (default, TF-IDF-like), "
+        "skrub.TextEncoder (semantic embeddings), or skrub.GapEncoder / "
+        "skrub.MinHashEncoder for high-cardinality strings. Do NOT use the raw "
+        "sklearn text vectorizers (sklearn.feature_extraction.text.Tfidf/Count/"
+        "HashingVectorizer): they emit scipy-sparse matrices the skrub pipeline "
+        "cannot carry, so they are dropped. The "
         "following have curated known-good ranges you can use as a guide:",
         "Transformers:",
     ]

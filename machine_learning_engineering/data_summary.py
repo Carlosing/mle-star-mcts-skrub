@@ -151,6 +151,21 @@ def make_data_summary(
             f"  - {col}{tag}: dtype={s.dtype}, missing={miss}, "
             f"cardinality={card}, {desc}"
         )
+        # For a classification target, surface the class balance so the analyst
+        # (and downstream planner) can flag imbalance — it drives the search
+        # metric (accuracy can't separate configs on a skewed target) and may
+        # call for class weighting. Gated on low cardinality so a regression
+        # target never triggers it; floats are never class labels.
+        if (
+            col == target
+            and 2 <= card <= 20
+            and not pd.api.types.is_float_dtype(s)
+        ):
+            counts = s.value_counts(normalize=True, dropna=True)
+            dist = ", ".join(
+                f"{str(k)!r}={v * 100:.1f}%" for k, v in counts.items()
+            )
+            lines.append(f"      class balance: {dist}")
     lines.append("")
     lines.append(f"First {n_head_rows} rows:")
     lines.append(df.head(n_head_rows).to_string(index=False))

@@ -14,17 +14,19 @@ assemble (relational) → clean → scope (pre_encode) → encode → scope (pos
 ```
 
 A plan is built top-down in this order; MCTS decides one stage at a time
-(constructive topology). Every stage except `encode` and `model` is optional,
-with **skip as its default outcome**, so an undecided stage means
-"not yet enriched."
+(constructive topology). The `clean` and `encode` backbones **always run** (a
+`skrub.Cleaner` then a `skrub.TableVectorizer`); every other stage is optional
+with **skip as its default outcome**, so an undecided stage means "not yet
+enriched." The two backbones default to bare skrub instances (the robust root);
+their knobs become search dimensions only when the LLM authors them.
 
 ## The stages
 
 | # | Stage | skrub API | In `build_staged_plan`? | Notes |
 |---|-------|-----------|:---:|-------|
 | 0 | **Assemble** (relational) | `AggJoiner`, `MultiAggJoiner`, `AggTarget`, `Joiner`, `InterpolationJoiner`, `fuzzy_join` | ✅ (`AggJoiner`) | Build the feature table from multiple tables. Highest-leverage stage for relational data — the skrub differentiator vs. flat-table AutoML |
-| 1 | **Clean / coerce** | `Cleaner`, `DropUninformative`, `deduplicate`, `ToDatetime`/`ToFloat`, `SquashingScaler` | ✅ (`clean_options`) | Parse nulls/dates, drop bad columns, dedupe categories, robust scaling |
-| 2 | **Encode / vectorize** | `TableVectorizer` + `GapEncoder`/`MinHashEncoder`/`StringEncoder`/`TextEncoder`/`SimilarityEncoder`/`DatetimeEncoder`/`ToCategorical` | ✅ (`encoder_options`) | Per-column-type encoding; the encoder is a searchable choice |
+| 1 | **Clean / coerce** | `Cleaner` (always-on backbone) | ✅ (`cleaner`) | Parse nulls/dates, drop bad/constant/unique columns, coerce types. Always-on `Cleaner()`; the LLM tunes its constructor knobs (`drop_if_constant`, `drop_if_unique`, `parse_numbers`, …) via `cleaner.params`, resolved like HPs |
+| 2 | **Encode / vectorize** | `TableVectorizer` (always-on backbone) with `GapEncoder`/`MinHashEncoder`/`StringEncoder`/`TextEncoder`/`DatetimeEncoder`/`OneHotEncoder`/… in its slots | ✅ (`vectorizer`) | Per-column-type encoding. Always-on `TableVectorizer()`; the LLM makes its slots (`high_cardinality`/`low_cardinality`/`numeric`/`datetime`) and scalar knobs (`cardinality_threshold`, `drop_*`) searchable via `vectorizer.slots` / `vectorizer.params` |
 | 3 | **Scope** | `.skb.apply(estimator, cols=<selector>)`; selectors: `regex`, `cols`, `numeric`, `cardinality_below`, …; additive: `SelectCols` sub-select + `.skb.concat(axis=1)` | ✅ (`scoped_encodings`) | Apply a *searchable* operator to an explicit column subset. Per group: `"position"` `pre_encode` (default, before the TableVectorizer) or `post_encode` (after it — only numeric passthrough names survive vectorization); `"additive": true` KEEPS the originals and concatenates the operator's output by row index, suffixed `__<group>` (skip = `SelectCols([])`, an empty frame — `None` would passthrough-duplicate). Column names are validated at resolve/build time; the runtime selector is a union of exact-match regexes, so a column dropped upstream degrades the group to a no-op (`skrub_ops._scope_selector` — `selectors.cols()` would raise) |
 | 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
 | 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
@@ -56,8 +58,9 @@ spec = {
         {"name": "aux_mean", "table": "aux", "operations": ["mean"],
          "key": "id", "cols": ["v"]},
     ],
-    # 1. clean
-    "clean_options": [None, Cleaner()],
+    # 1. clean — ALWAYS-ON Cleaner backbone. The LLM authors only the knobs to
+    #    search (resolved into choose_* nodes); omit the key for a bare Cleaner().
+    "cleaner": {"params": {"drop_if_constant": {"choice": [False, True]}}},
     # 3. scope — searchable operator on an explicit column subset (skip default).
     #    Optional per group: "position": "pre_encode"|"post_encode" (where it
     #    runs relative to the TableVectorizer) and "additive": True (keep the
@@ -70,8 +73,11 @@ spec = {
         {"name": "num_scale", "cols": ["age"], "position": "post_encode",
          "options": [StandardScaler()]},
     ],
-    # 2. encode (the TableVectorizer still handles all unscoped columns)
-    "encoder_options": [GapEncoder(), MinHashEncoder()],
+    # 2. encode — ALWAYS-ON TableVectorizer backbone. Author slots (estimator
+    #    lists) and/or scalar params to search; omit the key for a bare
+    #    TableVectorizer(). Handles all unscoped columns.
+    "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]},
+                   "params": {"cardinality_threshold": {"int": [10, 40]}}},
     # 4–5. post-encoding numeric stages
     "stages": [
         {"name": "scale",       "options": [None, StandardScaler()]},

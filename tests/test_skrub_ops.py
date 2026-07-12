@@ -123,6 +123,66 @@ def test_booster_rollout_is_identical_and_crashfree_across_n_jobs():
     assert serial > 0.0 and serial == parallel
 
 
+def test_llm_authored_datetime_slot_surfaces_weekday():
+    """The LLM can make the vectorizer's `datetime` slot a search axis by
+    authoring `vectorizer.slots.datetime`. skrub's stock DatetimeEncoder omits
+    weekday, so an add_weekday=True option must out-score the bare default on a
+    task whose label IS the weekday (no code-owned auto-menu — the option comes
+    from the plan)."""
+    import numpy as np
+    import pandas as pd
+
+    from machine_learning_engineering.spec_resolver import resolve_spec
+
+    rng = np.random.default_rng(0)
+    n = 150
+    dates = pd.to_datetime("2021-01-01") + pd.to_timedelta(
+        rng.integers(0, 700, n), unit="D"
+    )
+    d = pd.DataFrame(
+        {
+            "signup": dates.strftime("%Y-%m-%d"),
+            "city": rng.choice(["NY", "LA", "SF"], n),
+            "y": (dates.dayofweek >= 5).astype(int),  # label == is-weekend
+        }
+    )
+    spec = resolve_spec(
+        {
+            "vectorizer": {
+                "slots": {
+                    "datetime": [
+                        "skrub.DatetimeEncoder",  # stock default (no weekday)
+                        {
+                            "name": "skrub.DatetimeEncoder",
+                            "params": {
+                                "resolution": {"choice": ["day"]},
+                                "add_weekday": {"choice": [True]},
+                            },
+                        },
+                    ]
+                }
+            },
+            "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
+        },
+        task_type="classification",
+        main_columns=["signup", "city"],
+    )
+    p = skrub_ops.build_staged_plan(spec, d, target="y")
+    space = skrub_ops.get_action_space(p)
+    assert "vectorizer__datetime" in space
+    root = skrub_ops.get_default_state(p)
+    assert "weekday" not in root["vectorizer__datetime"].lower()  # stock root
+
+    rollout = skrub_ops.make_rollout_fn(
+        p, d, scoring="accuracy", target="y", stratify=True, n_jobs=2
+    )
+    weekday_opt = next(
+        o for o in space["vectorizer__datetime"] if "add_weekday" in o
+    )
+    weekday_state = {**root, "vectorizer__datetime": weekday_opt}
+    assert rollout(weekday_state) > rollout(dict(root))
+
+
 def test_rollout_distinguishes_states(plan, df):
     rollout = skrub_ops.make_rollout_fn(plan, df)
     base = skrub_ops.get_state(plan)

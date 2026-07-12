@@ -146,11 +146,16 @@ def test_build_free_choice_structural_sanity():
 
 
 def test_json_list_options_become_tuples_for_sklearn_tuple_params():
-    """JSON has no tuple type, so {"choice": [[1,1],[1,2]]} arrives as lists.
-    sklearn validates ngram_range / quantile_range as tuples specifically and
-    raises InvalidParameterError on a list — the rollout scores 0.0 and the
-    option loses by forfeit, not on merit."""
-    from sklearn.feature_extraction.text import TfidfVectorizer
+    """JSON has no tuple type, so {"choice": [[25,75],[10,90]]} arrives as
+    lists. sklearn validates ngram_range / quantile_range as tuples
+    specifically and raises InvalidParameterError on a list — the rollout
+    scores 0.0 and the option loses by forfeit, not on merit. Vehicle is
+    RobustScaler.quantile_range (not TfidfVectorizer.ngram_range): the sklearn
+    text vectorizers are dropped by the sparse-output screen (they emit
+    scipy-sparse, which skrub's pandas DataOps can't carry — see
+    test_sklearn_text_vectorizers_are_dropped_as_sparse in
+    test_spec_resolver.py), so they're no longer a usable vehicle here."""
+    from sklearn.preprocessing import RobustScaler
 
     spec = spec_resolver.resolve_spec(
         {
@@ -159,9 +164,11 @@ def test_json_list_options_become_tuples_for_sklearn_tuple_params():
                     "name": "feature_eng",
                     "options": [
                         {
-                            "name": "sklearn.feature_extraction.text.TfidfVectorizer",
+                            "name": "sklearn.preprocessing.RobustScaler",
                             "params": {
-                                "ngram_range": {"choice": [[1, 1], [1, 2]]}
+                                "quantile_range": {
+                                    "choice": [[25.0, 75.0], [10.0, 90.0]]
+                                }
                             },
                         }
                     ],
@@ -172,9 +179,9 @@ def test_json_list_options_become_tuples_for_sklearn_tuple_params():
         task_type="classification",
     )
     vec = next(
-        o for o in spec["stages"][0]["options"] if isinstance(o, TfidfVectorizer)
+        o for o in spec["stages"][0]["options"] if isinstance(o, RobustScaler)
     )
-    outcomes = vec.ngram_range.outcomes
+    outcomes = vec.quantile_range.outcomes
     assert all(isinstance(o, tuple) for o in outcomes), outcomes
 
 

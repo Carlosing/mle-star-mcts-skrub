@@ -25,8 +25,7 @@ Options worth searching per stage:
 # plan_author -> state["skrub_spec_raw"]  (classification; dotted paths; valid JSON)
 SKRUB_SPEC_RAW = """\
 {
-  "clean_options": ["skip", "skrub.Cleaner"],
-  "encoder_options": ["skrub.MinHashEncoder"],
+  "vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder", "skrub.GapEncoder"]}},
   "model": [
     {"name": "sklearn.ensemble.HistGradientBoostingClassifier", 
       "params": {"learning_rate": {"float": [0.01, 0.3], "log": true},"max_iter": {"int": [100, 300]}}},

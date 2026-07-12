@@ -19,12 +19,16 @@ from machine_learning_engineering.search_loop import (
 
 def test_merge_raw_plans_is_strictly_additive():
     old = {
-        "encoder_options": ["skrub.GapEncoder"],
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
         "stages": [{"name": "scale", "options": ["skip"]}],
         "model": ["sklearn.linear_model.Ridge"],
     }
     new = {
-        "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+            }
+        },
         "stages": [
             {"name": "scale", "options": ["sklearn.preprocessing.RobustScaler"]},
             {"name": "feature_eng", "options": ["sklearn.preprocessing.PolynomialFeatures"]},
@@ -37,8 +41,8 @@ def test_merge_raw_plans_is_strictly_additive():
         ],
     }
     merged = _merge_raw_plans(old, new)
-    # unions by path: the duplicate GapEncoder is dropped, the new encoder kept
-    assert merged["encoder_options"] == [
+    # backbone slot unions by path: duplicate GapEncoder dropped, new one kept
+    assert merged["vectorizer"]["slots"]["high_cardinality"] == [
         "skrub.GapEncoder",
         "skrub.MinHashEncoder",
     ]
@@ -56,11 +60,76 @@ def test_merge_raw_plans_is_strictly_additive():
     assert old["model"] == ["sklearn.linear_model.Ridge"]
 
 
-def test_merge_raw_plans_never_modifies_existing_entries():
+def test_merge_raw_plans_adds_tuned_reproposal_as_sibling():
+    # a bare backbone-slot encoder gaining a tuned hyperparameter must NOT be
+    # dropped. The tuned variant introduces a new choose-node and enters as a
+    # distinct sibling (slot options are labeled by repr, so bare and tuned
+    # coexist) while the bare entry is untouched.
+    old = {"vectorizer": {"slots": {"high_cardinality": ["skrub.TextEncoder"]}}}
+    new = {
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    {
+                        "name": "skrub.TextEncoder",
+                        "params": {"n_components": {"int": [50, 300]}},
+                    }
+                ]
+            }
+        }
+    }
+    merged = _merge_raw_plans(old, new)
+    hc = merged["vectorizer"]["slots"]["high_cardinality"]
+    assert hc[0] == "skrub.TextEncoder"  # bare untouched
+    assert hc[1]["params"]["n_components"]  # tuned sibling added
+    assert old["vectorizer"]["slots"]["high_cardinality"] == ["skrub.TextEncoder"]
+
+
+def test_merge_raw_plans_blocks_numeric_retune_collision():
+    # re-tuning a param an existing backbone-slot entry ALREADY tunes would mint
+    # a duplicate `vectorizer__high_cardinality`->MinHash n_components node and
+    # corrupt the action space. The colliding param is stripped; no second entry
+    # tunes `n_components`.
+    old = {
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    {
+                        "name": "skrub.MinHashEncoder",
+                        "params": {"n_components": {"int": [50, 200]}},
+                    }
+                ]
+            }
+        }
+    }
+    new = {
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    {
+                        "name": "skrub.MinHashEncoder",
+                        "params": {"n_components": {"int": [50, 300]}},  # re-tune
+                    }
+                ]
+            }
+        }
+    }
+    merged = _merge_raw_plans(old, new)
+    hc = merged["vectorizer"]["slots"]["high_cardinality"]
+    assert hc[0]["params"]["n_components"] == {"int": [50, 200]}
+    still_tuned = [
+        e
+        for e in hc
+        if isinstance(e, dict) and "n_components" in (e.get("params") or {})
+    ]
+    assert len(still_tuned) == 1  # the collision never duplicates the node
+
+
+def test_merge_raw_plans_drops_same_class_model_reproposal():
+    # models are labeled by class name at resolve, so a same-class re-proposal
+    # (even with new params) cannot become a distinct option — it is dropped,
+    # leaving the existing model entry untouched.
     old = {"model": ["sklearn.linear_model.Ridge"]}
-    # a proposal re-listing an existing operator WITH params must be ignored:
-    # mutating an existing entry would change its action-space label and
-    # orphan already-scored tree states
     new = {
         "model": [
             {
@@ -74,13 +143,13 @@ def test_merge_raw_plans_never_modifies_existing_entries():
 
 def test_merge_raw_plans_treats_missing_stages_as_no_change():
     old = {
-        "encoder_options": ["skrub.GapEncoder"],
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
         "model": ["sklearn.linear_model.Ridge"],
     }
     assert _merge_raw_plans(old, {}) == old
     # a partial proposal touches only the stage it names
     merged = _merge_raw_plans(old, {"model": ["sklearn.linear_model.Lasso"]})
-    assert merged["encoder_options"] == ["skrub.GapEncoder"]
+    assert merged["vectorizer"] == old["vectorizer"]
     assert len(merged["model"]) == 2
 
 
@@ -129,7 +198,7 @@ def _california() -> pd.DataFrame:
 
 # A minimal spec, so proposed options are genuinely new to the plan.
 RAW = {
-    "encoder_options": ["skrub.GapEncoder"],
+    "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
     "stages": [
         {
             "name": "scale",
@@ -343,7 +412,7 @@ def test_score_cache_bounds_cv_calls_across_slices():
 # (resolver repair), so the searchable dims are its gated HPs PLUS the 2-option
 # encoder — the bonus phase refines both structure and HPs.
 _HP_RAW = {
-    "encoder_options": ["skrub.GapEncoder"],
+    "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
     "model": [
         {
             "name": "sklearn.ensemble.HistGradientBoostingRegressor",
@@ -385,7 +454,7 @@ def test_bonus_phase_explores_structural_neighbors_and_off_switch():
     # focused phase now explores the incumbent's structural neighbors.
     # A 3-scale x 3-model space so budget 5 can't exhaust it before the bonus.
     struct_raw = {
-        "encoder_options": ["skrub.GapEncoder"],
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
         "stages": [
             {
                 "name": "scale",
@@ -515,3 +584,30 @@ def test_no_proposal_injection_error_when_injection_succeeds():
     )
     assert res["proposal_injection_error"] is None
     assert res["injected_options"]  # it did inject
+
+
+def test_merge_raw_plans_unions_backbone_cleaner_and_vectorizer():
+    # a proposer extending cleaner/vectorizer must be merged additively: new
+    # param names and new slot options are added; existing params never change
+    old = {
+        "cleaner": {"params": {"drop_if_constant": {"choice": [False, True]}}},
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.StringEncoder"]}},
+        "model": ["sklearn.linear_model.Ridge"],
+    }
+    new = {
+        "cleaner": {
+            "params": {
+                "drop_if_constant": {"choice": [True]},  # re-tune: must NOT apply
+                "parse_numbers": {"choice": [False, True]},  # new: added
+            }
+        },
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}},
+    }
+    merged = _merge_raw_plans(old, new)
+    cp = merged["cleaner"]["params"]
+    assert cp["drop_if_constant"] == {"choice": [False, True]}  # unchanged
+    assert cp["parse_numbers"] == {"choice": [False, True]}  # added
+    assert merged["vectorizer"]["slots"]["high_cardinality"] == [
+        "skrub.StringEncoder",
+        "skrub.MinHashEncoder",
+    ]

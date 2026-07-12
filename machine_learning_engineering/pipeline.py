@@ -173,7 +173,8 @@ def _fallback_spec(task_type: str) -> dict:
     """Minimal, always-resolvable spec when the LLM output can't be used."""
     suffix = "Classifier" if task_type == "classification" else "Regressor"
     return {
-        "encoder_options": ["skrub.GapEncoder"],
+        # the Cleaner + TableVectorizer backbones are always-on at skrub
+        # defaults, so a bare model list is a complete, resolvable pipeline
         "model": [
             f"sklearn.ensemble.HistGradientBoosting{suffix}",
             f"sklearn.ensemble.RandomForest{suffix}",

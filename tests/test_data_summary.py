@@ -54,3 +54,18 @@ def test_summary_shows_examples_for_categoricals():
     s = make_data_summary(df, target="target")
     assert "examples=" in s  # categorical column lists example values
     assert "'NYC'" in s
+
+
+def test_summary_reports_class_balance_for_classification_target():
+    # a skewed binary target should surface its class proportions so the
+    # analyst can flag imbalance to the planner
+    df = pd.DataFrame({"x": range(100), "label": ["pos"] * 5 + ["neg"] * 95})
+    s = make_data_summary(df, target="label")
+    assert "class balance:" in s
+    assert "'pos'=5.0%" in s and "'neg'=95.0%" in s
+
+
+def test_summary_omits_class_balance_for_regression_target():
+    df, target = _california()  # continuous float target
+    s = make_data_summary(df, target=target)
+    assert "class balance:" not in s

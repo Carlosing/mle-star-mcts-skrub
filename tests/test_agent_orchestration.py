@@ -33,7 +33,7 @@ FAKE_ANALYSIS = (
     "ANALYSIS: regression on 'target'; high-cardinality city column."
 )
 FAKE_SPEC_JSON = (
-    '{"encoder_options": ["GapEncoder", "MinHashEncoder"], '
+    '{"vectorizer": {"slots": {"high_cardinality": ["GapEncoder", "MinHashEncoder"]}}, '
     '"model": ["HistGradientBoosting", "RandomForest"]}'
 )
 

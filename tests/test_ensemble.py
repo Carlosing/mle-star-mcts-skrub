@@ -34,7 +34,7 @@ def toy_search():
     df = make_toy_df()
     spec = spec_resolver.resolve_spec(
         {
-            "encoder_options": ["skrub.GapEncoder"],
+            "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
             "model": [
                 "sklearn.ensemble.HistGradientBoostingClassifier",
                 "sklearn.ensemble.RandomForestClassifier",

@@ -21,8 +21,12 @@ from machine_learning_engineering.spec_resolver import (
 )
 
 RAW = {
-    "clean_options": ["skip", "skrub.Cleaner"],
-    "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+    "cleaner": {"params": {"drop_if_constant": {"choice": [False, True]}}},
+    "vectorizer": {
+        "slots": {
+            "high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+        }
+    },
     "stages": [
         {
             "name": "scale",
@@ -85,11 +89,9 @@ def test_parse_json_ignores_braces_in_the_models_commentary():
 def test_resolve_paths_to_instances():
     spec = resolve_spec(RAW, task_type="regression")
 
-    assert None in spec["clean_options"]
-    assert any(isinstance(o, skrub.Cleaner) for o in spec["clean_options"])
-
-    assert all(o is not None for o in spec["encoder_options"])
-    assert any(isinstance(o, skrub.GapEncoder) for o in spec["encoder_options"])
+    # always-on backbones resolve to instances (knobs -> choose_* nodes)
+    assert isinstance(spec["cleaner"], skrub.Cleaner)
+    assert isinstance(spec["vectorizer"], skrub.TableVectorizer)
 
     assert spec["stages"][0]["name"] == "scale"
     assert None in spec["stages"][0]["options"]
@@ -147,9 +149,14 @@ def test_non_allowlisted_root_is_rejected():
 
 def test_unimportable_paths_dropped_and_reported():
     raw = {
-        "encoder_options": [
-            "skrub.GapEncoder",
-            "sklearn.preprocessing.NotARealThing",
+        "stages": [
+            {
+                "name": "fe",
+                "options": [
+                    "skrub.GapEncoder",
+                    "sklearn.preprocessing.NotARealThing",
+                ],
+            }
         ],
         "model": [
             "sklearn.ensemble.RandomForestRegressor",
@@ -163,14 +170,10 @@ def test_unimportable_paths_dropped_and_reported():
     spec = resolve_spec(raw)
     import skrub
 
-    # the bad encoder is dropped; GapEncoder survives, and since it's then a
-    # lone required-stage option, the skrub-default companion is appended
-    assert any(
-        isinstance(o, skrub.GapEncoder) for o in spec["encoder_options"]
-    )
-    assert not any(
-        type(o).__name__ == "NotARealThing" for o in spec["encoder_options"]
-    )
+    # the bad operator is dropped; GapEncoder survives in the stage's options
+    opts = spec["stages"][0]["options"]
+    assert any(isinstance(o, skrub.GapEncoder) for o in opts)
+    assert not any(type(o).__name__ == "NotARealThing" for o in opts)
     assert set(spec["model"]) == {"RandomForestRegressor"}  # bad model dropped
 
 
@@ -187,16 +190,18 @@ def test_operator_with_missing_optional_dep_is_dropped(monkeypatch):
     # in a full plan it's dropped like any unusable operator; the run survives
     spec = resolve_spec(
         {
-            "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+            "stages": [
+                {
+                    "name": "fe",
+                    "options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],
+                }
+            ],
             "model": ["sklearn.ensemble.RandomForestRegressor"],
         }
     )
-    assert not any(
-        type(o).__name__ == "GapEncoder" for o in spec["encoder_options"]
-    )
-    assert any(
-        isinstance(o, skrub.MinHashEncoder) for o in spec["encoder_options"]
-    )
+    opts = spec["stages"][0]["options"]
+    assert not any(type(o).__name__ == "GapEncoder" for o in opts)
+    assert any(isinstance(o, skrub.MinHashEncoder) for o in opts)
 
 
 def test_strict_raises_on_unknown():
@@ -204,7 +209,7 @@ def test_strict_raises_on_unknown():
         resolve_spec(
             {
                 "model": ["sklearn.ensemble.RandomForestRegressor"],
-                "encoder_options": ["sklearn.bogus.Nope"],
+                "stages": [{"name": "fe", "options": ["sklearn.bogus.Nope"]}],
             },
             strict=True,
         )
@@ -324,14 +329,52 @@ def test_onehot_encoder_is_forced_dense_and_unknown_safe():
     CV fold later."""
     spec = resolve_spec(
         {
-            "encoder_options": ["sklearn.preprocessing.OneHotEncoder"],
+            "stages": [
+                {
+                    "name": "fe",
+                    "options": ["sklearn.preprocessing.OneHotEncoder"],
+                }
+            ],
             "model": ["sklearn.ensemble.RandomForestRegressor"],
         },
         task_type="regression",
     )
-    ohe = spec["encoder_options"][0]
+    ohe = spec["stages"][0]["options"][0]
     assert ohe.sparse_output is False
     assert ohe.handle_unknown != "error"
+
+
+def test_sklearn_text_vectorizers_are_dropped_as_sparse():
+    """sklearn's text vectorizers emit scipy-sparse matrices skrub's pandas
+    DataOps can't carry, and (unlike OneHotEncoder) have no dense flag — an
+    unforced TfidfVectorizer in the encoder slot killed the whole run at
+    build (the `min_df`-on-1-row preview, then a sparse-output crash). They are
+    screened out by `_emits_dataframe`; skrub-native encoders survive. See
+    docs/BUG_LEDGER.md."""
+    spec = resolve_spec(
+        {
+            "stages": [
+                {
+                    "name": "fe",
+                    "options": [
+                        {
+                            "name": "sklearn.feature_extraction.text.TfidfVectorizer",
+                            "params": {"min_df": {"int": [1, 5]}},
+                        },
+                        "sklearn.feature_extraction.text.CountVectorizer",
+                        "sklearn.feature_extraction.text.HashingVectorizer",
+                        "skrub.StringEncoder",
+                    ],
+                }
+            ],
+            "model": ["sklearn.linear_model.LogisticRegression"],
+        },
+        task_type="classification",
+    )
+    kept = [type(o).__name__ for o in spec["stages"][0]["options"]]
+    assert "StringEncoder" in kept
+    assert not any(v in kept for v in ("TfidfVectorizer", "CountVectorizer"))
+    assert "HashingVectorizer" not in kept
 
 
 def test_sparse_output_is_not_forced_onto_kwargs_constructors():
@@ -349,7 +392,7 @@ def test_parse_json_rejects_a_fragment_from_a_truncated_response():
     the text. A brace-scan returns one, and `{"float": [0.7, 1.0]}` silently
     became "the extended plan" — Option 3 no-op'd with no error."""
     truncated = (
-        '```json\n{\n "clean_options": ["skip"],\n "scoped_encodings": [\n'
+        '```json\n{\n "model": ["sklearn.linear_model.Ridge"],\n "scoped_encodings": [\n'
         '  {"name": "t", "options": [\n'
         '    {"name": "sklearn.feature_extraction.text.TfidfVectorizer",\n'
         '     "params": {"max_df": {"float": [0.7, 1.0]},\n'
@@ -397,46 +440,100 @@ def test_assemble_dict_instead_of_list_is_reported_not_crashed():
 def test_single_option_and_dropped_stages_are_flagged():
     spec = resolve_spec(
         {
-            "encoder_options": ["skip"],  # required stage -> vanishes entirely
-            "clean_options": ["skrub.Cleaner"],  # one option, nothing to search
+            # a whole stage whose only option is unimportable -> vanishes
+            "stages": [
+                {"name": "gone", "options": ["sklearn.bogus.Nope"]},
+                {"name": "lonely", "options": ["sklearn.preprocessing.StandardScaler"]},
+            ],
             "model": ["sklearn.ensemble.RandomForestClassifier"],
         },
         task_type="classification",
     )
-    assert "encoder_options" in spec["dropped_sections"]
-    assert "clean_options" in spec["single_option_stages"]
+    assert "stage:gone" in spec["dropped_sections"]
+    assert "stage:lonely" in spec["single_option_stages"]
 
 
-def test_lone_encoder_gets_skrub_default_companion():
-    """`encoder` is required (no auto-skip), so a single option leaves it
-    un-searchable. The resolver appends skrub's TableVectorizer default
-    high-cardinality encoder so the stage becomes a real 2-option search, and
-    the single-option diagnostic no longer fires."""
-    import skrub
+# --- always-on backbone: cleaner + vectorizer (LLM knobs, bare-default root) ---
 
-    spec = resolve_spec(
+
+def test_cleaner_backbone_resolves_and_defaults_to_bare_cleaner():
+    # a bare `cleaner` key -> plain Cleaner() (skrub defaults = robust root)
+    out = resolve_spec(
+        {"cleaner": {}, "model": ["sklearn.linear_model.Ridge"]},
+        task_type="regression",
+    )
+    assert isinstance(out["cleaner"], skrub.Cleaner)
+    assert repr(out["cleaner"]) == "Cleaner()"
+
+
+def test_cleaner_knobs_become_choose_nodes_default_first():
+    # LLM authors [True, False] but skrub's default (False) must seed the root,
+    # so the resolver reorders the choice to put False first
+    out = resolve_spec(
         {
-            "encoder_options": ["skrub.MinHashEncoder"],
-            "model": ["sklearn.ensemble.HistGradientBoostingRegressor"],
+            "cleaner": {
+                "params": {"drop_if_constant": {"choice": [True, False]}}
+            },
+            "model": ["sklearn.linear_model.Ridge"],
         },
         task_type="regression",
     )
-    enc = spec["encoder_options"]
-    assert len(enc) == 2
-    assert any(isinstance(o, skrub.MinHashEncoder) for o in enc)  # LLM's pick
-    assert any(isinstance(o, skrub.StringEncoder) for o in enc)   # skrub default
-    assert enc[0].__class__ is skrub.MinHashEncoder  # LLM's pick stays the root
-    assert "encoder_options" not in (spec.get("single_option_stages") or [])
+    df = pd.DataFrame({"a": ["x", "y", "x", "z"], "y": [1, 2, 3, 4]})
+    plan = skrub_ops.build_staged_plan(out, df, target="y")
+    space = skrub_ops.get_action_space(plan)
+    assert space["cleaner__Cleaner__drop_if_constant"] == ["False", "True"]
+    assert (
+        skrub_ops.get_default_state(plan)["cleaner__Cleaner__drop_if_constant"]
+        == "False"
+    )
 
 
-def test_lone_encoder_that_is_already_the_default_stays_flagged():
-    """No meaningful companion to add — so it is left single and flagged."""
-    spec = resolve_spec(
+def test_vectorizer_backbone_slots_and_scalar_knobs():
+    out = resolve_spec(
         {
-            "encoder_options": ["skrub.StringEncoder"],
-            "model": ["sklearn.ensemble.HistGradientBoostingRegressor"],
+            "vectorizer": {
+                "params": {"cardinality_threshold": {"int": [10, 40]}},
+                "slots": {
+                    "high_cardinality": [
+                        "skrub.StringEncoder",
+                        "skrub.MinHashEncoder",
+                    ]
+                },
+            },
+            "model": ["sklearn.linear_model.Ridge"],
         },
         task_type="regression",
     )
-    assert len(spec["encoder_options"]) == 1
-    assert "encoder_options" in spec["single_option_stages"]
+    assert isinstance(out["vectorizer"], skrub.TableVectorizer)
+    df = pd.DataFrame(
+        {"t": ["a b", "c", "d e", "f"], "y": [1, 2, 3, 4]}
+    )
+    plan = skrub_ops.build_staged_plan(out, df, target="y")
+    space = skrub_ops.get_action_space(plan)
+    assert "vectorizer__high_cardinality" in space
+    assert "vectorizer__TableVectorizer__cardinality_threshold" in space
+
+
+def test_vectorizer_bare_key_is_plain_tablevectorizer():
+    out = resolve_spec(
+        {"vectorizer": {}, "model": ["sklearn.linear_model.Ridge"]},
+        task_type="regression",
+    )
+    assert repr(out["vectorizer"]).startswith("TableVectorizer(")
+
+
+def test_backbone_drops_unknown_param_not_the_operator():
+    out = resolve_spec(
+        {
+            "cleaner": {
+                "params": {
+                    "not_a_real_param": {"choice": [1, 2]},
+                    "drop_if_constant": {"choice": [False, True]},
+                }
+            },
+            "model": ["sklearn.linear_model.Ridge"],
+        },
+        task_type="regression",
+    )
+    r = repr(out["cleaner"])
+    assert "not_a_real_param" not in r and "drop_if_constant" in r

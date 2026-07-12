@@ -143,7 +143,9 @@ def test_action_space_contains_each_numeric_dims_default():
     )
 
     spec = {
-        "encoder_options": [skrub.StringEncoder()],
+        "vectorizer": skrub.TableVectorizer(
+            high_cardinality=skrub.StringEncoder()
+        ),
         "model": {
             "RandomForestRegressor": RandomForestRegressor(
                 n_estimators=skrub.choose_int(

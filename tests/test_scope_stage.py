@@ -162,9 +162,9 @@ def test_merge_extends_a_scope_group_additively():
     assert raw["scoped_encodings"][0]["options"] == ["skrub.GapEncoder"]
 
 
-def test_default_state_is_appliable_when_encoder_options_have_tuned_hps():
-    """Regression: an encoder_options entry with a tunable HP (a nested
-    choice) makes skrub's own describe_defaults() abbreviate it to
+def test_default_state_is_appliable_when_slot_options_have_tuned_hps():
+    """Regression: a vectorizer high_cardinality option with a tunable HP (a
+    nested choice) makes skrub's own describe_defaults() abbreviate it to
     "GapEncoder(...)" — which does not match get_action_space's full-repr
     label. get_default_state must not round-trip through that string (the
     resulting root state would fail apply_state and every rollout would
@@ -172,20 +172,28 @@ def test_default_state_is_appliable_when_encoder_options_have_tuned_hps():
     df = make_toy_df()
     spec = spec_resolver.resolve_spec(
         {
-            "encoder_options": [
-                {
-                    "name": "skrub.GapEncoder",
-                    "params": {"n_components": {"int": [10, 50]}},
-                },
-                "skrub.MinHashEncoder",
-            ],
+            "vectorizer": {
+                "slots": {
+                    "high_cardinality": [
+                        {
+                            "name": "skrub.GapEncoder",
+                            "params": {"n_components": {"int": [10, 50]}},
+                        },
+                        "skrub.MinHashEncoder",
+                    ]
+                }
+            },
             "model": ["sklearn.ensemble.HistGradientBoostingClassifier"],
         },
         task_type="classification",
     )
     plan = skrub_ops.build_staged_plan(spec, df)
     start = skrub_ops.get_default_state(plan)
-    assert start["encoder"] in skrub_ops.get_action_space(plan)["encoder"]
+    space = skrub_ops.get_action_space(plan)
+    assert (
+        start["vectorizer__high_cardinality"]
+        in space["vectorizer__high_cardinality"]
+    )
     skrub_ops.apply_state(plan, start)  # must not raise
 
 

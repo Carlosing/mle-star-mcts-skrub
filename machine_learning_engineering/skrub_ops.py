@@ -262,8 +262,8 @@ def get_default_state(plan) -> dict:
     staged construction. NOTE: resetting the plan is a deliberate side effect.
 
     Do NOT match discrete defaults against `describe_defaults()`'s own string:
-    for an outcome that itself contains a nested choice (e.g. an
-    HP-tuned `encoder_options` entry), skrub abbreviates it to
+    for an outcome that itself contains a nested choice (e.g. an HP-tuned model
+    or vectorizer-slot entry), skrub abbreviates it to
     `"ClassName(...)"`, which never matches `get_action_space`'s full-repr
     label — round-tripping through that string silently produces an
     unappliable root state (`apply_state` raises, every rollout scores 0.0).
@@ -452,9 +452,9 @@ def _is_array_cell(value) -> bool:
     """
     if isinstance(value, (str, bytes)):
         return False
-    return isinstance(value, (list, tuple, np.ndarray, pd.Series)) or isinstance(
-        value, pd.api.extensions.ExtensionArray
-    )
+    return isinstance(
+        value, (list, tuple, np.ndarray, pd.Series)
+    ) or isinstance(value, pd.api.extensions.ExtensionArray)
 
 
 def _first_cell(value):
@@ -600,7 +600,10 @@ def build_staged_plan(
     Stages are applied in canonical pipeline order:
     assemble (relational) -> clean -> scoped encodings (pre_encode) ->
     encode -> scoped encodings (post_encode) -> post-encoding stages ->
-    model. See docs/pipeline-stages.md for the taxonomy.
+    model. See docs/pipeline-stages.md for the taxonomy. The `clean` (Cleaner)
+    and `encode` (TableVectorizer) backbones are ALWAYS applied — their
+    searchable knobs live in the resolved `cleaner` / `vectorizer` instances,
+    defaulting to bare skrub defaults when the spec omits them.
 
     `spec` shape (operators are real estimator instances, not strings —
     translating LLM text to instances is a separate concern):
@@ -613,8 +616,9 @@ def build_staged_plan(
             {"name": "aux_mean", "table": "aux", "operations": ["mean"],
              "key": "id", "cols": ["v"]},
           ],
-          # optional: cleaning / type coercion before encoding
-          "clean_options": [None, Cleaner()],
+          # always-on Cleaner backbone (resolved instance; bare Cleaner() when
+          # omitted). Its choose_* knobs come from spec_resolver.
+          "cleaner": Cleaner(drop_if_constant=choose_from([False, True], ...)),
           # optional: scope — apply a searchable operator to SPECIFIC columns.
           # Column names are validated against df and matched
           # missing-tolerantly at runtime (see _scope_selector); a 'skip'
@@ -633,8 +637,10 @@ def build_staged_plan(
             {"name": "num_scale", "cols": ["age"], "position": "post_encode",
              "options": [StandardScaler()]},
           ],
-          # optional: encoder choice inside the TableVectorizer
-          "encoder_options": [GapEncoder(), MinHashEncoder()],
+          # always-on TableVectorizer backbone (resolved instance; bare
+          # TableVectorizer() when omitted). Its slots (high_cardinality etc.)
+          # and scalar knobs become choose_* nodes via spec_resolver.
+          "vectorizer": TableVectorizer(high_cardinality=choose_from([...])),
           # optional: post-encoding numeric stages
           "stages": [
             {"name": "scale",       "options": [None, StandardScaler()]},
@@ -654,12 +660,15 @@ def build_staged_plan(
       array-valued cells `mode` leaves on a tie.
 
     Example (minimal, single-table):
-        spec = {"encoder_options": [skrub.GapEncoder(), skrub.MinHashEncoder()],
+        spec = {"vectorizer": TableVectorizer(
+                    high_cardinality=skrub.choose_from(
+                        [skrub.GapEncoder(), skrub.MinHashEncoder()],
+                        name="vectorizer__high_cardinality")),
                 "model": {"GBM": GradientBoostingClassifier(),
                           "RF": RandomForestClassifier()}}
         plan = build_staged_plan(spec, df)        # df has a "target" column
         get_action_space(plan)
-        # -> {"encoder": ["GapEncoder()", "MinHashEncoder()"], "model": ["GBM", "RF"]}
+        # -> {"vectorizer__high_cardinality": [...], "model": ["GBM", "RF"]}
     """
     data = skrub.var("data", df)
     aux_vars = {
@@ -699,10 +708,10 @@ def build_staged_plan(
         node = node.skb.apply(_ScalarizeAggregates())
 
     # --- clean / coerce ---
-    if spec.get("clean_options"):
-        node = node.skb.apply(
-            skrub.choose_from(_skip_first(spec["clean_options"]), name="clean")
-        )
+    # ALWAYS-ON backbone Cleaner. Its knobs are LLM-authored (resolved into
+    # choose_* nodes by spec_resolver); when the spec omits it, a bare Cleaner()
+    # at skrub defaults is the robust root.
+    node = node.skb.apply(spec.get("cleaner") or skrub.Cleaner())
 
     # --- scope: searchable operator on an explicit column subset ---
     scoped_groups = spec.get("scoped_encodings", []) or []
@@ -724,22 +733,14 @@ def build_staged_plan(
     node = _scope_pass(node, "pre_encode")
 
     # --- encode / vectorize ---
-    # The vectorization backbone is ALWAYS a skrub.TableVectorizer (this has
-    # been true since the project's start): it routes numeric/datetime/low-card
-    # columns through skrub's built-in transformers, and the searchable
-    # `encoder` stage only chooses its `high_cardinality` slot. With no
-    # `encoder_options`, that slot silently uses skrub's own default
-    # (StringEncoder in 0.9) — so "no encoder in the plan" is NOT "no encoding".
-    # `spec_resolver` adds that default as a companion to a lone encoder option
-    # (`_default_high_cardinality_encoder`) so a required stage stays searchable.
-    enc_opts = spec.get("encoder_options")
-    if enc_opts:
-        vectorizer = skrub.TableVectorizer(
-            high_cardinality=skrub.choose_from(enc_opts, name="encoder")
-        )
-    else:
-        vectorizer = skrub.TableVectorizer()
-    node = node.skb.apply(vectorizer)
+    # ALWAYS-ON backbone TableVectorizer. It routes numeric/datetime/low-/high-
+    # cardinality columns through skrub's built-in transformers. Its slots and
+    # scalar knobs (high_cardinality / low_cardinality / numeric / datetime,
+    # cardinality_threshold, drop_*, ...) are LLM-authored and resolved into
+    # choose_* nodes by spec_resolver; when the spec omits it, a bare
+    # TableVectorizer() at skrub defaults is the robust root. Per-column datetime
+    # or text handling stays the LLM's job via `scoped_encodings`.
+    node = node.skb.apply(spec.get("vectorizer") or skrub.TableVectorizer())
 
     # --- scope, post-encode: e.g. scale specific (passthrough-named) columns ---
     node = _scope_pass(node, "post_encode")
@@ -997,7 +998,9 @@ def reward_scale(scoring) -> str:
         reward_scale("accuracy")  # -> "raw"
         reward_scale("r2")        # -> "1/(2 - r2)"
     """
-    return "raw" if scoring in _UNIT_SCORERS else f"1/(2 - {scoring or 'score'})"
+    return (
+        "raw" if scoring in _UNIT_SCORERS else f"1/(2 - {scoring or 'score'})"
+    )
 
 
 # Ranking scorers that consume class *probabilities*. skrub's learner reports

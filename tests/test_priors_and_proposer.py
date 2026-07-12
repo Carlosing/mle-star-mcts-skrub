@@ -35,10 +35,14 @@ from fixtures.golden_plan import make_toy_df
 
 def test_resolver_collects_priors_across_stages():
     raw = {
-        "encoder_options": [
-            {"name": "skrub.GapEncoder", "prior": 0.9},
-            "skrub.MinHashEncoder",
-        ],
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    {"name": "skrub.GapEncoder", "prior": 0.9},
+                    "skrub.MinHashEncoder",
+                ]
+            }
+        },
         "scoped_encodings": [
             {
                 "name": "color_enc",
@@ -61,10 +65,11 @@ def test_resolver_collects_priors_across_stages():
     assert priors["model"]["HistGradientBoostingClassifier"] == 0.8
     assert priors["model"]["LogisticRegression"] == 1.0  # clipped to [0, 1]
     assert priors["scope_color_enc"]["StringEncoder"] == 0.7
-    # encoder priors are keyed by the action-space label (the instance repr)
-    assert any(k.startswith("GapEncoder") for k in priors["encoder"])
+    # backbone slot priors are keyed by the slot's choice name -> option repr
+    hc = priors["vectorizer__high_cardinality"]
+    assert any(k.startswith("GapEncoder") for k in hc)
     # options without a prior simply have no entry (prior_fn defaults to 0.5)
-    assert not any(k.startswith("MinHashEncoder") for k in priors["encoder"])
+    assert not any(k.startswith("MinHashEncoder") for k in hc)
 
 
 def test_spec_without_priors_has_no_priors_key():
@@ -143,8 +148,8 @@ def test_parse_plan_accepts_fenced_json_objects():
         "model": ["lightgbm.LGBMRegressor"]
     }
     assert _parse_plan(
-        '```json\n{"encoder_options": ["skrub.MinHashEncoder"]}\n```'
-    ) == {"encoder_options": ["skrub.MinHashEncoder"]}
+        '```json\n{"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}\n```'
+    ) == {"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}
     # prose around the object is tolerated (parse_spec_json brace-scan)
     assert _parse_plan('Here you go: {"model": ["x.Y"]} hope it helps') == {
         "model": ["x.Y"]
@@ -161,7 +166,7 @@ def test_parse_plan_rejects_non_objects():
 def test_proposer_receives_whole_plan_and_scoped_extension_injects():
     df = make_toy_df()
     raw = {
-        "encoder_options": ["skrub.GapEncoder"],
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder"]}},
         "model": [
             "sklearn.ensemble.HistGradientBoostingClassifier",
             "sklearn.linear_model.LogisticRegression",
@@ -277,14 +282,14 @@ def test_proposer_no_retry_when_grounded_call_succeeds(tmp_path, monkeypatch):
     from google import genai
 
     client_cls = _fake_genai_client(
-        lambda mode: '{"encoder_options": ["skrub.MinHashEncoder"]}'
+        lambda mode: '{"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}'
     )
     monkeypatch.setattr(genai, "Client", client_cls)
 
     propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
     out = propose({"model": ["sklearn.linear_model.Ridge"]}, {"columns": ["a"]})
 
-    assert out == {"encoder_options": ["skrub.MinHashEncoder"]}
+    assert out == {"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}
     resp = json.load(open(tmp_path / "proposer_1_response.json"))
     assert len(resp) == 1  # grounded success -> no retry record
     assert not any("retry" in r for r in resp)

@@ -109,6 +109,10 @@ _ANALYST_INSTRUCTION = (
     + _ANALYST_SEARCH_FRAGMENT
     + "Produce a short structured analysis covering:\n"
     "  - the task type (regression vs classification) and target column;\n"
+    "  - for a classification task, the class balance: the summary reports it "
+    "as 'class balance' under the target; call out roughly how imbalanced it is "
+    "(e.g. a rare positive class), since that changes the appropriate scoring "
+    "metric and may warrant class weighting or resampling;\n"
     "  - which columns are high-cardinality / dirty categoricals, datetime, "
     "or numeric;\n"
     "  - candidate encoders (e.g. GapEncoder vs MinHashEncoder), cleaning "
@@ -143,9 +147,12 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "it is reasonable.\n\n"
     + _PLANNER_SEARCH_FRAGMENT
     + "Pipeline stages, in order: assemble (relational, optional) -> clean "
-    "(optional) -> scoped operators pre-encode (optional) -> encode (required) "
-    "-> scoped operators post-encode (optional) -> scale/feature-eng (optional) "
-    "-> model (required). For optional stages, include a 'skip' option.\n\n"
+    "(always-on Cleaner backbone) -> scoped operators pre-encode (optional) -> "
+    "encode (always-on TableVectorizer backbone) -> scoped operators post-encode "
+    "(optional) -> scale/feature-eng (optional) -> model (required). The clean "
+    "and encode backbones ALWAYS run at skrub defaults; tune their knobs via the "
+    '"cleaner" / "vectorizer" objects (below) only if worthwhile. For optional '
+    "stages, include a 'skip' option.\n\n"
     "An operator is a FULL DOTTED IMPORT PATH (bare, for defaults) OR an object "
     '{"name": <path>, "params": {...}} to ALSO search its hyperparameters — '
     "prefer tuning the model's key hyperparameters, and give GENEROUS, "
@@ -156,14 +163,24 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "wall-clock budget, AVOID ranges whose upper bound makes a single fit "
     "extremely slow (e.g. n_estimators or max_iter in the tens of thousands, "
     "very large n_components, a high polynomial degree) — keep upper bounds to "
-    "what trains in a few seconds on a subsample. Any operator "
+    "what trains in a few seconds on a subsample. "
+    "ORDER MATTERS: within each stage's list, put the MOST ROBUST / most "
+    "generally-applicable operator FIRST. The first option of every stage seeds "
+    "the search's root configuration, and every single-edit search decision is "
+    "scored against that root — so a robust default (e.g. a gradient-boosting "
+    "model that tolerates missing values, unscaled features and mixed types) "
+    "makes each one-edit score meaningful, whereas a fragile default (a linear "
+    "model that fails on NaNs from a join, or needs scaling first) makes many "
+    "single edits look falsely bad and misleads the search. Prefer models "
+    "before their required preprocessing when ordering. Any operator "
     'object may also carry "prior": 0.0-1.0 — your confidence that this option '
-    "wins on THIS dataset; the search visits high-prior options first. Emit "
+    "wins on THIS dataset; the search visits high-prior options first (this is "
+    "separate from list order, which fixes the root). Emit "
     "ONLY JSON of this shape (dotted paths + HP ranges; lazy import/resolution "
     "is downstream):\n"
     "{\n"
-    '  "clean_options": ["skip", "skrub.Cleaner"],\n'
-    '  "encoder_options": ["skrub.GapEncoder", "skrub.MinHashEncoder"],\n'
+    '  "cleaner": {"params": {"drop_if_constant": {"choice": [false, true]}}},\n'
+    '  "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}},\n'
     '  "stages": [\n'
     '    {"name": "scale", "options": ["skip", "sklearn.preprocessing.StandardScaler"]},\n'
     '    {"name": "feature_eng", "options": ["skip",\n'
@@ -205,6 +222,22 @@ _PLAN_AUTHOR_INSTRUCTION = (
     "derived output (e.g. extracting month from a date while keeping the raw "
     "date). The engine concatenates the derived columns by row index "
     "automatically; leave false (default) to replace the columns.\n\n"
+    "BACKBONE KNOBS (optional): the pipeline ALWAYS runs a skrub.Cleaner then a "
+    "skrub.TableVectorizer at their stock defaults (a robust root). To make "
+    "their own knobs searchable — exactly like model hyperparameters — add a "
+    '"cleaner" and/or "vectorizer" object. "cleaner": {"params": {<constructor '
+    'knob>: <rule>}} tunes Cleaner (e.g. "drop_if_constant", "drop_if_unique", '
+    '"parse_numbers": {"choice": [false, true]}). "vectorizer": {"params": '
+    '{<scalar knob>: <rule>}, "slots": {<slot>: [<operator paths>]}} tunes the '
+    "TableVectorizer: scalar knobs like "
+    '"cardinality_threshold": {"int": [10, 40]}, and estimator SLOTS '
+    '"high_cardinality" / "low_cardinality" / "numeric" / "datetime" each given '
+    "a list of operator paths to search (a slot list may use the "
+    '{"name":..., "params":{...}} form too — e.g. a DatetimeEncoder with '
+    '"add_weekday": {"choice": [false, true]}). Any knob you omit keeps skrub\'s '
+    "default, so the root stays robust; only add the few knobs likely to matter "
+    "for THIS data. For a boolean, list the skrub default first (usually "
+    "false).\n\n"
     + format_allowed_for_prompt()
     + "\n\nOUTPUT CONTRACT: reply with the JSON object alone. The first "
     "character is '{' and the last is '}'. No preamble, no markdown fence, no "

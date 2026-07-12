@@ -91,9 +91,11 @@ def booster_plan(dirty_df):
 
     return skrub_ops.build_staged_plan(
         {
-            "encoder_options": [
-                skrub.GapEncoder(n_components=3, random_state=0)
-            ],
+            "vectorizer": skrub.TableVectorizer(
+                high_cardinality=skrub.GapEncoder(
+                    n_components=3, random_state=0
+                )
+            ),
             "model": {
                 "LGBM": lightgbm.LGBMRegressor(
                     n_estimators=30, n_jobs=1, random_state=0, verbose=-1
@@ -105,11 +107,9 @@ def booster_plan(dirty_df):
 
 
 def test_sanitize_step_is_invisible_to_the_search(booster_plan):
-    # the rename adds no choose_from: same action space, no gating entry
-    assert set(skrub_ops.get_action_space(booster_plan)) == {
-        "encoder",
-        "model",
-    }
+    # the rename adds no choose_from: only the model choice is searchable
+    # (the vectorizer's fixed encoder slot adds no dimension), no gating entry
+    assert set(skrub_ops.get_action_space(booster_plan)) == {"model"}
     assert skrub_ops.get_choice_gating(booster_plan) == {}
 
 

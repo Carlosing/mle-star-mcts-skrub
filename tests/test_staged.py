@@ -40,10 +40,14 @@ def plan(df):
 
 def test_stage_menu_becomes_the_action_space(plan):
     space = skrub_ops.get_action_space(plan)
-    assert {"clean", "encoder", "scale", "feature_eng", "model"} <= set(space)
+    assert {
+        "vectorizer__high_cardinality",
+        "scale",
+        "feature_eng",
+        "model",
+    } <= set(space)
     assert space["model"] == ["LogReg", "GBM", "RF"]
     # skip ('None') is the default (first) option for optional stages
-    assert space["clean"][0] == "None"
     assert space["scale"][0] == "None"
     assert space["feature_eng"][0] == "None"
 

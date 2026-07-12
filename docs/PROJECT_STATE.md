@@ -160,16 +160,16 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
   `run_search_loop`/`pipeline.py`, auto-enabled for `task_type == "classification"`.
   (`tests/test_relational_pipeline.py::test_stratified_rollout_avoids_nan_on_rare_target`.)
 - ✅ **`get_default_state` root-state bug (found during the SAME live smoke, more serious)**
-  — when a list-based stage (`encoder_options`, `clean_options`, `stages`) has an HP-tuned
-  entry (a nested choice), skrub's own `describe_defaults()` abbreviates it to
+  — when a list-based stage (a `vectorizer`/`cleaner` backbone slot, `stages`) has an
+  HP-tuned entry (a nested choice), skrub's own `describe_defaults()` abbreviates it to
   `"ClassName(...)"`, which never matches `get_action_space`'s full-repr label. The old
   reconciliation silently stored that unappliable abbreviated string as the search ROOT
   state, so `apply_state` raised on it and **every rollout in the run scored 0.0** —
   observed live once the plan_author prompt (Item 3) started asking for generous HP
-  ranges on non-model operators too, e.g. `encoder_options`. Fixed: discrete defaults now
-  come from `get_action_space(plan)[name][0]` (skrub's `Choice.default` is always
+  ranges on non-model operators too. Fixed: discrete defaults now come from
+  `get_action_space(plan)[name][0]` (skrub's `Choice.default` is always
   `outcomes[0]`, verified against `_choosing.py`), never from the describe_defaults()
-  string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_encoder_options_have_tuned_hps`.)
+  string. (`tests/test_scope_stage.py::test_default_state_is_appliable_when_slot_options_have_tuned_hps`.)
 
 **Week 2 — follow-ups (landed 2026-07-07, all offline-tested)**
 - ✅ **HP-refinement bonus phase** *(superseded 2026-07-10 by the focused-refinement

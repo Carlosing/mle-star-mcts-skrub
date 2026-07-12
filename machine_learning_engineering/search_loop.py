@@ -30,6 +30,7 @@ inner search loop — at most `outer_steps - 1` calls total. The bonus phase add
 zero LLM calls.
 """
 
+import json
 import time
 from collections import defaultdict
 
@@ -104,28 +105,110 @@ def _entry_path(entry):
     return None
 
 
-def _merge_option_lists(old: list, new) -> list:
-    """Union two raw option lists by operator path; old entries never change."""
-    seen = {_entry_path(e) for e in old}
+def _tuned_params(entry) -> set:
+    """The hyperparameter names an option entry tunes (empty for a bare path)."""
+    if isinstance(entry, dict):
+        return set((entry.get("params") or {}).keys())
+    return set()
+
+
+def _entry_signature(entry) -> tuple:
+    """An option's full identity: its path plus a canonical view of its params.
+
+    Two entries share a signature only when they are the same operator tuned
+    identically — so a bare operator and a tuned re-proposal of it are DISTINCT.
+    That is exactly what lets the tuned variant be ADDED as a sibling instead of
+    collapsed onto the bare one (which path-only dedup did, silently dropping it).
+    """
+    params = entry.get("params") if isinstance(entry, dict) else None
+    return (_entry_path(entry), json.dumps(params or {}, sort_keys=True))
+
+
+def _merge_option_lists(old: list, new, repr_labeled: bool = True) -> list:
+    """Union two raw option lists; existing entries are never modified.
+
+    On ``repr_labeled`` stages (scoped options and backbone slots, whose
+    action-space label is the operator *repr*) dedup is by full signature (path +
+    tuned-param rules), not path alone, so a proposer that re-emits an operator
+    carrying NEW hyperparameters — a bare ``skrub.TextEncoder`` gaining an
+    ``n_components`` range — is kept as a distinct sibling rather than silently
+    dropped (the bare and tuned reprs are different options).
+
+    The top-level model list is NOT repr-labeled: ``resolve_spec`` keys models on
+    ``type(inst).__name__``, so two same-class entries collapse onto one at
+    resolve (last wins). There (``repr_labeled=False``) the original path-only
+    dedup holds — a new model class is added, a re-proposal of an existing class
+    is dropped — since a same-class sibling cannot be represented anyway.
+
+    Numeric re-tuning is the one thing kept out of repr-labeled stages too. A
+    resolved param becomes a ``choose_*`` node named ``<stage>__<Class>__<param>``,
+    so a second same-path entry that RE-tunes a param already tuned upstream
+    (MinHash n_components ``[50, 200]`` -> ``[50, 300]``) would mint a duplicate
+    node name and make the action space — which persisted tree states key on —
+    unreadable. Params whose node name is already claimed are stripped from the
+    newcomer (keeping only genuinely new dimensions); an exact re-send is
+    dropped before stripping, so an unchanged proposal is always a no-op.
+
+    Example:
+        _merge_option_lists(
+            ["skrub.TextEncoder"],
+            [{"name": "skrub.TextEncoder",
+              "params": {"n_components": {"int": [50, 300]}}}])
+        # -> ["skrub.TextEncoder",
+        #     {"name": "skrub.TextEncoder", "params": {"n_components": ...}}]
+    """
+    if not repr_labeled:  # class-name-labeled (models): dedup by path only
+        seen_paths = {_entry_path(e) for e in old}
+        added = []
+        for e in new or []:
+            path = _entry_path(e)
+            if path and path not in seen_paths:
+                seen_paths.add(path)
+                added.append(e)
+        return list(old) + added
+
+    seen = {_entry_signature(e) for e in old}
+    tuned: dict = defaultdict(set)  # path -> param names already given a node
+    for e in old:
+        tuned[_entry_path(e)] |= _tuned_params(e)
     added = []
     for e in new or []:
         path = _entry_path(e)
-        if path and path not in seen:
-            seen.add(path)
-            added.append(e)
+        if path is None:
+            continue
+        if _entry_signature(e) in seen:
+            continue  # exact re-send of an existing option
+        collide = _tuned_params(e) & tuned[path]
+        if collide:  # drop params whose choose-node name is already claimed
+            e = dict(e)
+            e["params"] = {
+                k: v
+                for k, v in (e.get("params") or {}).items()
+                if k not in collide
+            }
+            if not e["params"]:
+                del e["params"]
+            if _entry_signature(e) in seen:
+                continue  # collapsed onto an option already present
+        added.append(e)
+        seen.add(_entry_signature(e))
+        tuned[path] |= _tuned_params(e)
     return list(old) + added
 
 
 def _merge_raw_plans(old: dict, new: dict) -> dict:
     """Merge a proposed plan into the current raw plan, strictly additively.
 
-    Each stage is unioned by operator path (`clean_options`,
-    `encoder_options`, `model`) or by entry name (`stages`,
-    `scoped_encodings`, `assemble` — new names are appended whole, matching
-    names only gain options). Existing entries are NEVER modified or removed:
-    the persisted tree's states reference the current action-space labels, so
-    a mutation (even adding params to an existing operator) would orphan
-    already-scored nodes. A partial proposal is fine — missing stages mean
+    Each stage is unioned by operator signature (path + tuned params) for
+    `model`, by entry name for `stages`, `scoped_encodings`, `assemble` (new
+    names are appended whole, matching names only gain options), and by
+    additive param/slot union for the `cleaner` / `vectorizer` backbones
+    (`_merge_backbone`). Existing entries are NEVER modified or removed: the
+    persisted tree's states reference the current action-space labels, so a
+    mutation would orphan already-scored nodes. A re-proposal that only ADDS
+    hyperparameters to an existing operator therefore enters as a distinct
+    sibling (`_merge_option_lists`), never as an in-place edit. A partial
+    proposal is fine — missing stages mean
     "no change". Validation is not done here: the merged plan goes through
     `resolve_spec`, whose import allow-list / schema checks drop anything
     unusable.
@@ -139,13 +222,12 @@ def _merge_raw_plans(old: dict, new: dict) -> dict:
         #               {"name": "lightgbm.LGBMRegressor", "params": {...}}]}
     """
     merged = dict(old)
-    for key in ("clean_options", "encoder_options"):
-        if new.get(key):
-            merged[key] = _merge_option_lists(list(old.get(key) or []), new[key])
     if new.get("model"):
         old_models = spec_resolver._iter_model_items(old.get("model"))
         new_models = spec_resolver._iter_model_items(new["model"])
-        merged["model"] = _merge_option_lists(old_models, new_models)
+        merged["model"] = _merge_option_lists(
+            old_models, new_models, repr_labeled=False
+        )
     for key in ("stages", "scoped_encodings", "assemble"):
         if not new.get(key):
             continue
@@ -164,6 +246,33 @@ def _merge_raw_plans(old: dict, new: dict) -> dict:
                     list(current.get("options") or []), prop["options"]
                 )
         merged[key] = entries
+    for key in ("cleaner", "vectorizer"):
+        if new.get(key):
+            merged[key] = _merge_backbone(old.get(key) or {}, new[key])
+    return merged
+
+
+def _merge_backbone(old: dict, new) -> dict:
+    """Additively union a ``cleaner``/``vectorizer`` backbone spec.
+
+    New scalar ``params`` names are added; an existing param's rule is NEVER
+    changed (a persisted tree state keys on its current choose-node range, so a
+    re-tune would orphan scored nodes — same invariant as `_merge_option_lists`).
+    Each ``slots`` option list is unioned by operator path.
+    """
+    if not isinstance(new, dict):
+        return old if isinstance(old, dict) else {}
+    merged = dict(old) if isinstance(old, dict) else {}
+    params = dict(merged.get("params") or {})
+    for pname, rule in (new.get("params") or {}).items():
+        params.setdefault(pname, rule)  # existing param never changes
+    if params:
+        merged["params"] = params
+    slots = dict(merged.get("slots") or {})
+    for slot, items in (new.get("slots") or {}).items():
+        slots[slot] = _merge_option_lists(list(slots.get(slot) or []), items)
+    if slots:
+        merged["slots"] = slots
     return merged
 
 
@@ -637,16 +746,25 @@ def make_llm_proposer(
             "plan. It must be a superset: NEVER remove or modify existing "
             "entries — only additions are applied. Add the few NEW options "
             "most likely to beat the evidence below, on any stage(s): new "
-            "model/encoder/stage operators as full dotted import paths "
+            "model / feature-eng stage operators as full dotted import paths "
             "(sklearn.*, skrub.*, lightgbm.*, xgboost.*), and/or new "
             'scoped_encodings groups ({"name", "cols", "options"}, optionally '
             '"additive": true to keep the original columns and '
-            '"position": "post_encode" to run after vectorization). ALWAYS '
+            '"position": "post_encode" to run after vectorization), and/or '
+            'backbone knobs via "cleaner": {"params": {...}} and "vectorizer": '
+            '{"params": {...}, "slots": {"high_cardinality"|"low_cardinality"|'
+            '"numeric"|"datetime": [<paths>]}} (each omitted knob keeps skrub\'s '
+            "default; list a boolean's skrub default first). ALWAYS "
             'give each new operator a generous hyperparameter range via '
             '"params" ({"int": [lo, hi]}, {"float": [lo, hi], "log": true} or '
             '{"choice": [...]}) so it competes tuned — but avoid upper bounds '
             "that blow up training time. You may rate a new option with "
-            '"prior": 0.0-1.0.\n\n'
+            '"prior": 0.0-1.0. List new operators most-robust-first, and if a '
+            "new operator is a stronger, more robust default than what the plan "
+            "already has (e.g. a model that tolerates NaNs/unscaled features "
+            "where the current default does not), give it a high prior — the "
+            "search visits high-prior options first, since additions cannot "
+            "displace the existing root config.\n\n"
             f"Current plan:\n{_json.dumps(plan_json, indent=1, default=str)}\n\n"
             f"Search evidence (per stage, option -> mean CV reward): "
             f"{ctx.get('stage_values', {})}.\n"

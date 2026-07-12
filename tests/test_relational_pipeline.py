@@ -126,6 +126,26 @@ def test_assemble_validation_drops_bad_entries():
     )
 
 
+def test_assemble_empty_operations_default_to_mean_for_one_to_one():
+    # a 1-to-1 lookup join (country-happiness) has nothing to aggregate, so the
+    # planner emits `operations: []` — it must NOT be dropped; mean is identity
+    # on a single matched row. (Contrast: GIVEN-but-invalid ops still drop.)
+    kept = _resolve(
+        [{"table": "aux", "key": "id", "operations": [], "cols": ["v"]}]
+    )
+    assert kept == [
+        {
+            "name": "aux_mean",
+            "table": "aux",
+            "operations": ["mean"],
+            "key": "id",
+            "cols": ["v"],
+        }
+    ]
+    # operations omitted entirely (not just []) behaves the same
+    assert _resolve([{"table": "aux", "key": "id"}])[0]["operations"] == ["mean"]
+
+
 def test_assemble_validation_supports_main_aux_key_pair():
     kept = _resolve(
         [

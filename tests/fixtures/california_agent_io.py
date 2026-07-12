@@ -33,7 +33,7 @@ Options worth searching per stage:
 # plan_author -> state["skrub_spec_raw"]  (dotted paths + tuned HPs; valid JSON)
 SKRUB_SPEC_RAW = """\
 {
-  "clean_options": ["skip", "skrub.Cleaner"],
+  "cleaner": {"params": {"drop_if_constant": {"choice": [false, true]}}},
   "stages": [
     {"name": "scale", "options": ["skip", "sklearn.preprocessing.StandardScaler", "sklearn.preprocessing.RobustScaler"]},
     {"name": "feature_eng", "options": ["skip",

@@ -104,7 +104,7 @@ df = bunch.employee_salaries     # inspect the bunch; attribute name varies per 
 # (rename the label column to "target", or pass target=... to build_staged_plan)
 
 spec = {                          # the hand-written stage menu (LLM does this later)
-    "encoder_options": [skrub.GapEncoder(), skrub.MinHashEncoder()],
+    "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}},
     "stages": [{"name": "scale", "options": [None, StandardScaler()]}],
     "model": {"HGB": HistGradientBoostingRegressor(), "RF": RandomForestRegressor()},
 }

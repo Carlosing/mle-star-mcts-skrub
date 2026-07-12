@@ -39,11 +39,13 @@ def staged_spec() -> dict:
     import skrub
 
     return {
-        "clean_options": [None, skrub.Cleaner()],
-        "encoder_options": [
-            skrub.GapEncoder(random_state=42),
-            skrub.MinHashEncoder(),
-        ],
+        "cleaner": skrub.Cleaner(),
+        "vectorizer": skrub.TableVectorizer(
+            high_cardinality=skrub.choose_from(
+                [skrub.GapEncoder(random_state=42), skrub.MinHashEncoder()],
+                name="vectorizer__high_cardinality",
+            )
+        ),
         "stages": [
             {"name": "scale", "options": [None, StandardScaler()]},
             {
