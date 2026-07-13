@@ -42,13 +42,11 @@ folder under `runs/` with the results — see [What you get back](#what-you-get-
 
 ```bash
 make test          # the full suite; agents are faked, so zero network calls
-make test-live     # same, plus one real Gemini smoke test (needs a key)
 ```
 
-**Expect:** a pytest progress bar ending in `292 passed, 1 skipped`. The 1
-skipped is the live Gemini test that only runs under `make test-live`. Takes
-~2 minutes. If this is green, the code is healthy — run it first whenever you
-pull changes.
+**Expect:** a pytest progress bar ending in `N passed` (~320) with zero
+skips. Takes ~2 minutes. If this is green, the code is healthy — run it first
+whenever you pull changes.
 
 ### Probes — "is my API key working?"
 

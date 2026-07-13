@@ -33,14 +33,13 @@ CLAUDE_TOP_K ?= 3
 # artifact parent dir (empty = runs/claude_<timestamp>)
 OUT ?=
 
-.PHONY: help sync test test-live probe probe-school run-live run-refine \
+.PHONY: help sync test probe probe-school run-live run-refine \
         run-claude sweep-claude stage-tasks stage-credit-fraud \
         bench-autogluon bench-mlestar figures
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
 	@echo "make test       - run the offline test suite (mocked agents, no API)"
-	@echo "make test-live  - run the suite including the gated live Gemini test"
 	@echo "make probe        - probe Gemini models + live quota (probe_gemini.py)"
 	@echo "make probe-school - list school (GWDG) models; SMOKE=1 to health-check each"
 	@echo "make run-live   - full pipeline on the REAL API; writes runs/<task>_<ts>/"
@@ -67,9 +66,6 @@ sync:
 
 test:
 	uv run python -m pytest tests/ -q
-
-test-live:
-	RUN_LIVE_TESTS=1 uv run python -m pytest tests/ -q
 
 probe:
 	uv run python probe_gemini.py

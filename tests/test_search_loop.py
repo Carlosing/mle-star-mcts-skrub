@@ -262,7 +262,7 @@ def test_time_budget_stops_a_large_budget_early():
         scoring="r2",
         budget_per_step=100_000,
         time_budget_s=3.0,
-        hp_refine=False,
+        refinement_phase=False,
     )
     elapsed = time.perf_counter() - started
     assert elapsed < 60  # nowhere near exhausting 100k rollouts
@@ -509,7 +509,7 @@ def test_bonus_phase_explores_structural_neighbors_and_off_switch():
         "__" not in k for k in res["refined_dims"]
     )  # ...all structural (scale/model/encoder), no HP dims exist here
 
-    # hp_refine=False skips the bonus phase entirely
+    # refinement_phase=False skips the bonus phase entirely
     spec = spec_resolver.resolve_spec(_HP_RAW, task_type="regression")
     off = sl.run_search_loop(
         spec,
@@ -517,7 +517,7 @@ def test_bonus_phase_explores_structural_neighbors_and_off_switch():
         TARGET,
         scoring="r2",
         budget_per_step=6,
-        hp_refine=False,
+        refinement_phase=False,
     )
     assert off["root"].N == 6 and off["refined_dims"] == []
 
@@ -562,7 +562,7 @@ def test_booster_plan_rolls_out_at_full_n_jobs():
     )
     out = run_search_loop(
         spec, df, "y", scoring="accuracy", budget_per_step=6,
-        stratify=True, hp_refine=False, n_jobs=6,
+        stratify=True, refinement_phase=False, n_jobs=6,
     )
     assert out["best_score"] > 0.0  # searched + fit boosters, no segfault
 

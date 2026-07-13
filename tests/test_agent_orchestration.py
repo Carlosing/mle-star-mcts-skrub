@@ -1,22 +1,13 @@
 """Tests for the ADK agent orchestration loop (data_analyst -> plan_author).
 
-Two layers, because of the Gemini free-tier rate limits (~5 RPM / 250k TPM /
-limited RPD on the free tier as of the Dec-2025 cut):
+Fully mocked and offline: a fake BaseLlm returns canned responses, so the loop
+runs with zero quota. These assert the orchestration itself — sequential
+execution, output_key state hand-off, and the sanity-check log. Live-boundary
+validation is a real pipeline smoke run (`make run-live`), not a gated test.
 
-- **Mocked** (default): a fake BaseLlm returns canned responses, so the loop
-  runs offline with zero quota. These assert the orchestration itself —
-  sequential execution, output_key state hand-off, and the sanity-check log.
-- **Live** (opt-in): one real Gemini run, skipped unless RUN_LIVE_TESTS=1 and
-  GOOGLE_API_KEY is set. A single run is 2 calls, comfortably under 5 RPM. It
-  dumps real prompt/output pairs to tmp_path for you to eyeball.
-
-Run mocked only:   uv run python -m pytest tests/test_agent_orchestration.py -q
-Run incl. live:    RUN_LIVE_TESTS=1 uv run python -m pytest tests/test_agent_orchestration.py -q
+Run:   uv run python -m pytest tests/test_agent_orchestration.py -q
 """
 
-import os
-
-import pytest
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
@@ -152,33 +143,3 @@ def _read_log(tmp_path) -> list[dict]:
     records = read_records(str(tmp_path))
     assert records, "sanity log files were not written"
     return records
-
-
-# ---------------------------------------------------------------------------
-# Live smoke (opt-in, real Gemini — respects rate limits: 1 run = 2 calls)
-# ---------------------------------------------------------------------------
-
-live = pytest.mark.skipif(
-    os.environ.get("RUN_LIVE_TESTS") != "1"
-    or not os.environ.get("GOOGLE_API_KEY"),
-    reason="set RUN_LIVE_TESTS=1 and GOOGLE_API_KEY to run the live Gemini smoke test",
-)
-
-
-@live
-async def test_live_smoke_real_gemini(tmp_path):
-    """One real run end-to-end; dumps prompts/outputs to tmp_path to inspect."""
-    root = build_root_agent(log_dir=str(tmp_path))  # real model, search on
-
-    _, session = await _run(
-        root,
-        "Task: regression on the California housing dataset. Columns: "
-        "MedInc (float), HouseAge (float), AveRooms (float), Population (float), "
-        "target (float, the label). Predict 'target'.",
-    )
-
-    analysis = session.state.get("dataset_analysis", "")
-    spec = session.state.get("skrub_spec_raw", "")
-    assert analysis.strip(), "analyst produced no output"
-    assert "{" in spec, "plan_author did not return JSON-ish output"
-    print(f"\n[live] inspect prompts/outputs in: {tmp_path}")

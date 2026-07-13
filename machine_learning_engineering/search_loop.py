@@ -29,7 +29,7 @@ instead of restarting. Two refinements layer on top:
   prioritizes the never-tried edits). This is the biased exploration around
   the best config that stage-targeting was originally for; an earlier HP-only
   variant no-op'd whenever the incumbent's HP grid was exhausted, which at
-  larger budgets was every run. Off switch: `hp_refine=False`.
+  larger budgets was every run. Off switch: `refinement_phase=False`.
 
 The `propose` callable is injected (tests pass a fake); the LLM never enters the
 inner search loop — at most `outer_steps - 1` calls total. The bonus phase adds
@@ -300,7 +300,7 @@ def run_search_loop(
     priors: dict | None = None,
     context_text: str | None = None,
     stratify: bool = False,
-    hp_refine: bool = True,
+    refinement_phase: bool = True,
     timeout_s: float | None = 60.0,
     n_subsample_seeds: int = 1,
     n_jobs: int = 6,
@@ -345,16 +345,15 @@ def run_search_loop(
     subsampled fold can't silently land on zero positives (see
     `skrub_ops._cv_kwarg`).
 
-    `hp_refine=True` (default) appends a focused-refinement bonus phase after
-    the main budget is spent: `ceil(total / 4)` extra rollouts that start
-    selection at the incumbent node and explore ALL of its single-edit
+    `refinement_phase=True` (default) appends a focused-refinement bonus phase
+    after the main budget is spent: `ceil(total / 4)` extra rollouts that
+    start selection at the incumbent node and explore ALL of its single-edit
     neighbors — structural stages (encoder/scale/assemble) and gated HPs
     alike — UCT and backprop unchanged. This is the targeting the design
-    originally aimed at: biased exploration around the best config. (The
-    kwarg keeps its historical name; the phase is no longer HP-only — the
-    HP-restricted variant no-op'd whenever the incumbent's HP grid was
-    exhausted.) The dims actually edited during the phase are returned in
-    `refined_dims`.
+    originally aimed at: biased exploration around the best config. (An
+    earlier HP-only variant, `hp_refine`, no-op'd whenever the incumbent's HP
+    grid was exhausted.) The dims actually edited during the phase are
+    returned in `refined_dims`.
 
     `timeout_s` (default 60s) caps each rollout's wall clock: a config whose CV
     runs longer scores 0.0, so a free-form HP range that makes one fit
@@ -522,7 +521,7 @@ def run_search_loop(
     # ALL single-edit neighbors of the incumbent (structure and HPs alike),
     # starting selection at the incumbent node (local exploration; UCT and
     # backprop are unchanged).
-    if hp_refine and not (
+    if refinement_phase and not (
         deadline is not None and time.perf_counter() >= deadline
     ):
         best_node = mcts.find_state_node(root, best_state)
