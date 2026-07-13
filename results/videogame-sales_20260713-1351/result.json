@@ -1,0 +1,402 @@
+{
+  "method": "extension",
+  "task": "videogame-sales",
+  "task_description": "# Task\n\nPredict the global_sales.\n\n# Metric\n\nroot_mean_squared_error\n\n# Dataset\n\nRegression task (13258 training rows, 5 feature columns). train.csv has the features and the 'global_sales' column; test.csv has the features only.\n\nRegional sales columns and 'Rank' were dropped: they sum to / rank the target. What remains (title, platform, genre, publisher, year) makes this a genuinely hard, heavy-tailed regression.\n",
+  "target": "global_sales",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "model": "openai/qwen3.5-397b-a17b",
+  "budget": 100,
+  "time_budget_s": null,
+  "search_scorer": "r2",
+  "search_reward_scale": "1/(2 - r2)",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "True",
+    "scope_name_encoding": "skip",
+    "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+    "vectorizer__low_cardinality": "OrdinalEncoder()",
+    "scale": "StandardScaler()",
+    "feature_eng": "None",
+    "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+    "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+    "model__HistGradientBoostingRegressor__max_depth": 9,
+    "model__HistGradientBoostingRegressor__max_iter": 267,
+    "model": "HistGradientBoostingRegressor"
+  },
+  "best_search_score": 0.5322115044963127,
+  "report": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -1.4341954924861868
+  },
+  "holdout": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -1.2777872592259694
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "scope_name_encoding": [
+      "skip",
+      "MinHashEncoder",
+      "GapEncoder"
+    ],
+    "vectorizer__high_cardinality": [
+      "GapEncoder(random_state=42)",
+      "MinHashEncoder()"
+    ],
+    "vectorizer__low_cardinality": [
+      "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+      "OrdinalEncoder()"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False)"
+    ],
+    "model__HistGradientBoostingRegressor__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingRegressor__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingRegressor__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__LGBMRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMRegressor__max_depth": [
+      3,
+      7,
+      10,
+      12,
+      16
+    ],
+    "model__LGBMRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMRegressor__num_leaves": [
+      15,
+      52,
+      71,
+      90,
+      127
+    ],
+    "model__LGBMRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__RandomForestRegressor__max_depth": [
+      3,
+      12,
+      16,
+      21,
+      30
+    ],
+    "model__RandomForestRegressor__max_features": [
+      "sqrt",
+      "log2",
+      "1.0"
+    ],
+    "model__RandomForestRegressor__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__Ridge__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model": [
+      "HistGradientBoostingRegressor",
+      "LGBMRegressor",
+      "RandomForestRegressor",
+      "Ridge"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [],
+  "proposal_injection_error": "RuntimeError: Evaluation of 'apply()' failed.\nYou can see the full traceback above. The error message was:\nValueError: The transformer outputs a scipy sparse matrix. Try to set the transformer output to a dense array or disable Pandas output with set_output(transform='default').\n\nTransformer KBinsDi",
+  "refined_dims": [
+    "cleaner__Cleaner__drop_if_constant",
+    "feature_eng",
+    "feature_eng__PolynomialFeatures__degree",
+    "model",
+    "model__HistGradientBoostingRegressor__l2_regularization",
+    "model__HistGradientBoostingRegressor__learning_rate",
+    "model__HistGradientBoostingRegressor__max_depth",
+    "model__HistGradientBoostingRegressor__max_iter",
+    "model__RandomForestRegressor__max_depth",
+    "model__RandomForestRegressor__max_features",
+    "model__RandomForestRegressor__min_samples_leaf",
+    "model__RandomForestRegressor__n_estimators",
+    "model__Ridge__alpha",
+    "scale",
+    "scope_name_encoding",
+    "vectorizer__high_cardinality",
+    "vectorizer__low_cardinality"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "neg_root_mean_squared_error",
+    "k": 1,
+    "pool_size": 10,
+    "states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 267,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.6666666666666666,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 16,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 1.0,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 11,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.05477225575051663,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 100,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.031072325059538584,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 100,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.3333333333333333,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.01,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 350,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      }
+    ],
+    "selected_states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingRegressor",
+        "model__HistGradientBoostingRegressor__l2_regularization": 0.5,
+        "model__HistGradientBoostingRegressor__learning_rate": 0.05477225575051663,
+        "model__HistGradientBoostingRegressor__max_depth": 9,
+        "model__HistGradientBoostingRegressor__max_iter": 100,
+        "scale": "StandardScaler()",
+        "scope_name_encoding": "skip",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+        "vectorizer__low_cardinality": "OrdinalEncoder()"
+      }
+    ],
+    "weights": [
+      1.0
+    ],
+    "individual_scores": [
+      -1.2777872592259694,
+      -1.2529738579930176,
+      -1.2530208813374075,
+      -1.2536345067156967,
+      -1.2544296143271043,
+      -1.2561873739016503,
+      -1.2561873739016503,
+      -1.237644191578958,
+      -1.2650756798910163,
+      -1.2544277419758432
+    ],
+    "ensemble_score": -1.237644191578958,
+    "ensemble_score_mean": -1.260362926406653
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": false,
+  "llm_calls": 4,
+  "wall_clock_s": 1681.8,
+  "tokens": {
+    "prompt": 10639,
+    "completion": 22833,
+    "total": 33472
+  },
+  "tokens_by_agent": {
+    "data_analyst": {
+      "prompt": 823,
+      "completion": 2314,
+      "total": 3137,
+      "calls": 1
+    },
+    "plan_author": {
+      "prompt": 4860,
+      "completion": 3812,
+      "total": 8672,
+      "calls": 1
+    },
+    "proposer": {
+      "prompt": 4956,
+      "completion": 16707,
+      "total": 21663,
+      "calls": 2
+    }
+  },
+  "data_summary": "Dataset: 13258 rows x 6 columns. Target column: 'global_sales'.\nInferred task type: regression.\n\nColumns:\n  - Name: dtype=object, missing=0.0%, cardinality=9691, examples='Super Mario Bros.', 'Mario Kart Wii', 'Pokemon Red/Pokemon Blue', 'Tetris', 'New Super Mario Bros.'\n  - Platform: dtype=object, missing=0.0%, cardinality=31, examples='NES', 'Wii', 'GB', 'DS', 'PS3'\n  - Year: dtype=int64, missing=0.0%, cardinality=38, min=1980 max=2017 mean=2006\n  - Genre: dtype=object, missing=0.0%, cardinality=12, examples='Platform', 'Racing', 'Role-Playing', 'Puzzle', 'Misc'\n  - Publisher: dtype=object, missing=0.4%, cardinality=546, examples='Nintendo', 'Take-Two Interactive', 'Sony Computer Entertainment', 'Activision', 'Microsoft Game Studios'\n  - global_sales (TARGET): dtype=float64, missing=0.0%, cardinality=566, min=0.01 max=40.24 mean=0.5298\n\nFirst 5 rows:\n                    Name Platform  Year        Genre Publisher  global_sales\n       Super Mario Bros.      NES  1985     Platform  Nintendo         40.24\n          Mario Kart Wii      Wii  2008       Racing  Nintendo         35.82\nPokemon Red/Pokemon Blue       GB  1996 Role-Playing  Nintendo         31.37\n                  Tetris       GB  1989       Puzzle  Nintendo         30.26\n   New Super Mario Bros.       DS  2006     Platform  Nintendo         30.01",
+  "analysis": "\n\n# Task & Target Analysis\n- **Task Type:** Regression.\n- **Target Column:** `global_sales`.\n- **Target Distribution:** Highly right-skewed (mean=0.53, max=40.24). Most games sell <1M copies, while blockbusters reach 40M. This skew necessitates searching target transformations (e.g., `Log1p`, `Yeo-Johnson`) to stabilize variance and improve model convergence. Class balance is N/A (regression), but outlier handling or robust loss functions (e.g., Huber) should be considered.\n\n# Column Profile & Cardinality\n- **High-Cardinality Text/Categorical:**\n  - `Name` (cardinality=9691, ~73% unique): Effectively unique identifiers. Risk of overfitting/leakage if not handled carefully. Treat as free-text or consider dropping if generalization to unseen games is required.\n  - `Publisher` (cardinality=546, missing=0.4%): Medium-high cardinality. Requires embedding or target-based encoding.\n- **Low-Cardinality Categorical:**\n  - `Platform` (cardinality=31): Console generation/type.\n  - `Genre` (cardinality=12): Game category.\n- **Numeric/Temporal:**\n  - `Year` (cardinality=38, range 1980-2017): Acts as temporal trend. Could be numeric (linear trend) or binned (eras/generations).\n\n# Preprocessing & Encoding Options\n- **High-Cardinality Encoders:** For `Name` and `Publisher`, search between `MinHashEncoder` (fast, robust) and `GapEncoder` (captures semantic topics). For `Publisher`, `TargetEncoder` (with cross-validation) is also a strong candidate.\n- **Low-Cardinality Encoders:** `OneHotEncoder` (sparse) vs `OrdinalEncoder` (for tree models).\n- **Missing Values:** `Publisher` has 0.4% missing; use simple imputation (\"Unknown\") or let the encoder handle it.\n- **Scaling:** Tree-based models do not require scaling; linear models will need `StandardScaler` on encoded outputs.\n- **Candidate Model Families:**\n  1.  **Gradient Boosting:** `HistGradientBoostingRegressor`, `XGBoost`, or `LightGBM` (handle categorical encodings well, robust to skew).\n  2.  **Linear Baseline:** `Ridge` (with hashed/text encodings).\n  3.  **Random Forest:** `RandomForestRegressor` (good baseline for tabular data).\n\n# Specific Column Operators\n- **`Name` (Text):** Requires a dedicated text encoder (`MinHashEncoder` or `GapEncoder`). *Search Option:* Include vs. Exclude this column (including it may cause leakage if the test set contains known titles).\n- **`Year` (Temporal):** Search treating as **numeric** (continuous trend) vs. **categorical** (specific year effects) vs. **binned** (e.g., 80s, 90s, 2000s, 2010s).\n- **`global_sales` (Target):** Apply `TargetTransformer` (e.g., `Log1p`) before fitting, inverse transform for predictions.\n\n# Relational & Auxiliary Opportunities\n- **Auxiliary Tables:** None listed in the dataset summary.\n- **Join Keys:** N/A.\n- **Aggregations:** N/A. (If external data were available, aggregating historical sales by `Publisher` or `Platform` would be highly predictive).",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\"params\": {\"drop_if_constant\": {\"choice\": [false, true]}}},\n  \"vectorizer\": {\n    \"slots\": {\n      \"high_cardinality\": [\"skrub.GapEncoder\", \"skrub.MinHashEncoder\"],\n      \"low_cardinality\": [\"sklearn.preprocessing.OneHotEncoder\", \"sklearn.preprocessing.OrdinalEncoder\"],\n      \"numeric\": [\"passthrough\"]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"name_encoding\",\n      \"cols\": [\"Name\"],\n      \"options\": [\"skrub.MinHashEncoder\", \"skrub.GapEncoder\", \"skip\"],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    }\n  ],\n  \"stages\": [\n    {\"name\": \"scale\", \"options\": [\"skip\", \"sklearn.preprocessing.StandardScaler\"]},\n    {\"name\": \"feature_eng\", \"options\": [\"skip\", {\"name\": \"sklearn.preprocessing.PolynomialFeatures\", \"params\": {\"degree\": {\"int\": [2, 3]}}}]}\n  ],\n  \"model\": [\n    {\"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\", \"prior\": 0.8, \"params\": {\n      \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n      \"max_iter\": {\"int\": [100, 600]},\n      \"max_depth\": {\"int\": [2, 16]},\n      \"l2_regularization\": {\"float\": [0.0, 1.0]}\n    }},\n    {\"name\": \"lightgbm.LGBMRegressor\", \"prior\": 0.7, \"params\": {\n      \"n_estimators\": {\"int\": [100, 500]},\n      \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n      \"num_leaves\": {\"int\": [15, 127]},\n      \"max_depth\": {\"int\": [3, 16]},\n      \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n      \"reg_lambda\": {\"float\": [0.0, 5.0]}\n    }},\n    {\"name\": \"sklearn.ensemble.RandomForestRegressor\", \"params\": {\n      \"n_estimators\": {\"int\": [100, 500]},\n      \"max_depth\": {\"int\": [3, 30]},\n      \"min_samples_leaf\": {\"int\": [1, 10]},\n      \"max_features\": {\"choice\": [\"sqrt\", \"log2\", 1.0]}\n    }},\n    {\"name\": \"sklearn.linear_model.Ridge\", \"params\": {\n      \"alpha\": {\"float\": [0.001, 1000.0], \"log\": true}\n    }}\n  ]\n}"
+}

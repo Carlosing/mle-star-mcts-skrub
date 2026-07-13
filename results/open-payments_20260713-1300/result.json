@@ -1,0 +1,575 @@
+{
+  "method": "extension",
+  "task": "open-payments",
+  "task_description": "# Task\n\nPredict the status.\n\n# Metric\n\naccuracy\n\n# Dataset\n\nSingle-table classification task (8000 rows, 5 feature columns, high-cardinality categoricals). train.csv has the features and the 'status' column; test.csv has the features only.\n",
+  "target": "status",
+  "task_type": "classification",
+  "metric": "accuracy",
+  "model": "openai/qwen3.5-397b-a17b",
+  "budget": 100,
+  "time_budget_s": null,
+  "search_scorer": "accuracy",
+  "search_reward_scale": "raw",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "False",
+    "scope_missing_flags": "skip",
+    "scope_specialty_encoder": "MinHashEncoder",
+    "vectorizer__TableVectorizer__cardinality_threshold": 30,
+    "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+    "scale": "StandardScaler()",
+    "feature_eng": "None",
+    "model__LGBMClassifier__colsample_bytree": 0.5,
+    "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+    "model__LGBMClassifier__max_depth": 8,
+    "model__LGBMClassifier__n_estimators": 300,
+    "model__LGBMClassifier__scale_pos_weight": 10.5,
+    "model": "LGBMClassifier"
+  },
+  "best_search_score": 0.9499999999999998,
+  "report": {
+    "scorer": "accuracy",
+    "score": 0.9443750000000002
+  },
+  "holdout": {
+    "scorer": "accuracy",
+    "score": 0.940625
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "scope_missing_flags__SimpleImputer__add_indicator": [
+      "True"
+    ],
+    "scope_missing_flags__SimpleImputer__fill_value": [
+      "__MISSING__"
+    ],
+    "scope_missing_flags__SimpleImputer__strategy": [
+      "constant"
+    ],
+    "scope_missing_flags": [
+      "skip",
+      "SimpleImputer"
+    ],
+    "scope_specialty_encoder__MinHashEncoder__n_components": [
+      20,
+      23,
+      25,
+      27,
+      30
+    ],
+    "scope_specialty_encoder": [
+      "skip",
+      "MinHashEncoder"
+    ],
+    "vectorizer__TableVectorizer__cardinality_threshold": [
+      10,
+      23,
+      30,
+      37,
+      50
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder()",
+      "GapEncoder(random_state=42)"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__include_bias": [
+      "False"
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "feature_eng__PCA__n_components": [
+      0.5,
+      0.65,
+      0.725,
+      0.8,
+      0.95
+    ],
+    "feature_eng__PCA__svd_solver": [
+      "auto",
+      "full",
+      "arpack"
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=choose_from([False], name='feature_eng_..._include_bias'),\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+      "PCA(n_components=choose_float(0.5, 0.95, name='feature_eng_..._n_components'),\n    random_state=42,\n    svd_solver=choose_from(['auto', 'full', 'arpack'], name='feature_eng__PCA__svd_solver'))"
+    ],
+    "model__LGBMClassifier__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__LGBMClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMClassifier__scale_pos_weight": [
+      1.0,
+      7.333333333333333,
+      10.5,
+      13.666666666666666,
+      20.0
+    ],
+    "model__XGBClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__XGBClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBClassifier__scale_pos_weight": [
+      1.0,
+      7.333333333333333,
+      10.5,
+      13.666666666666666,
+      20.0
+    ],
+    "model__XGBClassifier__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__HistGradientBoostingClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__HistGradientBoostingClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingClassifier__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingClassifier__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__LogisticRegression__C": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__LogisticRegression__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__LogisticRegression__max_iter": [
+      100,
+      400,
+      550,
+      700,
+      1000
+    ],
+    "model__RandomForestClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__RandomForestClassifier__max_depth": [
+      5,
+      10,
+      12,
+      15,
+      20
+    ],
+    "model__RandomForestClassifier__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__MLPClassifier__activation": [
+      "relu",
+      "tanh"
+    ],
+    "model__MLPClassifier__alpha": [
+      0.0001,
+      0.002154434690031882,
+      0.010000000000000005,
+      0.046415888336127774,
+      1.0
+    ],
+    "model__MLPClassifier__early_stopping": [
+      "True",
+      "False"
+    ],
+    "model__MLPClassifier__hidden_layer_sizes": [
+      "(50, 25)",
+      "(100, 50, 25)",
+      "(200, 100)"
+    ],
+    "model__MLPClassifier__learning_rate_init": [
+      0.0001,
+      0.001,
+      0.003162277660168382,
+      0.01,
+      0.1
+    ],
+    "model__MLPClassifier__max_iter": [
+      200,
+      467,
+      600,
+      733,
+      1000
+    ],
+    "model": [
+      "LGBMClassifier",
+      "XGBClassifier",
+      "HistGradientBoostingClassifier",
+      "LogisticRegression",
+      "RandomForestClassifier",
+      "MLPClassifier"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "model__RandomForestClassifier__class_weight",
+    "model__RandomForestClassifier__max_depth",
+    "model__RandomForestClassifier__min_samples_leaf",
+    "model__RandomForestClassifier__n_estimators",
+    "model:RandomForestClassifier",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__include_bias",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__svd_solver",
+    "model__MLPClassifier__activation",
+    "model__MLPClassifier__alpha",
+    "model__MLPClassifier__early_stopping",
+    "model__MLPClassifier__hidden_layer_sizes",
+    "model__MLPClassifier__learning_rate_init",
+    "model__MLPClassifier__max_iter",
+    "feature_eng:PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=choose_from([False], name='feature_eng_..._include_bias'),\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+    "feature_eng:PCA(n_components=choose_float(0.5, 0.95, name='feature_eng_..._n_components'),\n    random_state=42,\n    svd_solver=choose_from(['auto', 'full', 'arpack'], name='feature_eng__PCA__svd_solver'))",
+    "model:MLPClassifier"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "cleaner__Cleaner__drop_if_constant",
+    "feature_eng",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__svd_solver",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__include_bias",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "model",
+    "model__HistGradientBoostingClassifier__class_weight",
+    "model__HistGradientBoostingClassifier__learning_rate",
+    "model__HistGradientBoostingClassifier__max_depth",
+    "model__HistGradientBoostingClassifier__max_iter",
+    "model__LGBMClassifier__colsample_bytree",
+    "model__LGBMClassifier__learning_rate",
+    "model__LGBMClassifier__max_depth",
+    "model__LGBMClassifier__n_estimators",
+    "model__LGBMClassifier__scale_pos_weight",
+    "model__XGBClassifier__learning_rate",
+    "model__XGBClassifier__max_depth",
+    "model__XGBClassifier__n_estimators",
+    "model__XGBClassifier__scale_pos_weight",
+    "model__XGBClassifier__subsample",
+    "scale",
+    "scope_missing_flags",
+    "scope_missing_flags__SimpleImputer__add_indicator",
+    "scope_missing_flags__SimpleImputer__fill_value",
+    "scope_missing_flags__SimpleImputer__strategy",
+    "scope_specialty_encoder",
+    "scope_specialty_encoder__MinHashEncoder__n_components",
+    "vectorizer__TableVectorizer__cardinality_threshold",
+    "vectorizer__high_cardinality"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "accuracy",
+    "k": 1,
+    "pool_size": 10,
+    "states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "StandardScaler()",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "StandardScaler()",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 10,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 23,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 37,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 50,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 10,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 23,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 37,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "None",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 50,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      }
+    ],
+    "selected_states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__colsample_bytree": 0.5,
+        "model__LGBMClassifier__learning_rate": 0.09654893846056294,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__scale_pos_weight": 10.5,
+        "scale": "StandardScaler()",
+        "scope_missing_flags": "skip",
+        "scope_specialty_encoder": "MinHashEncoder",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      }
+    ],
+    "weights": [
+      1.0
+    ],
+    "individual_scores": [
+      0.940625,
+      0.940625,
+      0.9375,
+      0.9375,
+      0.9375,
+      0.9375,
+      0.9375,
+      0.9375,
+      0.9375,
+      0.9375
+    ],
+    "ensemble_score": 0.940625,
+    "ensemble_score_mean": 0.94
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [
+    "stage:feature_eng"
+  ],
+  "scoring_errors": null,
+  "reused_spec": false,
+  "llm_calls": 4,
+  "wall_clock_s": 2722.6,
+  "tokens": {
+    "prompt": 12727,
+    "completion": 19760,
+    "total": 32487
+  },
+  "tokens_by_agent": {
+    "data_analyst": {
+      "prompt": 1025,
+      "completion": 2576,
+      "total": 3601,
+      "calls": 1
+    },
+    "plan_author": {
+      "prompt": 5450,
+      "completion": 5218,
+      "total": 10668,
+      "calls": 1
+    },
+    "proposer": {
+      "prompt": 6252,
+      "completion": 11966,
+      "total": 18218,
+      "calls": 2
+    }
+  },
+  "data_summary": "Dataset: 6400 rows x 6 columns. Target column: 'status'.\nInferred task type: classification.\n\nColumns:\n  - Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name: dtype=object, missing=0.0%, cardinality=831, examples='Amgen Inc.', 'Ferring Pharmaceuticals Inc.', 'Boston Scientific Corporation', 'Grifols USA, LLC', 'Septodont Inc.'\n  - Dispute_Status_for_Publication: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - Name_of_Associated_Covered_Device_or_Medical_Supply1: dtype=object, missing=59.3%, cardinality=1250, examples='KIDNEY STONE DISEASE', 'ELEKTA ONCOLOGY INFO SYSTEM', 'Airway Procedures', 'PD - CD Lab Operations', 'Sprix'\n  - Name_of_Associated_Covered_Drug_or_Biological1: dtype=object, missing=49.5%, cardinality=942, examples='FIRMAGON', 'Gamunex-C', 'ARTICAINESEPTOCAINE', 'Actemra', 'Gonal-f'\n  - Physician_Specialty: dtype=object, missing=5.6%, cardinality=323, examples='Podiatric Medicine & Surgery Service Providers|Podiatrist|Foot & Ankle Surgery', 'Allopathic & Osteopathic Physicians|Internal Medicine', 'Allopathic & Osteopathic Physicians|Internal Medicine|Addiction Medicine', 'Dental Providers|Dentist|Periodontics', 'Allopathic & Osteopathic Physicians|Hospitalist'\n  - status (TARGET): dtype=object, missing=0.0%, cardinality=2, examples='disallowed', 'allowed'\n      class balance: 'disallowed'=93.7%, 'allowed'=6.3%\n\nFirst 5 rows:\nApplicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name Dispute_Status_for_Publication Name_of_Associated_Covered_Device_or_Medical_Supply1 Name_of_Associated_Covered_Drug_or_Biological1                                                            Physician_Specialty     status\n                                                   Amgen Inc.                             No                                                  NaN                                            NaN Podiatric Medicine & Surgery Service Providers|Podiatrist|Foot & Ankle Surgery disallowed\n                                 Ferring Pharmaceuticals Inc.                             No                                                  NaN                                       FIRMAGON                          Allopathic & Osteopathic Physicians|Internal Medicine disallowed\n                                Boston Scientific Corporation                             No                                 KIDNEY STONE DISEASE                                            NaN                          Allopathic & Osteopathic Physicians|Internal Medicine disallowed\n                                             Grifols USA, LLC                             No                                                  NaN                                      Gamunex-C       Allopathic & Osteopathic Physicians|Internal Medicine|Addiction Medicine disallowed\n                                               Septodont Inc.                             No                                                  NaN                            ARTICAINESEPTOCAINE                                          Dental Providers|Dentist|Periodontics disallowed",
+  "analysis": "\n\n### Task Analysis & Pipeline Strategy\n\n**1. Task Type & Target**\n*   **Task:** Binary Classification.\n*   **Target Column:** `status` ('allowed' vs 'disallowed').\n*   **Class Balance:** **Highly Imbalanced**. The minority class ('allowed') represents only **6.3%** of the data.\n    *   *Implication:* Accuracy is an inappropriate metric. Prioritize **ROC-AUC**, **PR-AUC**, or **F1-score (minority)**.\n    *   *Strategy:* Search pipelines with **class weighting** (`scale_pos_weight`), **SMOTE/oversampling**, or **threshold tuning** post-prediction.\n\n**2. Column Profile & Types**\n*   **High-Cardinality Categoricals (Text-like):**\n    *   `Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name` (831 unique, 0% missing).\n    *   `Name_of_Associated_Covered_Device_or_Medical_Supply1` (1250 unique, **59.3% missing**).\n    *   `Name_of_Associated_Covered_Drug_or_Biological1` (942 unique, **49.5% missing**).\n    *   `Physician_Specialty` (323 unique, 5.6% missing).\n*   **Low-Cardinality Categorical:**\n    *   `Dispute_Status_for_Publication` (2 unique, 0% missing).\n*   **Numeric:** None present.\n\n**3. Preprocessing & Encoding Options**\n*   **High-Cardinality Strings:** Use similarity-based encoders robust to typos and sparsity.\n    *   *Search:* `MinHashEncoder` (fast, locality sensitive) vs. `GapEncoder` (captures semantic latent topics).\n    *   *Missingness:* Do not drop rows. Impute missing strings with a constant token (e.g., \"__MISSING__\") *before* encoding, or rely on the encoder's handling of NaNs.\n*   **Binary Categorical:** `Dispute_Status_for_Publication`.\n    *   *Search:* `OneHotEncoder` vs. `OrdinalEncoder`.\n*   **Feature Engineering:**\n    *   **Missingness Flags:** Create binary indicators for `Name_of_Associated_Covered_Device...` and `Name_of_Associated_Covered_Drug...`. The high missingness rates suggest the *absence* of a value may be predictive (e.g., drug payments vs. device payments).\n    *   **Mutual Exclusivity:** These two columns appear complementary. Consider a derived categorical feature: `Payment_Type` (Drug vs. Device vs. None vs. Both).\n\n**4. Specific Column Operators**\n*   **`Physician_Specialty`:** Contains hierarchical data separated by pipes (`|`).\n    *   *Operator:* `StringSplitter` (delimiter=`|`).\n    *   *Reasoning:* Splitting into levels (e.g., Level 1: \"Allopathic & Osteopathic Physicians\", Level 2: \"Internal Medicine\") may capture broader specialty trends better than the full string. Search between using the raw string vs. the split components.\n*   **`Name_of_Associated_Covered_...`:**\n    *   *Operator:* `TargetEncoder` (with strong regularization/cross-validation) could be risky due to 6400 rows, but worth searching against similarity encoders if cardinality proves too high for tree splits.\n\n**5. Candidate Model Families**\n*   **Gradient Boosting:** `XGBoost`, `LightGBM`, or `CatBoost`.\n    *   *Note:* `CatBoost` is particularly strong with high-cardinality categorical features natively, potentially reducing preprocessing needs.\n*   **Linear Baseline:** `LogisticRegression` (with encoded features) to establish a baseline for interpretability.\n\n**6. Relational/Auxiliary Tables**\n*   **None:** The dataset summary does not list auxiliary tables. No join operations are required.\n\n**7. Summary of Search Space**\n*   **Imbalance Handling:** [None, Class Weights, SMOTE].\n*   **String Encoding:** [MinHashEncoder, GapEncoder, CatBoost Native].\n*   **Specialty Processing:** [Raw, Split by '|'].\n*   **Missing Value Strategy:** [Impute Constant, Missing Indicator Flags].\n*   **Model:** [XGBoost, LightGBM, CatBoost].",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_constant\": {\n        \"choice\": [false, true]\n      }\n    }\n  },\n  \"vectorizer\": {\n    \"params\": {\n      \"cardinality_threshold\": {\n        \"int\": [10, 50]\n      }\n    },\n    \"slots\": {\n      \"high_cardinality\": [\n        \"skrub.MinHashEncoder\",\n        \"skrub.GapEncoder\"\n      ],\n      \"low_cardinality\": [\n        \"sklearn.preprocessing.OneHotEncoder\"\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"missing_flags\",\n      \"cols\": [\n        \"Name_of_Associated_Covered_Device_or_Medical_Supply1\",\n        \"Name_of_Associated_Covered_Drug_or_Biological1\"\n      ],\n      \"options\": [\n        \"skip\",\n        {\n          \"name\": \"sklearn.impute.SimpleImputer\",\n          \"params\": {\n            \"strategy\": {\n              \"choice\": [\"constant\"]\n            },\n            \"fill_value\": {\n              \"choice\": [\"__MISSING__\"]\n            },\n            \"add_indicator\": {\n              \"choice\": [true]\n            }\n          }\n        }\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": true\n    },\n    {\n      \"name\": \"specialty_encoder\",\n      \"cols\": [\n        \"Physician_Specialty\"\n      ],\n      \"options\": [\n        \"skip\",\n        {\n          \"name\": \"skrub.MinHashEncoder\",\n          \"params\": {\n            \"n_components\": {\n              \"int\": [10, 30]\n            }\n          }\n        }\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    }\n  ],\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.StandardScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\"\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"lightgbm.LGBMClassifier\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [100, 500]\n        },\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"max_depth\": {\n          \"int\": [3, 12]\n        },\n        \"scale_pos_weight\": {\n          \"float\": [1.0, 20.0]\n        },\n        \"colsample_bytree\": {\n          \"float\": [0.5, 1.0]\n        }\n      }\n    },\n    {\n      \"name\": \"xgboost.XGBClassifier\",\n      \"prior\": 0.7,\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [100, 500]\n        },\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"max_depth\": {\n          \"int\": [3, 12]\n        },\n        \"scale_pos_weight\": {\n          \"float\": [1.0, 20.0]\n        },\n        \"subsample\": {\n          \"float\": [0.5, 1.0]\n        }\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n      \"prior\": 0.6,\n      \"params\": {\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"max_iter\": {\n          \"int\": [100, 600]\n        },\n        \"max_depth\": {\n          \"int\": [2, 16]\n        },\n        \"class_weight\": {\n          \"choice\": [\"balanced\", null]\n        }\n      }\n    },\n    {\n      \"name\": \"sklearn.linear_model.LogisticRegression\",\n      \"prior\": 0.3,\n      \"params\": {\n        \"C\": {\n          \"float\": [0.001, 1000.0],\n          \"log\": true\n        },\n        \"class_weight\": {\n          \"choice\": [\"balanced\", null]\n        },\n        \"max_iter\": {\n          \"int\": [100, 1000]\n        }\n      }\n    }\n  ]\n}"
+}
