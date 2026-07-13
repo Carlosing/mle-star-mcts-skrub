@@ -286,8 +286,8 @@ def run_pipeline(
     ``c``/``retarget`` are forwarded to ``run_search_loop`` (UCT exploration
     constant; whether Option 1 re-picks the target stage between slices).
     ``spec_raw`` skips the analyst/plan-author agents entirely and resolves the
-    given raw plan instead — the sweep harness fetches the spec once per task
-    and reuses it across points, so LLM calls stay O(tasks), not O(runs).
+    given raw plan instead — the offline Claude driver and stored-run replays
+    reuse a captured plan this way, so those runs cost zero agent calls.
 
     ``subsample_seeds`` averages each rollout's reward over that many seeded
     subsamples (``skrub_ops.make_rollout_fn(n_subsample_seeds=)``). ``None``
@@ -684,7 +684,8 @@ def _main() -> None:
         "--outer-steps",
         type=int,
         default=1,
-        help="search phases; >1 enables ablation targeting (Option 1)",
+        help="search phases; >1 enables the tree-mined focus-stage pick "
+        "(Option 1, a proposer hint — never an expansion lock)",
     )
     parser.add_argument(
         "--refine",
@@ -717,7 +718,8 @@ def _main() -> None:
     parser.add_argument(
         "--no-retarget",
         action="store_true",
-        help="keep the first Option-1 target stage for the whole run",
+        help="keep the first Option-1 focus-stage pick (the proposer's "
+        "target_stage hint) for the whole run",
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="global random seed"

@@ -8,7 +8,7 @@
 BUDGET ?= 20
 # task name under tasks/ (empty = config default)
 TASK ?=
-# search phases; >1 enables ablation targeting (Option 1)
+# search phases; >1 enables the tree-mined focus-stage pick (Option 1, proposer hint)
 OUTER_STEPS ?= 1
 # set REFINE=1 to enable LLM per-stage option injection (Option 3; needs OUTER_STEPS>1)
 REFINE ?=
@@ -25,10 +25,6 @@ NJOBS ?= 6
 # wall-clock budget (seconds) for the whole search; empty = pure rollout-count
 # budget (BUDGET). Set e.g. TIME_BUDGET=3600 for the 1h benchmark protocol.
 TIME_BUDGET ?=
-# JSON sweep spec for `make sweep` (defaults + runs; see sweeps/example.json)
-SWEEP ?= sweeps/example.json
-# sweep driver: empty = live agents (PROVIDER); claude = fully offline, no quota
-DRIVER ?=
 # --- Claude-driven (offline, zero Gemini quota) --------------------------------
 # proposer calls interleaved between BUDGET-sized slices (0 = Option 1 + HP-refine only)
 CLAUDE_PROPOSES ?= 2
@@ -37,8 +33,8 @@ CLAUDE_TOP_K ?= 3
 # artifact parent dir (empty = runs/claude_<timestamp>)
 OUT ?=
 
-.PHONY: help sync test test-live probe probe-school run-live run-refine sweep \
-        sweep-live run-claude sweep-claude stage-tasks stage-credit-fraud \
+.PHONY: help sync test test-live probe probe-school run-live run-refine \
+        run-claude sweep-claude stage-tasks stage-credit-fraud \
         bench-autogluon bench-mlestar figures
 
 help:
@@ -51,9 +47,6 @@ help:
 	@echo "                  vars: PROVIDER=$(PROVIDER) (google|school) BUDGET=$(BUDGET) TASK=<name> TOP_K=<k> N_PROPOSES=<n> NJOBS=$(NJOBS)"
 	@echo "                  full usage guide: docs/USAGE.md"
 	@echo "make run-refine - run-live with Option 1 + Option 3 on (OUTER_STEPS=3, REFINE=1)"
-	@echo "make sweep      - run a JSON sweep spec; writes runs/sweep_<ts>/"
-	@echo "                  vars: SWEEP=$(SWEEP) DRIVER=claude (offline, no quota)"
-	@echo "make sweep-live - alias for 'make sweep' (explicit: it hits the real Gemini API)"
 	@echo ""
 	@echo "-- Claude-driven, offline, ZERO Gemini quota (plans+proposals in scripts/claude_agents.py) --"
 	@echo "make run-claude   - one task through the Claude driver; writes runs/claude_<ts>/<task>/"
@@ -66,7 +59,7 @@ help:
 	@echo "-- benchmark comparison (needs: uv sync --extra bench) --"
 	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1"
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
-	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=runs SWEEP_CSV=<csv> OUT=<dir>"
+	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=runs OUT=<dir>"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
 sync:
@@ -95,13 +88,6 @@ run-live:
 
 run-refine:
 	$(MAKE) run-live OUTER_STEPS=3 REFINE=1 BUDGET=$(BUDGET) TASK=$(TASK)
-
-sweep:
-	PROVIDER=$(PROVIDER) uv run python -m machine_learning_engineering.sweep \
-		$(SWEEP) $(if $(DRIVER),--driver $(DRIVER),)
-
-# same thing, named so it is obvious at the call site that this spends quota
-sweep-live: sweep
 
 # Claude stands in for the Gemini agent layer: plans + Option-3 proposals come
 # from scripts/claude_agents.py, so the search runs with zero network calls.
@@ -145,5 +131,4 @@ bench-mlestar:
 RUNS ?= runs
 figures:
 	uv run python scripts/make_figures.py --runs $(RUNS) \
-		$(if $(SWEEP_CSV),--sweep $(SWEEP_CSV),) \
 		--out $(if $(OUT),$(OUT),runs/figures)

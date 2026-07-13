@@ -393,6 +393,31 @@ def test_retargeting_reruns_each_slice_and_can_be_disabled(monkeypatch):
     assert picks["n"] == 1  # the first pick is kept for the whole run
 
 
+def test_targeting_is_a_proposer_hint_not_an_expansion_lock(monkeypatch):
+    from machine_learning_engineering import search_loop as sl
+
+    seen = []
+    orig = sl.mcts.mcts_search
+
+    def capturing_search(*args, **kwargs):
+        seen.append(kwargs.get("target_key"))
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(sl.mcts, "mcts_search", capturing_search)
+    res = sl.run_search_loop(
+        _spec(),
+        _california(),
+        TARGET,
+        scoring="r2",
+        outer_steps=3,
+        budget_per_step=4,
+    )
+    # a focus stage was picked (the proposer's target_stage hint)...
+    assert res["target_key"] is not None
+    # ...but no slice (nor the bonus phase) ran with expansion locked
+    assert seen and all(k is None for k in seen)
+
+
 def test_score_cache_bounds_cv_calls_across_slices():
     res = run_search_loop(
         _spec(),

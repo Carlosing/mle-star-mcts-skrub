@@ -88,17 +88,6 @@ Same search engine, but the plans come from pre-written files instead of a live
 LLM — so it costs **no quota** and is fully deterministic. Great for testing the
 search itself without spending API calls.
 
-### Sweeps — compare many settings at once
-
-```bash
-make sweep SWEEP=sweeps/example.json                  # real API
-make sweep SWEEP=sweeps/example.json DRIVER=claude    # offline, no quota
-```
-
-Runs a grid of configurations from a JSON spec and writes a `sweep.csv` +
-`sweep.md` comparing them. The LLM is called only *once per task* (the plan is
-reused across every setting), so a big sweep still costs very little quota.
-
 ---
 
 ## Options and their defaults
@@ -112,12 +101,11 @@ Pass these as `NAME=value` after the `make` command, e.g.
 | `BUDGET` | `20` | How many pipeline configs the search tries per phase. Higher = more thorough, slower. A further `budget/4` refinement rollouts run automatically. |
 | `TOP_K` | `1` | Ensemble the best `K` configs at the end (`1` = just report the single best). |
 | `N_PROPOSES` | (off) | Ask the LLM to add new options mid-search this many times (**Option 3**). `0` or unset = off. |
-| `OUTER_STEPS` | `1` | Split the budget into this many search phases. `>1` enables between-phase re-targeting. |
+| `OUTER_STEPS` | `1` | Split the budget into this many search phases. `>1` enables the between-phase focus-stage pick (a hint passed to the Option-3 proposer). |
 | `REFINE` | (off) | `REFINE=1` turns on Option 3 (needs `OUTER_STEPS>1`). `N_PROPOSES` is the simpler way to do this. |
 | `PROVIDER` | `google` | Which LLM provider: `google` (Gemini) or `school` (GWDG). See below. |
 | `NJOBS` | `6` | How many CPU cores to use per pipeline evaluation. `6` suits an Apple M-series; lower it on a smaller machine. |
 | `TIME_BUDGET` | (off) | Wall-clock budget in **seconds** for the whole search (e.g. `3600` = 1 hour). When set, `BUDGET` becomes an upper bound and time is the real cap. The LLM cost stays the same 2 calls — you buy quality with *time*, not tokens. Used for the benchmark protocol. |
-| `SWEEP` | `sweeps/example.json` | The sweep spec file for `make sweep`. |
 | `CLAUDE_PROPOSES` | `2` | Option-3 proposer calls for `make run-claude` (offline). |
 | `CLAUDE_TOP_K` | `3` | Top-K ensemble for `make run-claude`. |
 
@@ -264,9 +252,12 @@ make bench-mlestar TASK=toxicity MAX_CALLS=60 TIME_BUDGET=3600 PROVIDER=school
 **Render the comparison** from every `result.json` produced:
 
 ```bash
-make figures RUNS=runs                       # quality-at-cost + mechanism table
-make figures RUNS=runs SWEEP_CSV=runs/scaling/sweep.csv   # + time-scaling curve
+make figures RUNS=runs   # quality-at-cost + mechanism table + time-scaling
 ```
+
+The time-scaling curve is drawn per task from any *extension* `result.json`
+artifacts under `RUNS` whose budget differs (e.g. several
+`make run-live BUDGET=...` runs), skipped when no task has two budget points.
 
 This writes `runs/figures/`: `quality_at_cost.png`, `time_scaling.png`,
 `mechanism_table.md`, and a flat `comparison.csv`. All three methods emit the

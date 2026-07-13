@@ -32,8 +32,7 @@ silently drop the whole injection is fixed (`_build_choice` linear-fallback +
 per-param guard in `_make`); a merge that still won't resolve is recorded in
 `result["proposal_injection_error"]` and surfaced in summary.md, so a failed
 injection is distinguishable from "proposer added nothing". Friend-facing usage
-guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=`/`DRIVER=`
-flags. Owed: `llm_calls` miscounts offline replay proposers as real calls.
+guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=` flags. Owed: `llm_calls` miscounts offline replay proposers as real calls.
 Historical bugs (symptom → cause → fix → test) are catalogued in
 [BUG_LEDGER.md](BUG_LEDGER.md)._
 
@@ -59,7 +58,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 3. **ADK agents** → `data_analyst` (web search) → `plan_author` → JSON plan in state.
 4. **resolve_spec** → JSON names/HP-ranges → seeded estimators + `choose_*` nodes (allowed-list, no `eval`).
 5. **build_staged_plan** → skrub DataOps plan; **get_action_space** → the MCTS search space; **get_choice_gating** → model→HP gate.
-6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to re-target a stage (Option 1, `retarget=`) and, with a proposer, asking for a whole *extended plan* before each subsequent slice (Option 3 — `search → propose → search → …`; the extension is merged strictly additively via `_merge_raw_plans`, re-resolved, and rebuilt, so injected operators arrive with their HP ranges). After the budget, a **focused-refinement bonus phase** (`ceil(total/4)` rollouts, no LLM) descends from the incumbent node and explores ALL of its single-edit neighbors — structure and HPs alike (`hp_refine=`, dims reported as `refined_dims`).
+6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to pick a focus stage — a proposer hint only, expansion is never locked (Option 1, `retarget=`) — and, with a proposer, asking for a whole *extended plan* before each subsequent slice (Option 3 — `search → propose → search → …`; the extension is merged strictly additively via `_merge_raw_plans`, re-resolved, and rebuilt, so injected operators arrive with their HP ranges). After the budget, a **focused-refinement bonus phase** (`ceil(total/4)` rollouts, no LLM) descends from the incumbent node and explores ALL of its single-edit neighbors — structure and HPs alike (`hp_refine=`, dims reported as `refined_dims`).
 7. **report** → score the incumbent on the competition metric (RMSE, etc.); write `runs/<task>_<ts>/{result.json,summary.md}`.
 
 ## Module map
@@ -68,7 +67,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 |---|---|
 | `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook, DOT/ASCII viz) |
 | `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble` + a fixed `_SanitizeColumns` rename before the model so boosters accept skrub's special-character feature names), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`; profile-aware subsample sizing `_profile_subsample_n` — imbalance/high-cardinality grow it, capped at 2000; optional seed-averaged rewards `n_subsample_seeds`; per-rollout 60s wall-clock cap via `_time_limit`/`timeout_s` → slow config scores 0.0; CV folds parallel via `n_jobs`, default 6), `run_ablation`, `pick_target_node` |
-| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 targeting re-run between slices (`retarget=`) + non-target locking, Option 3 **whole-plan extending injection** between slices (`propose(plan_json, context) -> extended plan`, merged strictly additively via `_merge_raw_plans`, re-resolved + rebuilt — injected operators arrive tuned), `make_llm_proposer` (≤ one provider call between slices — native Gemini or OpenAI-compatible, same env switch as the agents); post-budget **focused-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over ALL its single-edit neighbors — `hp_refine=`, edited dims in `refined_dims`) |
+| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 focus pick re-run between slices (`retarget=`; a proposer hint, never an expansion lock), Option 3 **whole-plan extending injection** between slices (`propose(plan_json, context) -> extended plan`, merged strictly additively via `_merge_raw_plans`, re-resolved + rebuilt — injected operators arrive tuned), `make_llm_proposer` (≤ one provider call between slices — native Gemini or OpenAI-compatible, same env switch as the agents); post-budget **focused-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over ALL its single-edit neighbors — `hp_refine=`, edited dims in `refined_dims`) |
 | `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`/`lightgbm`/`xgboost`) is the safety envelope; free-form HP ranges (`_build_free_choice`) unless curated in `REGISTRY` (then clipped); per-param safety nets (`_accepts_param`, `_RNG_PARAMS`) drop unknown/RNG params without dropping the operator; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `build_root_agent` factory; `_resolve_model` env-switches native Gemini vs `LiteLlm` (OpenAI/compatible); `google_search` attached only on the Gemini path |
@@ -96,13 +95,20 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
   is selected, and `canonicalize` drops inactive HPs so the cache/dedup don't split on
   them (`test_gating_skips_inactive_hp_and_canonicalizes`,
   `test_run_states_are_model_gated_canonical`).
-- ✅ **Option 1 — tree-mined ablation + non-target locking** — `search_loop.tree_action_values`
+- ✅ **Option 1 — tree-mined ablation → proposer hint** — `search_loop.tree_action_values`
   mines per-stage deltas from the persisted tree (no fresh rollouts), `pick_target_node`
-  chooses the highest-variance stage, `target_key` locks the rest and refocuses expansion
-  on that stage (`test_targeting_picks_an_operator_stage`, `test_target_key_restricts_expansion`).
-  This is the *between-slice, stage-level* targeting; the *post-budget* local search
-  around the incumbent is the **focused-refinement bonus phase** (see Pre-ship upgrades
-  item 2; `expand` accepts a *set* of target keys, and `mcts_search` a `start_node`).
+  chooses the highest-variance stage, and the pick is forwarded to the Option-3 proposer
+  as its `target_stage` hint (`test_targeting_picks_an_operator_stage`,
+  `test_targeting_is_a_proposer_hint_not_an_expansion_lock`). Expansion is *never*
+  locked to the pick (changed 2026-07-13): replay A/Bs on country-happiness and
+  california-housing showed the variance ledger elects `model` on essentially every
+  pick — the retarget on/off axis was bit-identical — while the lock starved off-target
+  injected options until the bonus phase (on country-happiness the *winning* edit, an
+  injected QuantileTransformer, was exactly such a rescue). The `mcts.expand` lock
+  capability itself remains (`target_key`, single name or set —
+  `test_target_key_restricts_expansion`), just unused by the outer loop. The
+  *post-budget* local search around the incumbent is the **focused-refinement bonus
+  phase** (see Pre-ship upgrades item 2; `mcts_search` takes a `start_node`).
 - ✅ **Option 3 — LLM option injection between slices** — with a proposer, one call per
   outer step extends the plan mid-search; the LLM never enters the inner loop
   (≤ `outer_steps - 1` calls total; `make_llm_proposer`). **A run keeps a pipeline
@@ -201,8 +207,10 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
   added to the registry (the "extract date parts additively" case).
   (`tests/test_scope_stage.py` — v2 section.)
 - ✅ **Interleaved propose between fixed-budget slices** — `run_search_loop` now
-  re-mines the tree and re-targets after *every* slice (`retarget=False` keeps
-  the first pick, A/B-able in sweeps), and with a proposer fires one call
+  re-mines the tree and re-picks the proposer's focus-stage hint after *every*
+  slice (`retarget=False` keeps the first pick — though the replay A/Bs of
+  2026-07-13 found the pick is `model` on essentially every task, making that
+  axis a null comparison), and with a proposer fires one call
   before each slice after the first: `outer_steps=4, budget_per_step=15` =
   `search 15 → propose → 15 → propose → 15 → propose → 15` on one persisted
   tree (≤ `outer_steps-1` LLM calls; the invariant holds). CLI sugar
@@ -230,7 +238,7 @@ axis without moving the LLM into the inner loop.*
 | **`prior_fn` warm-start (free form)** | Medium | ✅ **done Jul 5** | Wed (Jul 5) |
 | **Top-k ensemble** | Medium | ✅ **done Jul 5** (`ensemble.py`) | Thu (Jul 6) |
 | **Richer Option-3 proposer** (evidence context + scoped proposals) | Medium | ✅ **done Jul 5** | — |
-| **Experimentation harness + sweeps** | **High** (A-grade) | ✅ **done Jul 7** (`sweep.py`, JSON specs, spec reuse) | Fri + weekend (Jul 7–9) |
+| **Experimentation harness + sweeps** | **High** (A-grade) | ✅ done Jul 7 → **removed Jul 13** (unused: budget/N_PROPOSES are chosen by time + LLM-call count, not swept) | Fri + weekend (Jul 7–9) |
 | **Imbalance-safe rollouts** (stratified subsample + minority floor) | High (fixes noisy credit-fraud rewards) | ✅ **done Jul 7** | — |
 
 Remaining notes:
@@ -250,18 +258,15 @@ Remaining notes:
   `skrub_ops._resolve_scoring` (positive-column callable). See
   [BUG_LEDGER.md](BUG_LEDGER.md).
 
-4. ~~**Experimentation harness + sweeps (the A-grade differentiator).**~~ ✅ done Jul 7:
-   `machine_learning_engineering/sweep.py` runs a JSON sweep spec (`sweeps/example.json`;
-   `defaults` + `runs`, list values cartesian-expand per entry, `n_proposes` sugar) via
-   `make sweep SWEEP=<file>` → `runs/sweep_<ts>/{sweep.csv,sweep.md,<slug>/}`. Key design:
-   **agents run once per task** — the raw spec is captured and reused across every point
-   (`run_pipeline(spec_raw=...)`), so LLM calls stay O(tasks) not O(runs) (the checked-in
-   example: 24 runs, 14 calls — free tier is ~250/day; wall-clock CV is the binding
-   constraint). `--spec-cache` shares fetches across sweep invocations; quota errors get
-   one retry, other failures become `status="failed"` rows and the sweep continues.
-   `c`, `retarget`, `seed` are now also plumbed through `run_pipeline` and the pipeline
-   CLI (`--c`, `--no-retarget`, `--seed`). *Still owed for Week 3:* the 2–3 sweep
-   figures with one-sentence findings, generated from `sweep.csv`.
+4. ~~**Experimentation harness + sweeps.**~~ ✅ done Jul 7, **removed Jul 13**
+   (`sweep.py`, `sweeps/`, `make sweep`/`sweep-live`, `tests/test_sweep.py`): in practice
+   budget and `N_PROPOSES` are chosen by wall-clock time and LLM-call count, not by
+   sweeping the search's own hyperparameters — and the one axis the harness was built to
+   A/B (`retarget`) turned out to be a null comparison (see Option 1 above). What
+   survives: `run_pipeline(spec_raw=...)` spec reuse (used by the replay/Claude drivers),
+   the `--c`/`--no-retarget`/`--seed` CLI plumbing, and the time-scaling figure —
+   `scripts/make_figures.py` now reads it from extension `result.json` artifacts at
+   different budgets instead of a `sweep.csv`.
 
 5. **Imbalance-safe rollouts (done Jul 7).** The live credit-fraud scores (~0.585) were
    near-noise: a plain 500-row subsample of a 1.25%-positive table holds ~6 positives, so
@@ -312,8 +317,8 @@ figures.
    `make_rollout_fn(n_subsample_seeds=)` averages the reward over several
    seeded subsamples (deterministic, cache-exact; timeout scales);
    `pipeline._auto_subsample_seeds` auto-enables 3 seeds for imbalanced
-   classification (minority < 5%); `--subsample-seeds` on the CLI and
-   `subsample_seeds` in sweep specs. (`tests/test_profile_subsample.py`.)
+   classification (minority < 5%); `--subsample-seeds` on the CLI.
+   (`tests/test_profile_subsample.py`.)
 
 ### Week 3 — freeze, evaluate, write, buffer (Jul 10 – Jul 15)
 
@@ -328,8 +333,10 @@ figures.
   (+ `midwest_survey`/`bike_sharing` if clean).
 - **Three headline comparisons:** (1) **flexibility lift** — fixed space vs Option 3;
   (2) **relational lift** — assemble vs flat on `credit_fraud` (ideally vs an AutoGluon
-  flat-table baseline); (3) **targeted-refinement lift** — Option 1 on vs off. Plus the
-  ensemble lift and the `c`-sweep.
+  flat-table baseline); (3) **time-scaling at constant LLM cost** — several budgets per
+  task via repeated `make run-live` (the old "Option 1 on vs off" comparison was shown
+  to be a null axis on 2026-07-13, and the sweep harness was removed with it). Plus the
+  ensemble lift.
 - **Writeup + slides:** the MLE-STAR comparison table (mechanism / debug cost / token cost /
   leakage handling / adaptivity) + the figures.
 

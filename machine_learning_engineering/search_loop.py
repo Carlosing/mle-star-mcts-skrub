@@ -4,7 +4,13 @@ Wraps repeated `mcts.mcts_search` calls with a persisted tree (`root`,
 `tried_states`) and a `score_cache`, so the search refines across outer steps
 instead of restarting. Two refinements layer on top:
 
-- After every fixed-budget slice, mine per-stage action values from the tree, `pick_target_node`, then run the next slice with `target_key` set so expansion focuses on that one stage (the rest stay at the incumbent's values). Re-targeting happens between slices by default (`retarget=False` keeps the first pick).
+- After every fixed-budget slice, mine per-stage action values from the tree
+  and `pick_target_node` a focus stage — passed to the proposer as
+  `target_stage`, a HINT about where the search sees the most unresolved
+  variance. It does NOT constrain expansion: replay A/Bs showed the variance
+  ledger elects `model` on essentially every pick, so locking the other
+  stages starved off-target injected options until the bonus phase. Re-picking
+  happens between slices by default (`retarget=False` keeps the first pick).
 - **Option 3 (one LLM call between slices):** before each slice after the
   first, hand the `propose` callable the WHOLE current raw plan plus search
   evidence and expect back an *extended* plan (any/multiple stages, with HP
@@ -305,11 +311,13 @@ def run_search_loop(
     `outer_steps == 1` is a plain (gated) single MCTS phase. With more steps
     the search runs as fixed-budget SLICES on the same persisted tree,
     interleaved with refinement: after every slice the tree is re-mined and a
-    stage is (re-)targeted (Option 1; `retarget=False` keeps the first pick
-    for the whole run), and, if `propose` is given, one proposer call fires
-    before each subsequent slice (Option 3) — so `outer_steps=4,
-    budget_per_step=15` means `search 15 → propose → 15 → propose → 15 →
-    propose → 15`, at most `outer_steps - 1` LLM calls total. Returns the
+    focus stage is (re-)picked (Option 1; `retarget=False` keeps the first
+    pick for the whole run) — forwarded to the proposer as its `target_stage`
+    hint, never as an expansion lock — and, if `propose` is given, one
+    proposer call fires before each subsequent slice (Option 3) — so
+    `outer_steps=4, budget_per_step=15` means `search 15 → propose → 15 →
+    propose → 15 → propose → 15`, at most `outer_steps - 1` LLM calls total.
+    Returns the
     (possibly rebuilt) plan so the caller can score the incumbent on it. For
     relational tasks pass `aux_tables={name: df}` — auxiliary tables join
     whole (never subsampled) and survive the Option-3 plan rebuild.
@@ -483,16 +491,17 @@ def run_search_loop(
             tried_states=tried,
             prior_fn=prior_fn,
             gating=gating,
-            target_key=target_key,
             score_cache=cache,
             deadline=deadline,
         )
         if bscore > best_score:
             best_state, best_score = bstate, bscore
 
-        # Option 1: after each slice, (re-)pick the stage to focus next on.
-        # `retarget=False` keeps the first pick for the whole run (the old
-        # fixed-target behavior, kept A/B-able for the sweep harness).
+        # Option 1: after each slice, (re-)pick the focus stage. This is a
+        # proposer hint only (`target_stage` in its context) — expansion stays
+        # unlocked, since the variance ledger elects `model` on essentially
+        # every pick and a lock starved off-target injections until the bonus
+        # phase. `retarget=False` keeps the first pick for the whole run.
         if (
             outer_steps > 1
             and step < outer_steps - 1

@@ -191,8 +191,9 @@ def test_run_pipeline_classification_offline():
 
 
 def test_run_pipeline_reuses_provided_spec_offline(monkeypatch):
-    # spec_raw= skips the agents entirely (the sweep harness fetches the spec
-    # once per task); proving it by making any agent run blow up the test.
+    # spec_raw= skips the agents entirely (the offline Claude driver and
+    # stored-run replays rely on this); proving it by making any agent run
+    # blow up the test.
     def _boom(*a, **k):
         raise AssertionError("agents must not run when spec_raw is provided")
 

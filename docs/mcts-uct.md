@@ -73,10 +73,14 @@ toward promising *regions* of the config space, not just individual points.
   rollout, and backprop are all pure code. The optional `prior_fn` hook is the
   only place an LLM can influence the tree (warm-starting child `Q`/`N`),
   following the AlphaZero "policy prior + UCT search" pattern (brief §6).
-- **Targeting narrows what `expand` grows, not where selection starts.** The
-  outer loop (`search_loop.py`) can pass `target_key` — a single choice name,
-  or a *set* of them — so `expand` only edits those stages while UCT selection
-  and backprop are untouched. The **focused-refinement bonus phase** instead
+- **Targeting narrows what `expand` grows, not where selection starts.**
+  `mcts_search` accepts `target_key` — a single choice name, or a *set* of
+  them — so `expand` only edits those stages while UCT selection and backprop
+  are untouched. (The outer loop no longer uses it: since 2026-07-13 the
+  Option-1 pick is only a proposer hint — the variance ledger elects `model`
+  on essentially every pick, and locking expansion to it starved off-target
+  injected options until the bonus phase.) The **focused-refinement bonus
+  phase** instead
   passes `start_node` so selection *descends from the incumbent node* rather
   than the root, spending a final `ceil(budget/4)` rollouts locally on ALL of
   the incumbent's single-edit neighbors — structural stages and gated HPs

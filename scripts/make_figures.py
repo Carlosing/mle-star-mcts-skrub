@@ -10,14 +10,14 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    tokens it spent (the extension clusters at a small constant; AutoGluon at 0;
    MLE-STAR far right). Bar-of-quality + token annotation, one panel per task.
 2. **time-scaling** — the extension's holdout score vs its wall-clock/budget at
-   CONSTANT token cost (the headline claim), read from a budget sweep's
-   ``sweep.csv``.
+   CONSTANT token cost (the headline claim), read from extension result.json
+   artifacts whose budget varies (several `make run-live BUDGET=...` runs
+   under one `--runs` root).
 3. **mechanism table** — a static qualitative comparison (mechanism / debug cost
    / token cost / leakage handling / adaptivity), written as markdown.
 
 Run:
-    uv run python scripts/make_figures.py --runs runs/bench --sweep runs/scaling/sweep.csv \
-        --out runs/figures
+    uv run python scripts/make_figures.py --runs runs/bench --out runs/figures
 Needs matplotlib (the `bench` extra):  uv sync --extra bench
 """
 
@@ -58,6 +58,7 @@ def load_results(roots: list[str]) -> list[dict]:
                 "llm_calls": int(d.get("llm_calls", 0)),
                 "wall_clock_s": float(d.get("wall_clock_s") or 0.0),
                 "time_budget_s": d.get("time_budget_s"),
+                "budget": d.get("budget"),
                 "relational": bool(d.get("relational", False)),
                 "path": path,
             })
@@ -112,51 +113,37 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
     return path
 
 
-def fig_time_scaling(sweep_csv: str, out_dir: str) -> str | None:
+def fig_time_scaling(records: list[dict], out_dir: str) -> str | None:
     """Extension holdout score vs budget/time at CONSTANT token cost.
 
-    Reads a sweep.csv (from `make sweep`) whose runs vary `budget` (or
-    `time_budget_s`); plots the quality curve per task and confirms token cost
-    is flat. This is the headline differentiator.
+    Plots extension-method records whose `time_budget_s` (or `budget`) varies
+    — e.g. several `make run-live` result.json artifacts at different budgets
+    under one `--runs` root — one quality curve per task, plus a token panel
+    confirming LLM cost stays flat. This is the headline differentiator.
+    Tasks with fewer than two distinct budget points are skipped.
     """
-    if not sweep_csv or not os.path.exists(sweep_csv):
-        return None
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    rows = []
-    with open(sweep_csv, encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if row.get("status") not in (None, "", "ok"):
-                continue
-            rows.append(row)
-    if not rows:
-        return None
-
-    def _x(row):
-        tb = row.get("time_budget_s")
-        if tb not in (None, "", "None"):
-            return float(tb), "wall-clock budget (s)"
-        return float(row.get("budget") or 0), "search budget (rollouts)"
-
-    def _y(row):
-        for key in ("holdout_score", "report_score", "best_search_score"):
-            v = row.get(key)
-            if v not in (None, "", "None"):
-                return float(v)
-        return None
+    def _x(r):
+        if r.get("time_budget_s") is not None:
+            return float(r["time_budget_s"]), "wall-clock budget (s)"
+        return float(r.get("budget") or 0), "search budget (rollouts)"
 
     by_task = defaultdict(list)
     xlabel = "search budget (rollouts)"
-    for row in rows:
-        x, xlabel = _x(row)
-        y = _y(row)
-        if y is None:
+    for r in records:
+        if r["method"] != "extension":
             continue
-        tok = int(float(row.get("tokens_total") or 0))
-        by_task[row.get("task", "?")].append((x, y, tok))
+        x, xlabel = _x(r)
+        by_task[r["task"]].append((x, r["score"], r["tokens"]))
+    by_task = {
+        task: pts
+        for task, pts in by_task.items()
+        if len({p[0] for p in pts}) >= 2
+    }
 
     if not by_task:
         return None
@@ -243,10 +230,6 @@ def _main() -> None:
         "--runs", nargs="+", default=["runs"],
         help="root dir(s) to scan for uniform result.json artifacts",
     )
-    parser.add_argument(
-        "--sweep", default=None,
-        help="a sweep.csv (budget/time varied) for the time-scaling figure",
-    )
     parser.add_argument("--out", default="runs/figures", help="output dir")
     args = parser.parse_args()
 
@@ -261,7 +244,7 @@ def _main() -> None:
     q = fig_quality_at_cost(records, args.out)
     if q:
         made.append(q)
-    t = fig_time_scaling(args.sweep, args.out)
+    t = fig_time_scaling(records, args.out)
     if t:
         made.append(t)
     print("wrote:")
