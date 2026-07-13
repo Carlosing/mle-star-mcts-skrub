@@ -1,0 +1,10 @@
+task,method,scorer,score,tokens,llm_calls,wall_clock_s,time_budget_s,relational
+country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,41614,4,735.2,,False
+credit-fraud,autogluon,roc_auc,0.6022891157830625,0,0,3176.7,3600.0,False
+credit-fraud,extension,roc_auc,0.8264230842157883,43523,4,1620.4,,False
+toxicity,autogluon,accuracy,0.69,0,0,428.3,3600.0,False
+toxicity,extension,accuracy,0.845,33262,4,741.6,,False
+toxicity,extension,accuracy,0.945,33067,4,2932.9,,False
+traffic-violations,autogluon,accuracy,0.883,0,0,3600.6,3600.0,False
+traffic-violations,extension,accuracy,0.8373333333333334,42386,4,1017.9,,False
+traffic-violations,extension,accuracy,0.8853333333333333,50195,4,1607.9,,False

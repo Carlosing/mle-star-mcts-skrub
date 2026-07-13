@@ -35,7 +35,7 @@ OUT ?=
 
 .PHONY: help sync test probe probe-school run-live run-refine \
         run-claude sweep-claude stage-tasks stage-credit-fraud \
-        bench-autogluon bench-mlestar figures
+        bench-autogluon bench-mlestar collect-results figures
 
 help:
 	@echo "make sync       - reconcile lockfile + build the venv (run once, online)"
@@ -58,7 +58,8 @@ help:
 	@echo "-- benchmark comparison (needs: uv sync --extra bench) --"
 	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1 PRESETS=best_quality"
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
-	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=runs OUT=<dir>"
+	@echo "make collect-results - copy result.json artifacts from RUNS=runs into a small git-shareable OUT=results mirror"
+	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=results OUT=<dir>"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
 sync:
@@ -126,8 +127,16 @@ bench-mlestar:
 		--time-budget-s $(if $(TIME_BUDGET),$(TIME_BUDGET),3600) \
 		$(if $(OUT),--out $(OUT),)
 
-# Read every uniform result.json under RUNS and render the comparison figures.
-RUNS ?= runs
+# Copy result.json artifacts (folder structure preserved, AutoGluon's
+# multi-GB ag_models/ left behind) from RUNS into a small, git-shareable
+# mirror under OUT.
+collect-results:
+	uv run python scripts/collect_results.py --runs $(if $(RUNS),$(RUNS),runs) \
+		--out $(if $(OUT),$(OUT),results)
+
+# Read every uniform result.json under RUNS (the small results/ mirror by
+# default, not runs/ itself) and render the comparison figures.
+RUNS ?= results
 figures:
 	uv run python scripts/make_figures.py --runs $(RUNS) \
-		--out $(if $(OUT),$(OUT),runs/figures)
+		--out $(if $(OUT),$(OUT),results/figures)

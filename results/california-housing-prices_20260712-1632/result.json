@@ -1,0 +1,323 @@
+{
+  "method": "extension",
+  "task": "california-housing-prices",
+  "task_description": "# Task\n\nPredict the median_house_value.\n\n# Metric\n\nroot_mean_squared_error\n\n# Submission Format\n```\nmedian_house_value\n207293.29291666666\n207293.29291666666\n207293.29291666666\netc.\n```\n\n# Dataset\n\ntrain.csv\n```\nlongitude,latitude,housing_median_age,total_rooms,total_bedrooms,population,households,median_income,median_house_value\n-118.32,34.09,28.0,2173.0,819.0,2548.0,763.0,1.879,218800.0\n-118.46,34.17,24.0,2814.0,675.0,1463.0,620.0,4.1875,309300.0\n-117.86,33.72,31.0,1194.0,297.0,1602.0,306.0,2.3333,157700.0\netc.\n```\n\ntest.csv\n```\nlongitude,latitude,housing_median_age,total_rooms,total_bedrooms,population,households,median_income\n-121.68,37.93,44.0,1014.0,225.0,704.0,238.0,1.6554\n-117.28,34.26,18.0,3895.0,689.0,1086.0,375.0,3.3672\n-122.1,37.61,35.0,2361.0,458.0,1727.0,467.0,4.5281\netc.\n```",
+  "target": "median_house_value",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "model": "openai/qwen3.5-397b-a17b",
+  "budget": 100,
+  "time_budget_s": null,
+  "search_scorer": "r2",
+  "search_reward_scale": "1/(2 - r2)",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "True",
+    "scope_geo_cluster": "skip",
+    "vectorizer__numeric": "StandardScaler()",
+    "scale": "None",
+    "feature_eng": "None",
+    "model": "LGBMRegressor",
+    "model__LGBMRegressor__n_estimators": 233,
+    "model__LGBMRegressor__num_leaves": 15
+  },
+  "best_search_score": 0.7520918401414542,
+  "report": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -54413.18547035839
+  },
+  "holdout": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -55854.94038122113
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "scope_geo_cluster__MiniBatchKMeans__n_clusters": [
+      5,
+      10,
+      12,
+      15,
+      20
+    ],
+    "scope_geo_cluster__KBinsDiscretizer__encode": [
+      "ordinal",
+      "onehot"
+    ],
+    "scope_geo_cluster__KBinsDiscretizer__n_bins": [
+      5,
+      8,
+      10,
+      12,
+      15
+    ],
+    "scope_geo_cluster": [
+      "skip",
+      "MiniBatchKMeans",
+      "KBinsDiscretizer"
+    ],
+    "vectorizer__numeric": [
+      "StandardScaler()",
+      "RobustScaler()"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()",
+      "RobustScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "False",
+      "True"
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False,\n                   interaction_only=choose_from([False, True], name='feature_eng_...eraction_only'))"
+    ],
+    "model__HistGradientBoostingRegressor__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingRegressor__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingRegressor__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__XGBRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBRegressor__max_depth": [
+      2,
+      5,
+      7,
+      9,
+      12
+    ],
+    "model__XGBRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMRegressor__max_depth": [
+      3,
+      7,
+      10,
+      12,
+      16
+    ],
+    "model__LGBMRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMRegressor__num_leaves": [
+      15,
+      43,
+      58,
+      72,
+      100
+    ],
+    "model__LGBMRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__Ridge__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model": [
+      "HistGradientBoostingRegressor",
+      "XGBRegressor",
+      "LGBMRegressor",
+      "Ridge"
+    ]
+  },
+  "target_key": null,
+  "injected_options": [],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "feature_eng",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "model",
+    "model__HistGradientBoostingRegressor__l2_regularization",
+    "model__HistGradientBoostingRegressor__learning_rate",
+    "model__HistGradientBoostingRegressor__max_depth",
+    "model__HistGradientBoostingRegressor__max_iter",
+    "model__LGBMRegressor__colsample_bytree",
+    "model__LGBMRegressor__learning_rate",
+    "model__LGBMRegressor__max_depth",
+    "model__LGBMRegressor__n_estimators",
+    "model__LGBMRegressor__num_leaves",
+    "model__LGBMRegressor__reg_lambda",
+    "scale",
+    "scope_geo_cluster",
+    "scope_geo_cluster__KBinsDiscretizer__encode",
+    "scope_geo_cluster__KBinsDiscretizer__n_bins",
+    "scope_geo_cluster__MiniBatchKMeans__n_clusters",
+    "vectorizer__numeric"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "neg_root_mean_squared_error",
+    "k": 5,
+    "states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__n_estimators": 233,
+        "model__LGBMRegressor__num_leaves": 15,
+        "scale": "None",
+        "scope_geo_cluster": "skip",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__n_estimators": 300,
+        "model__LGBMRegressor__num_leaves": 15,
+        "scale": "None",
+        "scope_geo_cluster": "skip",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__learning_rate": 0.05477225575051663,
+        "model__LGBMRegressor__max_depth": 3,
+        "scale": "None",
+        "scope_geo_cluster": "skip",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__learning_rate": 0.09654893846056294,
+        "model__LGBMRegressor__max_depth": 3,
+        "scale": "None",
+        "scope_geo_cluster": "skip",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "scale": "StandardScaler()",
+        "scope_geo_cluster": "skip",
+        "vectorizer__numeric": "RobustScaler()"
+      }
+    ],
+    "individual_scores": [
+      -55854.94038122113,
+      -55617.68726181421,
+      -58686.78889269161,
+      -57322.60386411825,
+      -57690.130647489554
+    ],
+    "ensemble_score": -56210.99976654551
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "reused_spec": false,
+  "llm_calls": 2,
+  "wall_clock_s": 276.5,
+  "tokens": {
+    "prompt": 6586,
+    "completion": 8707,
+    "total": 15293
+  },
+  "tokens_by_agent": {
+    "data_analyst": {
+      "prompt": 1193,
+      "completion": 3361,
+      "total": 4554,
+      "calls": 1
+    },
+    "plan_author": {
+      "prompt": 5393,
+      "completion": 5346,
+      "total": 10739,
+      "calls": 1
+    }
+  },
+  "data_summary": "Dataset: 2400 rows x 9 columns. Target column: 'median_house_value'.\nInferred task type: regression.\n\nColumns:\n  - longitude: dtype=float64, missing=0.0%, cardinality=566, min=-124.2 max=-114.5 mean=-119.6\n  - latitude: dtype=float64, missing=0.0%, cardinality=540, min=32.56 max=41.92 mean=35.63\n  - housing_median_age: dtype=float64, missing=0.0%, cardinality=52, min=1 max=52 mean=28.92\n  - total_rooms: dtype=float64, missing=0.0%, cardinality=1890, min=6 max=3.045e+04 mean=2612\n  - total_bedrooms: dtype=float64, missing=0.0%, cardinality=967, min=2 max=5419 mean=531.5\n  - population: dtype=float64, missing=0.0%, cardinality=1569, min=5 max=1.088e+04 mean=1411\n  - households: dtype=float64, missing=0.0%, cardinality=947, min=2 max=4930 mean=492.3\n  - median_income: dtype=float64, missing=0.0%, cardinality=2111, min=0.4999 max=15 mean=3.821\n  - median_house_value (TARGET): dtype=float64, missing=0.0%, cardinality=1545, min=3.75e+04 max=5e+05 mean=2.073e+05\n\nFirst 5 rows:\n longitude  latitude  housing_median_age  total_rooms  total_bedrooms  population  households  median_income  median_house_value\n   -118.32     34.09                28.0       2173.0           819.0      2548.0       763.0         1.8790            218800.0\n   -118.46     34.17                24.0       2814.0           675.0      1463.0       620.0         4.1875            309300.0\n   -117.86     33.72                31.0       1194.0           297.0      1602.0       306.0         2.3333            157700.0\n   -118.14     34.03                38.0       1447.0           293.0      1042.0       284.0         4.1375            211500.0\n   -122.41     37.61                46.0       2975.0           643.0      1479.0       577.0         3.8214            273600.0",
+  "analysis": "\n\n### Task & Target\n- **Task Type:** Regression.\n- **Target Column:** `median_house_value` (continuous float, range 37.5k–500k).\n\n### Class Balance\n- **Status:** Not applicable (Regression task).\n- **Note:** Target distribution should be checked for skewness (log-transform may be beneficial if heavily right-skewed), but no class weighting is required.\n\n### Column Inventory\n- **Numeric (Continuous/Count):** All 8 features are numeric floats with 0% missingness.\n  - **Geographic:** `longitude`, `latitude` (high cardinality, spatial coordinates).\n  - **Economic/Demographic:** `median_income`, `housing_median_age`.\n  - **Aggregate Counts:** `total_rooms`, `total_bedrooms`, `population`, `households` (high cardinality, scale with block size).\n- **Categorical/Dirty:** None explicitly present. All columns are inferred as numeric.\n- **High Cardinality:** `median_income` (2111 unique), `total_rooms` (1890 unique). These behave as continuous variables.\n\n### Preprocessing, Encoders & Model Families\n- **Scaling:** \n  - Search over **[StandardScaler, RobustScaler, None]**. Tree-based models are scale-invariant, but linear models and neural nets require scaling. RobustScaler may handle outliers in `total_rooms` or `population` better.\n- **Feature Engineering:**\n  - **Ratios:** Create per-household or per-room metrics (e.g., `rooms_per_household`, `bedrooms_per_room`, `population_per_household`). These are historically highly predictive for this dataset.\n  - **Polynomial:** Search over **[PolynomialFeatures (degree=2)]** on key economic variables (`median_income`, `housing_median_age`) to capture non-linear effects.\n  - **Binning:** Consider binning `housing_median_age` (52 unique values) into categorical buckets to test if **`OneHotEncoder`** or **`GapEncoder`** yields better splits than raw numeric.\n- **Candidate Models:**\n  - **Gradient Boosting:** **[XGBoost, LightGBM, CatBoost]**. SOTA for small-to-medium tabular data; handle non-linearities well.\n  - **Regularized Linear:** **[Ridge, Lasso]**. Strong baseline for small datasets (2400 rows) to prevent overfitting.\n  - **Random Forest:** Good for capturing interactions without heavy tuning.\n\n### Specific Column Operators\n- **Geographic Coordinates (`longitude`, `latitude`):**\n  - **Operator:** **`KMeans` Clustering** or **`KBinsDiscretizer`**.\n  - **Reasoning:** Raw coordinates are hard for linear models to interpret. Clustering (e.g., 10–50 clusters) creates a \"region ID\" that can be one-hot encoded or embedded. Alternatively, calculate distance to major city centers if auxiliary data were available.\n  - **Option:** Keep raw coordinates for tree models; use clustered version for linear models.\n- **Aggregate Counts (`total_rooms`, `households`, etc.):**\n  - **Operator:** **`RatioTransformer`** (custom or via `FeatureUnion`).\n  - **Reasoning:** Absolute counts correlate with block size; ratios normalize for population density and housing density, which are more predictive of value.\n- **Target (`median_house_value`):**\n  - **Operator:** **`LogTransform`**.\n  - **Reasoning:** Housing prices are often log-normally distributed. Search over **[LogTransform, None]** for the target during training (inverse transform for prediction).\n\n### Relational/Auxiliary Opportunities\n- **Auxiliary Tables:** None listed in the dataset summary.\n- **Join Keys:** N/A.\n- **Note:** If external data were available (e.g., school ratings, crime stats, distance to coast), joining on `longitude`/`latitude` proximity would be highly predictive. For this flat file, focus on internal feature interactions.",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_constant\": {\n        \"choice\": [false, true]\n      }\n    }\n  },\n  \"vectorizer\": {\n    \"slots\": {\n      \"numeric\": [\n        \"sklearn.preprocessing.StandardScaler\",\n        \"sklearn.preprocessing.RobustScaler\"\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"geo_cluster\",\n      \"cols\": [\"longitude\", \"latitude\"],\n      \"options\": [\n        \"skip\",\n        {\n          \"name\": \"sklearn.cluster.MiniBatchKMeans\",\n          \"params\": {\n            \"n_clusters\": {\n              \"int\": [5, 20]\n            }\n          }\n        },\n        {\n          \"name\": \"sklearn.preprocessing.KBinsDiscretizer\",\n          \"params\": {\n            \"n_bins\": {\n              \"int\": [5, 15]\n            },\n            \"encode\": {\n              \"choice\": [\"ordinal\", \"onehot\"]\n            }\n          }\n        }\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": true\n    }\n  ],\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.StandardScaler\",\n        \"sklearn.preprocessing.RobustScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\",\n        {\n          \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n          \"params\": {\n            \"degree\": {\n              \"int\": [2, 3]\n            },\n            \"interaction_only\": {\n              \"choice\": [false, true]\n            }\n          }\n        }\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"max_iter\": {\n          \"int\": [100, 600]\n        },\n        \"max_depth\": {\n          \"int\": [2, 16]\n        },\n        \"l2_regularization\": {\n          \"float\": [0.0, 1.0]\n        }\n      }\n    },\n    {\n      \"name\": \"xgboost.XGBRegressor\",\n      \"prior\": 0.7,\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [100, 500]\n        },\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"max_depth\": {\n          \"int\": [2, 12]\n        },\n        \"subsample\": {\n          \"float\": [0.5, 1.0]\n        },\n        \"colsample_bytree\": {\n          \"float\": [0.5, 1.0]\n        },\n        \"reg_lambda\": {\n          \"float\": [0.0, 5.0]\n        }\n      }\n    },\n    {\n      \"name\": \"lightgbm.LGBMRegressor\",\n      \"prior\": 0.7,\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [100, 500]\n        },\n        \"learning_rate\": {\n          \"float\": [0.01, 0.3],\n          \"log\": true\n        },\n        \"num_leaves\": {\n          \"int\": [15, 100]\n        },\n        \"max_depth\": {\n          \"int\": [3, 16]\n        },\n        \"colsample_bytree\": {\n          \"float\": [0.5, 1.0]\n        },\n        \"reg_lambda\": {\n          \"float\": [0.0, 5.0]\n        }\n      }\n    },\n    {\n      \"name\": \"sklearn.linear_model.Ridge\",\n      \"prior\": 0.3,\n      \"params\": {\n        \"alpha\": {\n          \"float\": [0.001, 1000.0],\n          \"log\": true\n        }\n      }\n    }\n  ]\n}"
+}

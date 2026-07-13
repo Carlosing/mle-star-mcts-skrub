@@ -1,0 +1,428 @@
+{
+  "method": "extension",
+  "task": "country-happiness",
+  "task_description": "# Task\n\nPredict the happiness_score.\n\nThis is a relational task: aggregate the auxiliary table(s) per main row before modelling (aux_gdp.csv on main.Country = gdp.Country Name; aux_life_expectancy.csv on main.Country = life_expectancy.Country Name; aux_legal_rights.csv on main.Country = legal_rights.Country Name).\n\n# Metric\n\nroot_mean_squared_error\n\n# Dataset\n\nRegression task (117 training rows, 1 feature columns). train.csv has the features and the 'happiness_score' column; test.csv has the features only.\n\nRelational, credit-fraud shaped: the main table is reduced to (Country, happiness_score) — every leaky decomposition column was dropped — so ALL signal must arrive through aggregate joins on three World-Bank aux tables. Only 146 rows, and the join is by country NAME across differently-named key columns (Country <-> 'Country Name'), so misses are silent.\n",
+  "target": "happiness_score",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "model": "openai/qwen3.5-397b-a17b",
+  "budget": 60,
+  "time_budget_s": null,
+  "search_scorer": "r2",
+  "search_reward_scale": "1/(2 - r2)",
+  "best_state": {
+    "assemble": "Join GDP",
+    "cleaner__Cleaner__drop_if_constant": "False",
+    "cleaner__Cleaner__drop_if_unique": "False",
+    "cleaner__Cleaner__parse_numbers": "False",
+    "vectorizer__TableVectorizer__cardinality_threshold": 25,
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": 50,
+    "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 80, name='vectorizer__..._n_components'))",
+    "impute": "None",
+    "scale": "None",
+    "feature_eng": "None",
+    "model": "RandomForestRegressor",
+    "model__RandomForestRegressor__max_depth": 3
+  },
+  "best_search_score": 0.6457912580686346,
+  "report": null,
+  "holdout": null,
+  "action_space": {
+    "assemble": [
+      "skip",
+      "Join GDP",
+      "Join Life Expectancy",
+      "Join Legal Rights",
+      "all_aggregates"
+    ],
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "cleaner__Cleaner__drop_if_unique": [
+      "False",
+      "True"
+    ],
+    "cleaner__Cleaner__parse_numbers": [
+      "False",
+      "True"
+    ],
+    "vectorizer__TableVectorizer__cardinality_threshold": [
+      10,
+      20,
+      25,
+      30,
+      40
+    ],
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": [
+      20,
+      40,
+      50,
+      60,
+      80
+    ],
+    "vectorizer__high_cardinality__GapEncoder__n_components": [
+      10,
+      23,
+      30,
+      37,
+      50
+    ],
+    "vectorizer__high_cardinality__StringEncoder__n_components": [
+      20,
+      33,
+      40,
+      47,
+      60
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder(n_components=choose_int(20, 80, name='vectorizer__..._n_components'))",
+      "GapEncoder(n_components=choose_int(10, 50, name='vectorizer__..._n_components'),\n           random_state=42)",
+      "StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)"
+    ],
+    "vectorizer__numeric__KBinsDiscretizer__encode": [
+      "ordinal",
+      "onehot"
+    ],
+    "vectorizer__numeric__KBinsDiscretizer__n_bins": [
+      3,
+      5,
+      6,
+      8,
+      10
+    ],
+    "vectorizer__numeric__StandardScaler__with_mean": [
+      "True",
+      "False"
+    ],
+    "vectorizer__numeric__StandardScaler__with_std": [
+      "True",
+      "False"
+    ],
+    "vectorizer__numeric__MinMaxScaler__feature_range": [
+      "(0, 1)",
+      "(-1, 1)"
+    ],
+    "vectorizer__numeric": [
+      "KBinsDiscretizer(encode=choose_from(['ordinal', 'onehot'], name='vectorizer__...tizer__encode'),\n                 n_bins=choose_int(3, 10, name='vectorizer__...tizer__n_bins'),\n                 random_state=42)",
+      "StandardScaler(with_mean=choose_from([True, False], name='vectorizer__...er__with_mean'),\n               with_std=choose_from([True, False], name='vectorizer__...ler__with_std'))",
+      "MinMaxScaler(feature_range=choose_from([(0, 1), (-1, 1)], name='vectorizer__...feature_range'))"
+    ],
+    "impute__SimpleImputer__strategy": [
+      "mean",
+      "median"
+    ],
+    "impute": [
+      "None",
+      "SimpleImputer(strategy=choose_from(['mean', 'median'], name='impute__Simp...ter__strategy'))"
+    ],
+    "scale__QuantileTransformer__n_quantiles": [
+      10,
+      23,
+      30,
+      37,
+      50
+    ],
+    "scale__QuantileTransformer__output_distribution": [
+      "normal",
+      "uniform"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()",
+      "RobustScaler()",
+      "QuantileTransformer(n_quantiles=choose_int(10, 50, name='scale__Quant...__n_quantiles'),\n                    output_distribution=choose_from(['normal', 'uniform'], name='scale__Quant..._distribution'),\n                    random_state=42)"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PCA__n_components": [
+      2,
+      8,
+      11,
+      14,
+      20
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False)",
+      "PCA(n_components=choose_int(2, 20, name='feature_eng_..._n_components'),\n    random_state=42)"
+    ],
+    "model__HistGradientBoostingRegressor__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingRegressor__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingRegressor__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__Ridge__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__RandomForestRegressor__max_depth": [
+      3,
+      12,
+      16,
+      21,
+      30
+    ],
+    "model__RandomForestRegressor__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBRegressor__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__XGBRegressor__max_depth": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "model__XGBRegressor__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__XGBRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__LGBMRegressor__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__LGBMRegressor__num_leaves": [
+      15,
+      27,
+      32,
+      38,
+      50
+    ],
+    "model__LGBMRegressor__feature_fraction": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__bagging_fraction": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__GaussianProcessRegressor__alpha": [
+      1e-05,
+      0.00021544346900318823,
+      0.0010000000000000002,
+      0.004641588833612777,
+      0.1
+    ],
+    "model__GaussianProcessRegressor__kernel": [
+      "RBF",
+      "Matern"
+    ],
+    "model__GaussianProcessRegressor__n_restarts_optimizer": [
+      0,
+      2,
+      3,
+      5
+    ],
+    "model__GaussianProcessRegressor__normalize_y": [
+      "False",
+      "True"
+    ],
+    "model": [
+      "HistGradientBoostingRegressor",
+      "Ridge",
+      "RandomForestRegressor",
+      "XGBRegressor",
+      "LGBMRegressor",
+      "GaussianProcessRegressor"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "vectorizer__high_cardinality__StringEncoder__n_components",
+    "vectorizer__numeric__KBinsDiscretizer__encode",
+    "vectorizer__numeric__KBinsDiscretizer__n_bins",
+    "scale__QuantileTransformer__n_quantiles",
+    "scale__QuantileTransformer__output_distribution",
+    "feature_eng__PCA__n_components",
+    "model__XGBRegressor__colsample_bytree",
+    "model__XGBRegressor__learning_rate",
+    "model__XGBRegressor__max_depth",
+    "model__XGBRegressor__n_estimators",
+    "model__XGBRegressor__subsample",
+    "model__LGBMRegressor__learning_rate",
+    "model__LGBMRegressor__n_estimators",
+    "model__LGBMRegressor__num_leaves",
+    "model__LGBMRegressor__feature_fraction",
+    "model__LGBMRegressor__bagging_fraction",
+    "vectorizer__high_cardinality:StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)",
+    "scale:QuantileTransformer(n_quantiles=choose_int(10, 50, name='scale__Quant...__n_quantiles'),\n                    output_distribution=choose_from(['normal', 'uniform'], name='scale__Quant..._distribution'),\n                    random_state=42)",
+    "feature_eng:PCA(n_components=choose_int(2, 20, name='feature_eng_..._n_components'),\n    random_state=42)",
+    "model:XGBRegressor",
+    "model:LGBMRegressor",
+    "vectorizer__numeric__StandardScaler__with_mean",
+    "vectorizer__numeric__StandardScaler__with_std",
+    "vectorizer__numeric__MinMaxScaler__feature_range",
+    "vectorizer__numeric",
+    "model__GaussianProcessRegressor__alpha",
+    "model__GaussianProcessRegressor__kernel",
+    "model__GaussianProcessRegressor__n_restarts_optimizer",
+    "model__GaussianProcessRegressor__normalize_y",
+    "model:GaussianProcessRegressor"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "assemble",
+    "cleaner__Cleaner__drop_if_constant",
+    "cleaner__Cleaner__drop_if_unique",
+    "cleaner__Cleaner__parse_numbers",
+    "feature_eng",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PolynomialFeatures__degree",
+    "impute",
+    "impute__SimpleImputer__strategy",
+    "model",
+    "model__GaussianProcessRegressor__alpha",
+    "model__GaussianProcessRegressor__kernel",
+    "model__GaussianProcessRegressor__n_restarts_optimizer",
+    "model__GaussianProcessRegressor__normalize_y",
+    "model__HistGradientBoostingRegressor__l2_regularization",
+    "model__HistGradientBoostingRegressor__learning_rate",
+    "model__HistGradientBoostingRegressor__max_depth",
+    "model__HistGradientBoostingRegressor__max_iter",
+    "model__LGBMRegressor__bagging_fraction",
+    "model__LGBMRegressor__feature_fraction",
+    "model__LGBMRegressor__learning_rate",
+    "model__LGBMRegressor__n_estimators",
+    "model__LGBMRegressor__num_leaves",
+    "model__RandomForestRegressor__max_depth",
+    "model__RandomForestRegressor__min_samples_leaf",
+    "model__RandomForestRegressor__n_estimators",
+    "model__Ridge__alpha",
+    "model__XGBRegressor__colsample_bytree",
+    "model__XGBRegressor__learning_rate",
+    "model__XGBRegressor__max_depth",
+    "model__XGBRegressor__n_estimators",
+    "model__XGBRegressor__subsample",
+    "scale",
+    "scale__QuantileTransformer__n_quantiles",
+    "scale__QuantileTransformer__output_distribution",
+    "vectorizer__TableVectorizer__cardinality_threshold",
+    "vectorizer__high_cardinality",
+    "vectorizer__high_cardinality__GapEncoder__n_components",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components",
+    "vectorizer__high_cardinality__StringEncoder__n_components",
+    "vectorizer__numeric",
+    "vectorizer__numeric__KBinsDiscretizer__encode",
+    "vectorizer__numeric__KBinsDiscretizer__n_bins",
+    "vectorizer__numeric__MinMaxScaler__feature_range",
+    "vectorizer__numeric__StandardScaler__with_mean",
+    "vectorizer__numeric__StandardScaler__with_std"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": null,
+  "used_fallback_spec": false,
+  "dropped_sections": [
+    "scoped_encodings"
+  ],
+  "single_option_stages": [],
+  "reused_spec": false,
+  "llm_calls": 4,
+  "wall_clock_s": 1141.1,
+  "tokens": {
+    "prompt": 13082,
+    "completion": 35340,
+    "total": 48422
+  },
+  "tokens_by_agent": {
+    "data_analyst": {
+      "prompt": 834,
+      "completion": 1564,
+      "total": 2398,
+      "calls": 1
+    },
+    "plan_author": {
+      "prompt": 5448,
+      "completion": 12248,
+      "total": 17696,
+      "calls": 1
+    },
+    "proposer": {
+      "prompt": 6800,
+      "completion": 21528,
+      "total": 28328,
+      "calls": 2
+    }
+  },
+  "data_summary": "Dataset: 117 rows x 2 columns. Target column: 'happiness_score'.\nInferred task type: regression.\n\nColumns:\n  - Country: dtype=object, missing=0.0%, cardinality=117, examples='Finland', 'Denmark', 'Iceland', 'Switzerland', 'Netherlands'\n  - happiness_score (TARGET): dtype=float64, missing=0.0%, cardinality=115, min=2404 max=7821 mean=5548\n\nFirst 5 rows:\n    Country  happiness_score\n    Finland           7821.0\n    Denmark           7636.0\n    Iceland           7557.0\nSwitzerland           7512.0\nNetherlands           7415.0\n\nAuxiliary table 'gdp': 89 rows x 2 columns.\n  Columns:\n    - Country Name: dtype=object, cardinality=89\n    - GDP per capita (current US$): dtype=float64, cardinality=89\n  Join-key candidates (main column <-> aux column, overlap):\n    - Country <-> Country Name (overlap=100%)\n\nAuxiliary table 'legal_rights': 89 rows x 2 columns.\n  Columns:\n    - Country Name: dtype=object, cardinality=89\n    - Strength of legal rights index (0=weak to 12=strong): dtype=float64, cardinality=13\n  Join-key candidates (main column <-> aux column, overlap):\n    - Country <-> Country Name (overlap=100%)\n\nAuxiliary table 'life_expectancy': 89 rows x 2 columns.\n  Columns:\n    - Country Name: dtype=object, cardinality=89\n    - Life expectancy at birth, total (years): dtype=float64, cardinality=89\n  Join-key candidates (main column <-> aux column, overlap):\n    - Country <-> Country Name (overlap=100%)",
+  "analysis": "\n\n# Dataset Analysis for Tabular Pipeline Planning\n\n## Task Type & Target\n- **Task:** Regression\n- **Target:** `happiness_score` (float64, range 2404–7821, mean 5548)\n- **Class Balance:** N/A (regression task)\n\n## Column Characteristics\n\n| Column | Type | Cardinality | Notes |\n|--------|------|-------------|-------|\n| `Country` | Categorical (object) | 117/117 | **High-cardinality ID-like** — essentially one unique value per row |\n| `happiness_score` | Numeric (float64) | 115 | Target variable |\n\n## Key Challenges\n\n1. **Extremely small dataset** (117 rows) — high risk of overfitting; limits model complexity\n2. **Country is not predictive as-is** — it's an identifier, not a feature. Value comes from joining auxiliary tables\n3. **Auxiliary table coverage gap** — only 89/117 countries have aux data (28 rows will have missing values after join)\n4. **No missing values in main table** — clean, but aux joins will introduce missingness\n\n## Auxiliary Table Opportunities\n\nAll three tables join on `Country` ↔ `Country Name` (100% overlap candidate):\n\n| Aux Table | Predictive Column | Cardinality | Expected Value |\n|-----------|-------------------|-------------|----------------|\n| `gdp` | GDP per capita (US$) | 89 | **High** — economic prosperity strongly correlates with happiness |\n| `legal_rights` | Legal rights index (0–12) | 13 | **Medium** — institutional quality indicator |\n| `life_expectancy` | Life expectancy (years) | 89 | **High** — health/wellbeing proxy |\n\n**Recommended aggregations:** None needed (one-to-one joins). Consider creating a `has_aux_data` flag to capture the 28 countries without aux info.\n\n## Preprocessing & Encoding Options\n\n| Stage | Options to Search |\n|-------|-------------------|\n| **Country encoding** | `MinHashEncoder` (hash-based, handles high cardinality), `GapEncoder` (latent topics), or **drop entirely** after aux joins (Country may become redundant) |\n| **Auxiliary joins** | `TableJoiner` on Country ↔ Country Name; test with/without each aux table |\n| **Missing value handling** (post-join) | `SimpleImputer` (mean/median), `IterativeImputer`, or indicator flag for missing aux data |\n| **Scaling** | `StandardScaler` or `RobustScaler` on numeric features (GDP, life_expectancy, legal_rights) |\n| **Target transformation** | Test raw vs. log-transformed `happiness_score` (range is wide: 2404–7821) |\n\n## Candidate Model Families\n\nGiven n=117, prioritize **simple, regularized models**:\n\n| Model | Rationale | Hyperparameters to Search |\n|-------|-----------|---------------------------|\n| `Ridge` / `ElasticNet` | Strong regularization prevents overfitting on small n | alpha, l1_ratio |\n| `RandomForestRegressor` | Handles non-linearity, robust to outliers | n_estimators (50–200), max_depth (3–6) |\n| `GradientBoostingRegressor` | Can capture interactions | n_estimators (50–100), max_depth (2–4), learning_rate |\n\n**Avoid:** Deep learning, large XGBoost/LightGBM without strong regularization, complex stacking\n\n## Specific Column Operators\n\n| Column | Recommended Operator | Reason |\n|--------|---------------------|--------|\n| `Country` | `MinHashEncoder` **or** drop after join | High cardinality with no intrinsic structure; aux tables provide the actual signal |\n| `GDP per capita` | Log-transform + scale | Economic data often skewed; log can linearize relationship with happiness |\n| All aux numerics | `StandardScaler` after join | Different scales (GDP in thousands, life_expectancy ~70, legal_rights 0–12) |\n\n## Pipeline Search Space Summary\n\n```\n[TableJoiner (gdp, legal_rights, life_expectancy)] \n→ [MissingValueImputer (mean/median/iterative)] \n→ [Optional: Country encoder (MinHash/Gap/drop)] \n→ [Scaler (Standard/Robust)] \n→ [Model (Ridge/RF/GBDT with regularization)]\n```\n\n**Critical search dimensions:**\n1. Which auxiliary tables to include (all vs. subsets)\n2. How to handle 28 countries without aux data (impute vs. flag vs. drop)\n3. Whether Country adds value after aux joins (encode vs. drop)\n4. Regularization strength (alpha for Ridge, max_depth for trees)",
+  "spec_raw": "\n\n{\n  \"assemble\": [\n    {\n      \"name\": \"Join GDP\",\n      \"table\": \"gdp\",\n      \"main_key\": \"Country\",\n      \"aux_key\": \"Country Name\",\n      \"operations\": [\"mean\"],\n      \"cols\": [\"GDP per capita (current US$)\"]\n    },\n    {\n      \"name\": \"Join Life Expectancy\",\n      \"table\": \"life_expectancy\",\n      \"main_key\": \"Country\",\n      \"aux_key\": \"Country Name\",\n      \"operations\": [\"mean\"],\n      \"cols\": [\"Life expectancy at birth, total (years)\"]\n    },\n    {\n      \"name\": \"Join Legal Rights\",\n      \"table\": \"legal_rights\",\n      \"main_key\": \"Country\",\n      \"aux_key\": \"Country Name\",\n      \"operations\": [\"mean\"],\n      \"cols\": [\"Strength of legal rights index (0=weak to 12=strong)\"]\n    }\n  ],\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_constant\": {\"choice\": [false, true]},\n      \"drop_if_unique\": {\"choice\": [false, true]},\n      \"parse_numbers\": {\"choice\": [false, true]}\n    }\n  },\n  \"vectorizer\": {\n    \"params\": {\n      \"cardinality_threshold\": {\"int\": [10, 40]}\n    },\n    \"slots\": {\n      \"high_cardinality\": [\n        {\"name\": \"skrub.MinHashEncoder\", \"params\": {\"n_components\": {\"int\": [20, 80]}}},\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [10, 50]}}}\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"Log GDP\",\n      \"cols\": [\"GDP per capita (current US$)\"],\n      \"options\": [\n        {\"name\": \"sklearn.preprocessing.PowerTransformer\", \"params\": {\"standardize\": {\"choice\": [false, true]}}}\n      ],\n      \"position\": \"post_encode\",\n      \"additive\": false\n    }\n  ],\n  \"stages\": [\n    {\n      \"name\": \"impute\",\n      \"options\": [\n        \"skip\",\n        {\"name\": \"sklearn.impute.SimpleImputer\", \"params\": {\"strategy\": {\"choice\": [\"mean\", \"median\"]}}}\n      ]\n    },\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.StandardScaler\",\n        \"sklearn.preprocessing.RobustScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\",\n        {\"name\": \"sklearn.preprocessing.PolynomialFeatures\", \"params\": {\"degree\": {\"int\": [2, 3]}}}\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n        \"max_iter\": {\"int\": [100, 600]},\n        \"max_depth\": {\"int\": [2, 16]},\n        \"l2_regularization\": {\"float\": [0.0, 1.0]}\n      }\n    },\n    {\n      \"name\": \"sklearn.linear_model.Ridge\",\n      \"prior\": 0.6,\n      \"params\": {\n        \"alpha\": {\"float\": [0.001, 1000.0], \"log\": true}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.RandomForestRegressor\",\n      \"prior\": 0.5,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 500]},\n        \"max_depth\": {\"int\": [3, 30]},\n        \"min_samples_leaf\": {\"int\": [1, 10]}\n      }\n    }\n  ]\n}"
+}
