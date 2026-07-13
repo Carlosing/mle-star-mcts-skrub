@@ -58,7 +58,7 @@ help:
 	@echo "-- benchmark comparison (needs: uv sync --extra bench) --"
 	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1 PRESETS=best_quality"
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
-	@echo "make collect-results - copy result.json artifacts from RUNS=runs into a small git-shareable OUT=results mirror"
+	@echo "make collect-results - copy result.json artifacts from SRC=runs into a small git-shareable DST=results mirror"
 	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=results OUT=<dir>"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
@@ -128,11 +128,17 @@ bench-mlestar:
 		$(if $(OUT),--out $(OUT),)
 
 # Copy result.json artifacts (folder structure preserved, AutoGluon's
-# multi-GB ag_models/ left behind) from RUNS into a small, git-shareable
-# mirror under OUT.
+# multi-GB ag_models/ left behind) from SRC=runs into a small, git-shareable
+# mirror under DST=results. Distinct var names from RUNS/OUT below on purpose
+# — both targets set defaults via `?=`, which is Makefile-global, so reusing
+# RUNS/OUT here would let the figures target's default silently override this
+# target's own (that bug shipped once already: a fresh result.json sat in
+# runs/ and `make collect-results` copied nothing because RUNS had already
+# been pinned to `results`).
+SRC ?= runs
+DST ?= results
 collect-results:
-	uv run python scripts/collect_results.py --runs $(if $(RUNS),$(RUNS),runs) \
-		--out $(if $(OUT),$(OUT),results)
+	uv run python scripts/collect_results.py --runs $(SRC) --out $(DST)
 
 # Read every uniform result.json under RUNS (the small results/ mirror by
 # default, not runs/ itself) and render the comparison figures.

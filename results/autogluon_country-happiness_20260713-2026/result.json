@@ -1,0 +1,22 @@
+{
+  "method": "autogluon",
+  "task": "country-happiness",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "target": "happiness_score",
+  "time_budget_s": 3600.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "relational": false,
+  "presets": "best_quality",
+  "dynamic_stacking": false,
+  "status": "failed",
+  "error": "RuntimeError('No models were trained successfully during fit(). Inspect the log output or increase verbosity to determine why no models were fit. Alternatively, set `raise_on_no_models_fitted` to False during the fit call.')",
+  "wall_clock_s": 14.1,
+  "holdout": null
+}
