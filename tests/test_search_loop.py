@@ -30,8 +30,14 @@ def test_merge_raw_plans_is_strictly_additive():
             }
         },
         "stages": [
-            {"name": "scale", "options": ["sklearn.preprocessing.RobustScaler"]},
-            {"name": "feature_eng", "options": ["sklearn.preprocessing.PolynomialFeatures"]},
+            {
+                "name": "scale",
+                "options": ["sklearn.preprocessing.RobustScaler"],
+            },
+            {
+                "name": "feature_eng",
+                "options": ["sklearn.preprocessing.PolynomialFeatures"],
+            },
         ],
         "model": [
             {
@@ -82,7 +88,9 @@ def test_merge_raw_plans_adds_tuned_reproposal_as_sibling():
     hc = merged["vectorizer"]["slots"]["high_cardinality"]
     assert hc[0] == "skrub.TextEncoder"  # bare untouched
     assert hc[1]["params"]["n_components"]  # tuned sibling added
-    assert old["vectorizer"]["slots"]["high_cardinality"] == ["skrub.TextEncoder"]
+    assert old["vectorizer"]["slots"]["high_cardinality"] == [
+        "skrub.TextEncoder"
+    ]
 
 
 def test_merge_raw_plans_blocks_numeric_retune_collision():
@@ -108,7 +116,9 @@ def test_merge_raw_plans_blocks_numeric_retune_collision():
                 "high_cardinality": [
                     {
                         "name": "skrub.MinHashEncoder",
-                        "params": {"n_components": {"int": [50, 300]}},  # re-tune
+                        "params": {
+                            "n_components": {"int": [50, 300]}
+                        },  # re-tune
                     }
                 ]
             }
@@ -163,8 +173,17 @@ def test_merge_raw_plans_appends_new_scoped_groups_and_assemble():
     }
     new = {
         "scoped_encodings": [
-            {"name": "g1", "cols": ["IGNORED"], "options": ["skrub.MinHashEncoder"]},
-            {"name": "g2", "cols": ["b"], "options": ["skrub.StringEncoder"], "additive": True},
+            {
+                "name": "g1",
+                "cols": ["IGNORED"],
+                "options": ["skrub.MinHashEncoder"],
+            },
+            {
+                "name": "g2",
+                "cols": ["b"],
+                "options": ["skrub.StringEncoder"],
+                "additive": True,
+            },
         ],
         "assemble": [
             {"name": "j1", "table": "HIJACKED", "operations": ["max"]},
@@ -554,15 +573,24 @@ def test_booster_plan_rolls_out_at_full_n_jobs():
     n = 200
     rs = np.random.RandomState(0)
     df = pd.DataFrame(
-        {"a": rs.rand(n), "b": [f"t{i % 5}" for i in range(n)],
-         "y": [i % 2 for i in range(n)]}
+        {
+            "a": rs.rand(n),
+            "b": [f"t{i % 5}" for i in range(n)],
+            "y": [i % 2 for i in range(n)],
+        }
     )
     spec = resolve_spec(
         {"model": ["lightgbm.LGBMClassifier"]}, task_type="classification"
     )
     out = run_search_loop(
-        spec, df, "y", scoring="accuracy", budget_per_step=6,
-        stratify=True, refinement_phase=False, n_jobs=6,
+        spec,
+        df,
+        "y",
+        scoring="accuracy",
+        budget_per_step=6,
+        stratify=True,
+        refinement_phase=False,
+        n_jobs=6,
     )
     assert out["best_score"] > 0.0  # searched + fit boosters, no segfault
 
@@ -571,6 +599,7 @@ def test_proposal_injection_error_is_surfaced():
     """A proposal that merges but won't resolve/build is dropped so the search
     continues — but the reason is recorded, so an empty injected_options from a
     FAILED injection is distinguishable from one where nothing was proposed."""
+
     def fake_propose(plan_json, context):
         return _EXTENSION  # a real, mergeable extension (Ridge + RobustScaler)
 
@@ -622,7 +651,9 @@ def test_merge_raw_plans_unions_backbone_cleaner_and_vectorizer():
     new = {
         "cleaner": {
             "params": {
-                "drop_if_constant": {"choice": [True]},  # re-tune: must NOT apply
+                "drop_if_constant": {
+                    "choice": [True]
+                },  # re-tune: must NOT apply
                 "parse_numbers": {"choice": [False, True]},  # new: added
             }
         },

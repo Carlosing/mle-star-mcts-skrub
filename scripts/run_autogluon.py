@@ -65,6 +65,7 @@ def run_autogluon(
     time_budget_s: float = 3600.0,
     seed: int = 42,
     num_cpus: int = 1,
+    presets: str = "best_quality",
 ) -> dict:
     """Fit AutoGluon under a time limit and score it on the shared holdout.
 
@@ -76,6 +77,16 @@ def run_autogluon(
     constraint across both methods here, not a handicap on one). On a host
     without the conflict (most Linux) raise it to use AutoGluon's full
     parallelism.
+
+    ``presets="best_quality"`` (default) turns on bagging + multi-layer
+    stacking, which is what actually makes AutoGluon spend the given
+    ``time_limit`` — the bare default preset (``medium_quality``) fits its
+    model zoo once each and stops in a few seconds regardless of the budget,
+    so a time-scaling comparison against it would be a flat line. Bagging
+    still respects ``time_limit`` as a soft ceiling, not a target: on a small
+    table (few hundred rows) AutoGluon may still finish well under budget once
+    it has bagged/stacked everything worth trying — that's expected, not a
+    bug, and mirrors our own rollouts' wall-clock variance.
     """
     from autogluon.tabular import TabularPredictor  # lazy: optional dep
 
@@ -100,6 +111,7 @@ def run_autogluon(
         "tokens": {"prompt": 0, "completion": 0, "total": 0},
         "tokens_by_agent": {},
         "relational": False,  # flat-table only; no aux join
+        "presets": presets,
     }
 
     wall_start = time.perf_counter()
@@ -113,6 +125,7 @@ def run_autogluon(
         ).fit(
             train,
             time_limit=time_budget_s,
+            presets=presets,
             ag_args_fit={"num_cpus": num_cpus},  # single-thread boosters (libomp)
         )
 
@@ -162,6 +175,14 @@ def _main() -> None:
         "LightGBM/XGBoost double-libomp segfault; raise on Linux)",
     )
     parser.add_argument(
+        "--presets",
+        default="best_quality",
+        help="AutoGluon presets (default best_quality: enables bagging + "
+        "stacking so the fit actually spends time_limit; medium_quality "
+        "fits its model zoo once each and returns in seconds regardless "
+        "of budget)",
+    )
+    parser.add_argument(
         "--out",
         default=None,
         help="artifact dir (default: runs/autogluon_<task>_<ts>)",
@@ -178,6 +199,7 @@ def _main() -> None:
         time_budget_s=args.time_budget_s,
         seed=args.seed,
         num_cpus=args.num_cpus,
+        presets=args.presets,
     )
     import json
 

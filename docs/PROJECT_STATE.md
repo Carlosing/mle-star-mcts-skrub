@@ -34,7 +34,9 @@ per-param guard in `_make`); a merge that still won't resolve is recorded in
 injection is distinguishable from "proposer added nothing". Friend-facing usage
 guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=` flags. Owed: `llm_calls` miscounts offline replay proposers as real calls.
 Historical bugs (symptom → cause → fix → test) are catalogued in
-[BUG_LEDGER.md](BUG_LEDGER.md)._
+[BUG_LEDGER.md](BUG_LEDGER.md). Post-freeze improvement ideas (HPO-framework
+engine swap, warm-start revamp, space cuts, token ablations) are recorded in
+[FUTURE_WORK.md](FUTURE_WORK.md) — deliberately not implemented._
 
 ## Architecture — three layers
 

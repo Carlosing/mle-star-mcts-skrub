@@ -56,7 +56,7 @@ help:
 	@echo "make stage-credit-fraud - download + stage the relational credit-fraud task (online, once)"
 	@echo ""
 	@echo "-- benchmark comparison (needs: uv sync --extra bench) --"
-	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1"
+	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1 PRESETS=best_quality"
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
 	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=runs OUT=<dir>"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
@@ -107,12 +107,15 @@ stage-credit-fraud:
 # --- benchmark comparison (needs the `bench` extra: uv sync --extra bench) -----
 # AutoGluon baseline under the same wall-clock budget on the SAME shared holdout.
 # NUM_CPUS=1 (default) is REQUIRED on macOS-ARM (LightGBM/XGBoost double-libomp
-# segfault); raise on Linux for full AutoGluon parallelism.
+# segfault); raise on Linux for full AutoGluon parallelism. PRESETS=best_quality
+# (default) enables bagging+stacking so the fit actually spends time_limit
+# instead of returning in a few seconds regardless of budget.
 NUM_CPUS ?= 1
+PRESETS ?= best_quality
 bench-autogluon:
 	OMP_NUM_THREADS=1 uv run python scripts/run_autogluon.py \
 		--task $(TASK) --time-budget-s $(if $(TIME_BUDGET),$(TIME_BUDGET),3600) \
-		--num-cpus $(NUM_CPUS) $(if $(OUT),--out $(OUT),)
+		--num-cpus $(NUM_CPUS) --presets $(PRESETS) $(if $(OUT),--out $(OUT),)
 
 # Revived MLE-STAR under hard caps (best-effort; spends real LLM budget). Set
 # MAX_CALLS to bound the debug-cascade token cost. Uses PROVIDER for the model.
