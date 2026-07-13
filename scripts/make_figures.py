@@ -22,7 +22,15 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    rollouts; internal validation vs shared external holdout) — read side by side
    as two methods' own efficiency stories, not one merged curve. MLE-STAR is not
    included yet (no comparable per-step trace has been captured for it).
-4. **mechanism table** — a static qualitative comparison (mechanism / debug cost
+4. **proposal scaling** — the extension's holdout score vs Option-3 call count
+   (`n_proposes`), one line per task, minimal by design (just task/n_proposes/
+   score — see `fig_proposal_scaling`). Points at the same (task, n_proposes)
+   are averaged. Mixes real live runs with `scripts/replay_from_run.py`
+   replays freely — a replay reuses the source run's exact plan and its real
+   logged proposals, so it's a legitimate point on the same curve, not a
+   different condition; it's how a task can show `n_proposes=0`/`1` cheaply
+   even though only `n_proposes=2` was ever run live.
+5. **mechanism table** — a static qualitative comparison (mechanism / debug cost
    / token cost / leakage handling / adaptivity), written as markdown.
 
 Run:
@@ -67,7 +75,7 @@ def load_results(roots: list[str]) -> list[dict]:
     is in ``_TASK_ALLOWLIST``, are kept (so partial/legacy result.json and any
     task outside the current comparison set are both skipped). Returns a flat
     list of ``{method, task, score, scorer, tokens, llm_calls, wall_clock_s,
-    time_budget_s, relational, leaderboard}`` dicts.
+    time_budget_s, relational, leaderboard, reused_spec}`` dicts.
     """
     records: list[dict] = []
     for root in roots:
@@ -98,6 +106,7 @@ def load_results(roots: list[str]) -> list[dict]:
                     "budget": d.get("budget"),
                     "relational": bool(d.get("relational", False)),
                     "leaderboard": d.get("leaderboard"),
+                    "reused_spec": bool(d.get("reused_spec", False)),
                     "path": path,
                 }
             )
@@ -319,6 +328,90 @@ def fig_autogluon_progress(records: list[dict], out_dir: str) -> str | None:
     return path
 
 
+def _n_proposes(r: dict) -> int:
+    """Recover Option 3's call count from a record, live run or replay alike.
+
+    Not stored directly (see docs/PROJECT_STATE.md's owed item: `llm_calls`
+    miscounts offline replay proposers as real calls) — but that's exactly
+    what makes it recoverable: `llm_calls` counts propose() calls regardless
+    of whether they were real. A live run also pays 2 calls for
+    data_analyst + plan_author; a `reused_spec` run (any `scripts/
+    replay_from_run.py` replay, or the offline Claude driver) skips both
+    agents, so its `llm_calls` IS `n_proposes` directly.
+    """
+    return r["llm_calls"] if r["reused_spec"] else max(0, r["llm_calls"] - 2)
+
+
+def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
+    """Extension holdout score vs Option-3 proposal count, one subplot per task.
+
+    Deliberately minimal per-point: just task, n_proposes (`_n_proposes`), and
+    score — no token/wall-clock panel (unlike `fig_time_scaling`), since the
+    LLM-call axis IS n_proposes here, not a separate thing to also show.
+
+    ONLY `scripts/replay_from_run.py` replays count (`reused_spec=True`) — a
+    live run only ever produces ONE point, at whatever n_proposes it happened
+    to be run at; it doesn't pause mid-search to also report what the score
+    would have been at a lower n_proposes. Mixing that single live endpoint in
+    with the replay-derived curve is comparing a different measurement to a
+    deliberately isolated one. A task whose live run hasn't been replayed at
+    every n_proposes yet will show fewer points here until it is (see
+    `replay_from_run`'s own `n_proposes` ceiling — it can only replay up to
+    however many real proposals the source run logged).
+
+    Points at the same (task, n_proposes) — e.g. two replays sourced from
+    different live runs that both used n_proposes=1 — are averaged. Tasks
+    with fewer than two distinct n_proposes points are skipped (nothing to
+    draw a curve through).
+
+    One subplot per task, own y-axis each — scorers differ in scale AND sign
+    across tasks (e.g. negative RMSE vs 0-1 accuracy/roc_auc), so a single
+    shared axis would flatten every non-RMSE task into an invisible sliver.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    by_task_n = defaultdict(list)
+    scorer_of = {}
+    for r in records:
+        if r["method"] != "extension" or not r["reused_spec"]:
+            continue
+        by_task_n[(r["task"], _n_proposes(r))].append(r["score"])
+        scorer_of[r["task"]] = r["scorer"]
+
+    by_task = defaultdict(list)
+    for (task, n), scores in by_task_n.items():
+        by_task[task].append((n, sum(scores) / len(scores)))
+    by_task = {
+        task: sorted(pts) for task, pts in by_task.items() if len(pts) >= 2
+    }
+
+    if not by_task:
+        return None
+
+    tasks = sorted(by_task)
+    n = len(tasks)
+    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    color = _METHOD_COLOR.get("extension", "#2b8cbe")
+    for ax, task in zip(axes[0], tasks):
+        pts = by_task[task]
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        ax.plot(xs, ys, marker="o", color=color)
+        ax.set_title(task, fontsize=9)
+        ax.set_ylabel(scorer_of.get(task, "holdout score"), fontsize=8)
+        ax.set_xlabel("n_proposes", fontsize=8)
+        ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    fig.suptitle("Proposal scaling — quality vs Option-3 call count", fontsize=11)
+    fig.tight_layout()
+    path = os.path.join(out_dir, "proposal_scaling.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
 _MECHANISM_ROWS = [
     (
         "Search mechanism",
@@ -425,6 +518,9 @@ def _main() -> None:
     ag = fig_autogluon_progress(records, args.out)
     if ag:
         made.append(ag)
+    ps = fig_proposal_scaling(records, args.out)
+    if ps:
+        made.append(ps)
     print("wrote:")
     for p in made:
         print(f"  {p}")

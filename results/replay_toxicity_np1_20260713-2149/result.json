@@ -1,0 +1,429 @@
+{
+  "method": "extension",
+  "task": "toxicity",
+  "task_description": "# Task\n\nPredict the is_toxic.\n\n# Metric\n\naccuracy\n\n# Dataset\n\nClassification task (800 training rows, 1 feature columns). train.csv has the features and the 'is_toxic' column; test.csv has the features only.\n\n1000 rows, ONE free-text feature column. A pure text-encoder benchmark: the entire action space that matters is the encoder stage (GapEncoder vs MinHash vs StringEncoder).\n",
+  "target": "is_toxic",
+  "task_type": "classification",
+  "metric": "accuracy",
+  "model": "gemini-2.5-flash",
+  "budget": 100,
+  "time_budget_s": null,
+  "search_scorer": "accuracy",
+  "search_reward_scale": "raw",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "False",
+    "scope_text_encoder": "TextEncoder",
+    "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+    "scale": "None",
+    "feature_eng": "None",
+    "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+    "model__HistGradientBoostingClassifier__learning_rate": 0.027144176165949066,
+    "model__HistGradientBoostingClassifier__max_depth": 7,
+    "model__HistGradientBoostingClassifier__max_iter": 167,
+    "model": "HistGradientBoostingClassifier"
+  },
+  "best_search_score": 0.9349999999999999,
+  "report": {
+    "scorer": "accuracy",
+    "score": 0.9237500000000001
+  },
+  "holdout": {
+    "scorer": "accuracy",
+    "score": 0.95
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "scope_text_encoder": [
+      "skip",
+      "StringEncoder",
+      "TextEncoder",
+      "MinHashEncoder"
+    ],
+    "vectorizer__high_cardinality": [
+      "GapEncoder(random_state=42)",
+      "MinHashEncoder()",
+      "StringEncoder(random_state=42)"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()"
+    ],
+    "feature_eng": [
+      "None"
+    ],
+    "model__HistGradientBoostingClassifier__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__HistGradientBoostingClassifier__max_depth": [
+      2,
+      5,
+      6,
+      7,
+      10
+    ],
+    "model__HistGradientBoostingClassifier__max_iter": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__LogisticRegression__C": [
+      0.001,
+      0.046415888336127795,
+      0.31622776601683805,
+      2.1544346900318843,
+      100.0
+    ],
+    "model__LogisticRegression__max_iter": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__LGBMClassifier__max_depth": [
+      3,
+      5,
+      6,
+      8,
+      10
+    ],
+    "model__LGBMClassifier__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__LGBMClassifier__num_leaves": [
+      15,
+      31,
+      39,
+      47,
+      63
+    ],
+    "model__LGBMClassifier__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBClassifier__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__XGBClassifier__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__XGBClassifier__reg_alpha": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBClassifier__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBClassifier__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__RandomForestClassifier__max_depth": [
+      3,
+      9,
+      12,
+      14,
+      20
+    ],
+    "model__RandomForestClassifier__max_features": [
+      "sqrt",
+      "log2"
+    ],
+    "model__RandomForestClassifier__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestClassifier__min_samples_split": [
+      2,
+      8,
+      11,
+      14,
+      20
+    ],
+    "model__RandomForestClassifier__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model": [
+      "HistGradientBoostingClassifier",
+      "LogisticRegression",
+      "LGBMClassifier",
+      "XGBClassifier",
+      "RandomForestClassifier"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "model__XGBClassifier__colsample_bytree",
+    "model__XGBClassifier__learning_rate",
+    "model__XGBClassifier__max_depth",
+    "model__XGBClassifier__n_estimators",
+    "model__XGBClassifier__reg_alpha",
+    "model__XGBClassifier__reg_lambda",
+    "model__XGBClassifier__subsample",
+    "model__RandomForestClassifier__max_depth",
+    "model__RandomForestClassifier__max_features",
+    "model__RandomForestClassifier__min_samples_leaf",
+    "model__RandomForestClassifier__min_samples_split",
+    "model__RandomForestClassifier__n_estimators",
+    "model:XGBClassifier",
+    "model:RandomForestClassifier"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "cleaner__Cleaner__drop_if_constant",
+    "model",
+    "model__HistGradientBoostingClassifier__l2_regularization",
+    "model__HistGradientBoostingClassifier__learning_rate",
+    "model__HistGradientBoostingClassifier__max_depth",
+    "model__HistGradientBoostingClassifier__max_iter",
+    "scale",
+    "scope_text_encoder",
+    "vectorizer__high_cardinality"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "accuracy",
+    "k": 1,
+    "pool_size": 10,
+    "states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.027144176165949066,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 167,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.027144176165949066,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 167,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 100,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 100,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 100,
+        "scale": "StandardScaler()",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 100,
+        "scale": "StandardScaler()",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 6,
+        "model__HistGradientBoostingClassifier__max_iter": 200,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 6,
+        "model__HistGradientBoostingClassifier__max_iter": 200,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.0,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 6,
+        "model__HistGradientBoostingClassifier__max_iter": 200,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "StringEncoder(random_state=42)"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.0,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.0447213595499958,
+        "model__HistGradientBoostingClassifier__max_depth": 6,
+        "model__HistGradientBoostingClassifier__max_iter": 200,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "StringEncoder(random_state=42)"
+      }
+    ],
+    "selected_states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "model__HistGradientBoostingClassifier__l2_regularization": 0.5,
+        "model__HistGradientBoostingClassifier__learning_rate": 0.027144176165949066,
+        "model__HistGradientBoostingClassifier__max_depth": 7,
+        "model__HistGradientBoostingClassifier__max_iter": 167,
+        "scale": "None",
+        "scope_text_encoder": "TextEncoder",
+        "vectorizer__high_cardinality": "GapEncoder(random_state=42)"
+      }
+    ],
+    "weights": [
+      1.0
+    ],
+    "individual_scores": [
+      0.95,
+      0.95,
+      0.94,
+      0.94,
+      0.94,
+      0.94,
+      0.945,
+      0.945,
+      0.95,
+      0.95
+    ],
+    "ensemble_score": 0.95,
+    "ensemble_score_mean": 0.95
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [
+    "stage:feature_eng"
+  ],
+  "scoring_errors": null,
+  "reused_spec": true,
+  "llm_calls": 1,
+  "wall_clock_s": 2638.6,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "data_summary": "Dataset: 800 rows x 2 columns. Target column: 'is_toxic'.\nInferred task type: classification.\n\nColumns:\n  - text: dtype=object, missing=0.0%, cardinality=799, examples='Are you feeling it now, mr mark?', 'so many haters on the internet . dident get what so bad about this video.... i think u just jealous logan paul.... fuck humens', \"I do this with store-bought breaded shrimp all the time. The way you are better than be is that the seasoning is IN the batter, not dusted on top. Play! Experiment! You'll do something wonderful if you are already putting in that effort.\", \"nobody threw President Trump anywhere, the dems cheated. We've only been screaming this since Nov 2019 and we won't stop until he is in his elected seat by We The People!!!\\n FJB\\n LET'S GO BRANDON!!\", 'I’m from Scandinavia, so we have different pancakes than in the US. Ours is much thinner and larger. But I loved the BA’s!'\n  - is_toxic (TARGET): dtype=object, missing=0.0%, cardinality=2, examples='Not Toxic', 'Toxic'\n      class balance: 'Toxic'=50.1%, 'Not Toxic'=49.9%\n\nFirst 5 rows:\n                                                                                                                                                                                                                                         text  is_toxic\n                                                                                                                                                                                                             Are you feeling it now, mr mark? Not Toxic\n                                                                                                               so many haters on the internet . dident get what so bad about this video.... i think u just jealous logan paul.... fuck humens     Toxic\nI do this with store-bought breaded shrimp all the time. The way you are better than be is that the seasoning is IN the batter, not dusted on top. Play! Experiment! You'll do something wonderful if you are already putting in that effort. Not Toxic\n                                      nobody threw President Trump anywhere, the dems cheated. We've only been screaming this since Nov 2019 and we won't stop until he is in his elected seat by We The People!!!\\n FJB\\n LET'S GO BRANDON!!     Toxic\n                                                                                                                   I’m from Scandinavia, so we have different pancakes than in the US. Ours is much thinner and larger. But I loved the BA’s! Not Toxic",
+  "analysis": "",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_constant\": {\n        \"choice\": [false, true]\n      }\n    }\n  },\n  \"vectorizer\": {\n    \"slots\": {\n      \"high_cardinality\": [\n        \"skrub.GapEncoder\",\n        \"skrub.MinHashEncoder\",\n        \"skrub.StringEncoder\"\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"text_encoder\",\n      \"cols\": [\n        \"text\"\n      ],\n      \"options\": [\n        \"skrub.StringEncoder\",\n        \"skrub.TextEncoder\",\n        \"skrub.MinHashEncoder\"\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    }\n  ],\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.StandardScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\"\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n      \"prior\": 0.5,\n      \"params\": {\n        \"learning_rate\": {\n          \"float\": [0.01, 0.2],\n          \"log\": true\n        },\n        \"max_iter\": {\n          \"int\": [50, 300]\n        },\n        \"max_depth\": {\n          \"int\": [2, 10]\n        },\n        \"l2_regularization\": {\n          \"float\": [0.0, 1.0]\n        }\n      }\n    },\n    {\n      \"name\": \"sklearn.linear_model.LogisticRegression\",\n      \"prior\": 0.4,\n      \"params\": {\n        \"C\": {\n          \"float\": [0.001, 100.0],\n          \"log\": true\n        },\n        \"max_iter\": {\n          \"int\": [100, 500]\n        }\n      }\n    },\n    {\n      \"name\": \"lightgbm.LGBMClassifier\",\n      \"prior\": 0.1,\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [50, 300]\n        },\n        \"learning_rate\": {\n          \"float\": [0.01, 0.2],\n          \"log\": true\n        },\n        \"num_leaves\": {\n          \"int\": [15, 63]\n        },\n        \"max_depth\": {\n          \"int\": [3, 10]\n        },\n        \"reg_lambda\": {\n          \"float\": [0.0, 5.0]\n        }\n      }\n    }\n  ]\n}"
+}
