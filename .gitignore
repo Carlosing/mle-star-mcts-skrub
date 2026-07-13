@@ -6,7 +6,6 @@ __pycache__/
 # DataOps visulizations and experiments
 notebooks/
 data/
-temp/
 
 # Mac and VSCode specific files
 .vscode/

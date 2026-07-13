@@ -67,7 +67,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 
 | File | Role |
 |---|---|
-| `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook, DOT/ASCII viz) |
+| `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook) |
 | `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble` + a fixed `_SanitizeColumns` rename before the model so boosters accept skrub's special-character feature names), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (configurable `scoring`; profile-aware subsample sizing `_profile_subsample_n` — imbalance/high-cardinality grow it, capped at 2000; optional seed-averaged rewards `n_subsample_seeds`; per-rollout 60s wall-clock cap via `_time_limit`/`timeout_s` → slow config scores 0.0; CV folds parallel via `n_jobs`, default 6), `run_ablation`, `pick_target_node` |
 | `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Option 1 focus pick re-run between slices (`retarget=`; a proposer hint, never an expansion lock), Option 3 **whole-plan extending injection** between slices (`propose(plan_json, context) -> extended plan`, merged strictly additively via `_merge_raw_plans`, re-resolved + rebuilt — injected operators arrive tuned), `make_llm_proposer` (≤ one provider call between slices — native Gemini or OpenAI-compatible, same env switch as the agents); post-budget **focused-refinement bonus phase** (`ceil(total/4)` rollouts from the incumbent node over ALL its single-edit neighbors — `refinement_phase=`, edited dims in `refined_dims`) |
 | `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`/`lightgbm`/`xgboost`) is the safety envelope; free-form HP ranges (`_build_free_choice`) unless curated in `REGISTRY` (then clipped); per-param safety nets (`_accepts_param`, `_RNG_PARAMS`) drop unknown/RNG params without dropping the operator; `assemble` passthrough |
@@ -88,7 +88,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 **The Week-1 spine is complete and green.** Everything below has offline tests.
 
 **Search-quality core (Week 1)**
-- ✅ **MCTS engine** — UCT select/expand/backprop, persistent tree, DOT/ASCII viz.
+- ✅ **MCTS engine** — UCT select/expand/backprop, persistent tree.
 - ✅ **Score cache** — `mcts.score_cache` memoizes `state_key → reward`; deterministic
   rollouts make it exact, so each distinct config is evaluated at most once
   (`test_score_cache_one_call_per_distinct_state`, and asserted across outer steps).

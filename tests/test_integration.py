@@ -17,14 +17,10 @@ exact scores:
 
 import os
 import sys
-from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-# Tree artifacts are written here (a gitignored scratch dir at the repo root).
-ARTIFACT_DIR = Path(__file__).resolve().parent.parent / "temp"
 
 skrub = pytest.importorskip("skrub")
 
@@ -190,25 +186,3 @@ def test_per_iteration_statistics_update_correctly(plan, df, rollout):
     # tree persisted and accumulated across the 10 single-step calls
     assert root.N == 10
     assert len(tried) >= 1
-
-
-def test_writes_real_search_tree_artifacts(plan, rollout):
-    """Run a real skrub-driven search and persist the tree to <repo>/temp/
-    (gitignored) as DOT + ASCII, then verify the written files carry real edge
-    changes and final UCT scores."""
-    root_state = skrub_ops.get_state(plan)
-    space = skrub_ops.get_action_space(plan)
-    _, _, root = mcts.mcts_search(root_state, space, rollout, budget=BUDGET)
-
-    ARTIFACT_DIR.mkdir(exist_ok=True)
-    dot_path = ARTIFACT_DIR / "golden_tree.dot"
-    txt_path = ARTIFACT_DIR / "golden_tree.txt"
-    dot_path.write_text(mcts.to_dot(root))
-    txt_path.write_text(mcts.print_tree(root))
-
-    dot = dot_path.read_text()
-    assert dot.startswith("digraph mcts {") and dot.rstrip().endswith("}")
-    assert "UCT=" in dot and "->" in dot  # real edges + final UCT scores
-    # edge labels reference real choice names from the plan's action space
-    assert any(name in dot for name in space)
-    assert txt_path.read_text().splitlines()[0].startswith("ROOT")
