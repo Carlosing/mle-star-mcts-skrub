@@ -32,7 +32,9 @@ def _smoke(client: OpenAI, model: str, max_tokens: int) -> str:
         r = client.chat.completions.create(
             model=model,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": "Reply with exactly one word: OK"}],
+            messages=[
+                {"role": "user", "content": "Reply with exactly one word: OK"}
+            ],
         )
         ch = r.choices[0]
         d = ch.message.model_dump()
@@ -51,7 +53,9 @@ def _smoke(client: OpenAI, model: str, max_tokens: int) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--smoke", action="store_true", help="complete on each model")
+    ap.add_argument(
+        "--smoke", action="store_true", help="complete on each model"
+    )
     ap.add_argument("--model", default=None, help="smoke only this model")
     ap.add_argument("--max-tokens", type=int, default=512)
     args = ap.parse_args()

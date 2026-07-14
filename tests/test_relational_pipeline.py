@@ -143,7 +143,9 @@ def test_assemble_empty_operations_default_to_mean_for_one_to_one():
         }
     ]
     # operations omitted entirely (not just []) behaves the same
-    assert _resolve([{"table": "aux", "key": "id"}])[0]["operations"] == ["mean"]
+    assert _resolve([{"table": "aux", "key": "id"}])[0]["operations"] == [
+        "mean"
+    ]
 
 
 def test_assemble_validation_supports_main_aux_key_pair():
@@ -392,10 +394,20 @@ def test_multi_table_assemble_offers_all_aggregates_and_composes():
 
     raw = {
         "assemble": [
-            {"name": "a_mean", "table": "aux_a", "key": "id",
-             "operations": ["mean"], "cols": ["a"]},
-            {"name": "b_mean", "table": "aux_b", "key": "id",
-             "operations": ["mean"], "cols": ["b"]},
+            {
+                "name": "a_mean",
+                "table": "aux_a",
+                "key": "id",
+                "operations": ["mean"],
+                "cols": ["a"],
+            },
+            {
+                "name": "b_mean",
+                "table": "aux_b",
+                "key": "id",
+                "operations": ["mean"],
+                "cols": ["b"],
+            },
         ],
         "model": ["sklearn.ensemble.RandomForestClassifier"],
     }

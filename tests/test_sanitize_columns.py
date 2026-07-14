@@ -72,9 +72,7 @@ def dirty_df():
     rng = np.random.default_rng(0)
     n = 240
     words = ["fee", "reg", "tax", "levy", "duty", "toll", "fine", "rate"]
-    text = [
-        f"{words[i % 8]} {words[(i * 3) % 8]} #{i % 60}" for i in range(n)
-    ]
+    text = [f"{words[i % 8]} {words[(i * 3) % 8]} #{i % 60}" for i in range(n)]
     x = rng.normal(size=n)
     return pd.DataFrame(
         {

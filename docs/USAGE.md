@@ -26,7 +26,7 @@ Create a `.env` file in the project root for the API keys (only needed for the
 ## Quick start
 
 ```bash
-make test                       # 1. run the offline test suite (no API, ~2 min)
+make test                       # 1. run the offline test suite (no API, ~5 min)
 make probe                      # 2. check your Google/Gemini key has quota
 make run-live TASK=california-housing-prices BUDGET=40   # 3. a real run
 ```
@@ -44,9 +44,10 @@ folder under `runs/` with the results — see [What you get back](#what-you-get-
 make test          # the full suite; agents are faked, so zero network calls
 ```
 
-**Expect:** a pytest progress bar ending in `N passed` (~320) with zero
-skips. Takes ~2 minutes. If this is green, the code is healthy — run it first
-whenever you pull changes.
+**Expect:** a pytest progress bar ending in `427 passed` with zero skips; takes
+~5 minutes (it runs real skrub cross-validation, not mocks — only the *agents*
+are faked). If this is green, the code is healthy — run it first whenever you
+pull changes.
 
 ### Probes — "is my API key working?"
 
@@ -188,7 +189,16 @@ now also records that call's `tokens`.
 | `report` `{scorer, score}` | The incumbent on the competition metric via **CV** (reporting only). |
 | `holdout` `{scorer, score}` | The incumbent on the **shared on-disk holdout** (`test.csv` + `test_answer.csv`, drawn by `stage_tasks.py` before any method sees the data) — the number directly comparable across the extension, AutoGluon and MLE-STAR. |
 | `ensemble` | Top-`K` ensemble vs the single incumbent, on the same holdout. |
-| `ensemble.selection` | **How the members were chosen** — see below. A result is never ambiguous about its own provenance. |
+| `ensemble.selection` | **How the members were chosen** — see [below](#ensembleselection--and-the-legacy_ensemble-flag). A result is never ambiguous about its own provenance. |
+| `llm_calls` | Exact number of LLM calls made (**`2`** for a plain run: `data_analyst` + `plan_author`; `+1` per `N_PROPOSES`). |
+| `tokens` `{prompt, completion, total}` | **Real token cost** of the whole run. |
+| `tokens_by_agent` | Per-agent token breakdown (`data_analyst`, `plan_author`, `proposer`), each `{prompt, completion, total, calls}`. |
+| `time_budget_s` / `wall_clock_s` | The wall-clock budget (if set) and the measured run time. |
+| `action_space`, `injected_options`, `spec_raw`, `analysis`, `data_summary` | The searched space, any Option-3 additions, the raw plan, and the agent I/O. |
+
+The extension's LLM cost is a **fixed constant** — `tokens` does not grow with
+`BUDGET`, `TOP_K`, or `TIME_BUDGET`, only with `N_PROPOSES`. That is the whole
+point of the design: you scale quality with compute/time at constant token cost.
 
 ### `ensemble.selection` — and the `LEGACY_ENSEMBLE` flag
 
@@ -204,8 +214,8 @@ published metric rather than an out-of-sample number.
 | `single_member` | A one-config pool; nothing to select. |
 
 Results measured **before 2026-07-14 were produced with `legacy_holdout`** and
-carry that slight optimistic bias. The path is kept so those runs stay
-reproducible and so the two can be A/B'd on an identical split:
+carry that optimistic bias. The path is kept so those runs stay reproducible and
+so the two can be A/B'd on an identical split:
 
 ```bash
 make run-live TASK=california-housing-prices LEGACY_ENSEMBLE=1   # the old logic
@@ -216,15 +226,9 @@ On california-housing the legacy path reports **−57128** against the honest
 **−57240** — it looks ~112 RMSE better purely from selecting on the rows it
 publishes. Note the corollary: with honest selection `ensemble_score` is *no
 longer guaranteed* to beat the best pool member. That guarantee **was** the bias.
-| `llm_calls` | Exact number of LLM calls made (**`2`** for a plain run: `data_analyst` + `plan_author`; `+1` per `N_PROPOSES`). |
-| `tokens` `{prompt, completion, total}` | **Real token cost** of the whole run. |
-| `tokens_by_agent` | Per-agent token breakdown (`data_analyst`, `plan_author`, `proposer`), each `{prompt, completion, total, calls}`. |
-| `time_budget_s` / `wall_clock_s` | The wall-clock budget (if set) and the measured run time. |
-| `action_space`, `injected_options`, `spec_raw`, `analysis`, `data_summary` | The searched space, any Option-3 additions, the raw plan, and the agent I/O. |
 
-The extension's LLM cost is a **fixed constant** — `tokens` does not grow with
-`BUDGET`, `TOP_K`, or `TIME_BUDGET`, only with `N_PROPOSES`. That is the whole
-point of the design: you scale quality with compute/time at constant token cost.
+**Check `selection` on any fresh artifact you intend to quote — it must read
+`oof_3fold`.**
 
 **The terminal also prints a short summary at the end:**
 

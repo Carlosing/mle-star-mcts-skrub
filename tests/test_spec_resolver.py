@@ -250,10 +250,14 @@ def test_plan_has_text_encoder_detection(monkeypatch):
     class _PlainChoice:
         outcomes = ["GBM", "RF"]
 
-    monkeypatch.setattr(skrub_ops._ev, "choices", lambda plan: {0: _PlainChoice()})
+    monkeypatch.setattr(
+        skrub_ops._ev, "choices", lambda plan: {0: _PlainChoice()}
+    )
     assert skrub_ops.plan_has_text_encoder(object()) is False
     monkeypatch.setattr(
-        skrub_ops._ev, "choices", lambda plan: {0: _PlainChoice(), 1: _FakeChoice()}
+        skrub_ops._ev,
+        "choices",
+        lambda plan: {0: _PlainChoice(), 1: _FakeChoice()},
     )
     assert skrub_ops.plan_has_text_encoder(object()) is True
 
@@ -476,7 +480,9 @@ def test_parse_json_relaxes_python_none_literal():
 
 def test_parse_json_none_inside_a_string_is_preserved():
     # the literal relaxation must not touch words inside string values
-    plan = parse_spec_json('{"model": ["x"], "note": "None of True/False apply"}')
+    plan = parse_spec_json(
+        '{"model": ["x"], "note": "None of True/False apply"}'
+    )
     assert plan["note"] == "None of True/False apply"
 
 
@@ -532,7 +538,10 @@ def test_single_option_and_dropped_stages_are_flagged():
             # a whole stage whose only option is unimportable -> vanishes
             "stages": [
                 {"name": "gone", "options": ["sklearn.bogus.Nope"]},
-                {"name": "lonely", "options": ["sklearn.preprocessing.StandardScaler"]},
+                {
+                    "name": "lonely",
+                    "options": ["sklearn.preprocessing.StandardScaler"],
+                },
             ],
             "model": ["sklearn.ensemble.RandomForestClassifier"],
         },
@@ -594,9 +603,7 @@ def test_vectorizer_backbone_slots_and_scalar_knobs():
         task_type="regression",
     )
     assert isinstance(out["vectorizer"], skrub.TableVectorizer)
-    df = pd.DataFrame(
-        {"t": ["a b", "c", "d e", "f"], "y": [1, 2, 3, 4]}
-    )
+    df = pd.DataFrame({"t": ["a b", "c", "d e", "f"], "y": [1, 2, 3, 4]})
     plan = skrub_ops.build_staged_plan(out, df, target="y")
     space = skrub_ops.get_action_space(plan)
     assert "vectorizer__high_cardinality" in space

@@ -4,12 +4,20 @@ A reference of the real bugs found during development (most surfaced on *live*
 runs, not the offline suite), kept here so the code doesn't need bug-history
 comments. Each entry: symptom → root cause → fix location → regression test.
 
-Almost every entry shares one shape: **a failure inside skrub's CV is swallowed
-by the rollout `try/except` (or NaN-ed by the scorer) → the config silently
-scores 0.0 → search returns garbage without crashing.** When adding an operator
-family or scorer, probe that boundary first (build a tiny plan, call the
-rollout, assert reward > 0), then pin it in
-[test_silent_zero_regressions.py](../tests/test_silent_zero_regressions.py).
+The entries fall into **two shapes, and neither one crashes**:
+
+1. **The silent 0.0** (#1–#24). A failure inside skrub's CV is swallowed by the
+   rollout `try/except` (or NaN-ed by the scorer) → the config silently scores
+   0.0 → search returns garbage without crashing. When adding an operator family
+   or scorer, probe that boundary first (build a tiny plan, call the rollout,
+   assert reward > 0), then pin it in
+   [test_silent_zero_regressions.py](../tests/test_silent_zero_regressions.py).
+2. **The flattering number** (#25–#28). Selection and reporting quietly share
+   rows, so the published score is a maximum over the metric rather than an
+   out-of-sample estimate. There is no failing artifact at all — the benchmark
+   just looks good. These were found by tracing the data flow, not by a test.
+
+Both classes are invisible to a green suite. That is the point of this file.
 
 ## Rollout / scoring boundary (silent 0.0s)
 
@@ -56,6 +64,25 @@ rollout, assert reward > 0), then pin it in
 | 23 | A live toxicity run crashed at plan-BUILD: `ValueError: max_df corresponds to < documents than min_df` (`build_staged_plan` → `node.skb.apply(vectorizer)`) — not a silent 0.0, a hard run-killer outside the rollout net | the plan_author put a raw `sklearn...TfidfVectorizer` with `min_df:{int:[1,5]}` in the encoder slot. Two compounding faults: (a) skrub eagerly PREVIEWS every `.skb.apply` on a **single row**, and `min_df≥2` is impossible on one doc (skrub previews a `choose_int` at its midpoint → 3); (b) even past that, sklearn's text vectorizers return a **scipy-sparse** matrix skrub's pandas DataOps can't carry — and, unlike OneHotEncoder, they have no dense flag. The existing per-param nets (`_accepts_param`/`_RNG_PARAMS`/`_SPARSE_PARAMS`) gate on *legality*, not value-survivability, so a legal `min_df` waved through | `_DOC_FREQ_PARAMS` drops `min_df`/`max_df` (like `_SPARSE_PARAMS`); `_emits_dataframe` screens each **sklearn-rooted** transformer (bare-constructor probe on a text sample — output container type is a class property, so no tuned-param/`choose_*` quirks; skrub encoders trusted, so no `TextEncoder` model download) and `_make` drops sparse emitters; `format_allowed_for_prompt` steers the LLM to skrub.StringEncoder/TextEncoder/GapEncoder/MinHashEncoder for text | `test_spec_resolver.py::test_sklearn_text_vectorizers_are_dropped_as_sparse` |
 | 24 | The relational **assemble** stage silently vanished (`dropped_sections: ["assemble"]`) on country-happiness — the join differentiator never entered the search on the one task where it *is* the task | it is a 1-to-1 lookup (one GDP/life-exp row per country), so the planner correctly emitted `operations: []` — but `_resolve_assemble` required ≥1 aggregation op and dropped every join. All three agents (analyst/planner/proposer) asked for joins; the resolver killed them each time | empty operations default to `["mean"]` (identity on a single matched row, still valid for 1-to-many); GIVEN-but-all-invalid ops still drop (hallucination). Multi-table already composes via `_ChainedAggJoiner`'s `all_aggregates` | `test_relational_pipeline.py::test_assemble_empty_operations_default_to_mean_for_one_to_one` |
 
+## Evaluation integrity (a flattering number, not a crash)
+
+The 2026-07-14 class. None of these threw, none showed up in the suite, and none
+would ever have shown up in a *score* — a biased benchmark just looks like a good
+result.
+
+All four are **fixed in code**, but the fix landed too late to re-run the
+benchmark: the shipped results were produced *before* it and are optimistically
+biased in our own favour. That bias is disclosed rather than removed — see
+[PROJECT_STATE § Hand-off](PROJECT_STATE.md#hand-off--the-published-numbers-are-biased)
+for exactly what it does and does not compromise, and how to report it.
+
+| # | Bug | Root cause | Fix | Test |
+|---|---|---|---|---|
+| 25 | The extension's `holdout` score — the *cross-method comparable* number — was optimistically biased. Nothing crashed; the figure was simply flattering | `pipeline.run_pipeline` passed the FULL `train.csv` frame to `run_search_loop`, and `ensemble.evaluate_top_k` then carved its 25% holdout out of that *same* frame. So every MCTS rollout cross-validated over rows that later became the extension's own eval set: the config was selected with knowledge of the rows we report on. AutoGluon, by contrast, fit only the 75% and never saw the holdout — so every extension-vs-AutoGluon delta was overstated | the split is now drawn **on disk before any method sees the data** (`scripts/stage_tasks.py` writes `train.csv` / `test.csv` / `test_answer.csv`). `load_task` reads only `train.csv`, so the holdout rows are physically absent from the search's frame; `pipeline.load_holdout` supplies the shared bench to the scorers | `test_shared_holdout.py::test_holdout_rows_are_absent_from_train` |
+| 26 | The Caruana ensemble reported a score it had been fitted to — the exact ensemble-overfitting flaw the MLE-STAR benchmark report criticises MLE-STAR for (§8.3) | `_caruana_select` greedily maximised the score **on the holdout**, and `evaluate_top_k` then returned that maximised value as `ensemble_score`. Selection and reporting were the same rows, so the number was a greedy maximum over the published metric, not an out-of-sample score | `evaluate_top_k(holdout=)` splits the two: members are **selected** on 3-fold out-of-fold predictions spanning all of train (`_oof_pool`, one shared fold assignment so the OOF columns are combinable), then the pool is refitted on all of train and **scored** on the untouched holdout. `ensemble_score` is consequently no longer guaranteed to beat the best pool member — that guarantee was the bias. `selection` is stamped on every artifact; the old path survives behind `--legacy-ensemble` so pre-fix runs stay reproducible | `test_ensemble.py::test_caruana_selects_on_oof_predictions_not_on_the_reported_holdout`, `::test_legacy_selection_flag_restores_the_biased_path` |
+| 27 | `run_mlestar._score_submission` would have published a meaningless number for MLE-STAR, silently — the benchmark's headline comparison | MLE-STAR predicts the task's `test.csv`; the scorer aligned those predictions **by row order** against a holdout carved out of `train.csv`, guarding on nothing but `len(sub) == len(holdout)`. Those lengths collide **exactly on 8 of the 13 tasks** (test.csv is 20% of source, the old holdout was 25% of the 80% train — the same count), so the guard passed and predictions for one set of rows were scored against targets from a completely different set. Never fired only because MLE-STAR had not yet been run end-to-end | `test.csv` IS the shared bench now, so MLE-STAR's submission is the right rows by construction; the scorer reads `test_answer.csv` and returns `{"error": ...}` on any mismatch instead of a silent `None`-or-plausible-number | `test_shared_holdout.py::test_mlestar_scorer_refuses_a_mismatched_submission` |
+| 28 | Every relational task's holdout rows joined to **nothing** — all aux-derived features NaN at predict time, on the very tasks the skrub extension exists to win | `scripts/stage_tasks.py` filtered each aux table to the keys of `train` (`aux[aux[aux_key].isin(train[main_key])]`), so `test.csv`'s keys were absent: country-happiness holdout coverage was **0/29**. Latent while each method carved its holdout out of `train.csv` (whose keys *were* covered); it would have surfaced the moment `test.csv` became the shared bench | filter by the keys of the **whole** table (`df`), not `train`. Not leakage: aux tables carry features, never the target — and a holdout row you cannot join is a holdout row you cannot predict. Coverage is now 79–100% (country-happiness's 79% is countries genuinely missing from the World-Bank source, matching the train-side rate) | `test_shared_holdout.py` (aux coverage asserted via the relational task fixtures) |
+
 ## Open / flagged (not fixed)
 
 - **GapEncoder loses by forfeit on high-cardinality text tasks.** On
@@ -67,6 +94,10 @@ rollout, assert reward > 0), then pin it in
   give expensive encoders their own per-rollout budget.
 - **`llm_calls` miscounts offline replay proposers as real calls** (bookkeeping
   only).
+- **Two entries are numbered 18** (the `_merge_option_lists` signature-dedup bug
+  under *Search mechanics*, and the truncated-JSON bug under *LLM output
+  parsing*). Left as-is because both numbers are cited from commit messages and
+  test names; renumbering would break those references.
 
 ## Practices these bugs taught
 
@@ -79,7 +110,8 @@ rollout, assert reward > 0), then pin it in
 - **Timeouts must be `BaseException`** — sklearn's `cross_validate` catches
   `Exception` per fold, so an `Exception`-based timeout would NaN one fold
   instead of aborting the rollout (`skrub_ops._RolloutTimeout`).
-| 25 | The extension's `holdout` score — the *cross-method comparable* number — was optimistically biased. Nothing crashed; the figure was simply flattering | `pipeline.run_pipeline` passed the FULL `train.csv` frame to `run_search_loop`, and `ensemble.evaluate_top_k` then carved its 25% holdout out of that *same* frame. So every MCTS rollout cross-validated over rows that later became the extension's own eval set: the config was selected with knowledge of the rows we report on. AutoGluon, by contrast, fit only the 75% and never saw the holdout — so every extension-vs-AutoGluon delta was overstated | the split is now drawn **on disk before any method sees the data** (`scripts/stage_tasks.py` writes `train.csv` / `test.csv` / `test_answer.csv`). `load_task` reads only `train.csv`, so the holdout rows are physically absent from the search's frame; `pipeline.load_holdout` supplies the shared bench to the scorers | `test_shared_holdout.py::test_holdout_rows_are_absent_from_train` |
-| 26 | The Caruana ensemble reported a score it had been fitted to — the exact ensemble-overfitting flaw the MLE-STAR benchmark report criticises MLE-STAR for (§8.3) | `_caruana_select` greedily maximised the score **on the holdout**, and `evaluate_top_k` then returned that maximised value as `ensemble_score`. Selection and reporting were the same rows, so the number was a greedy maximum over the published metric, not an out-of-sample score | `evaluate_top_k(holdout=)` splits the two: the pool is fitted on an inner split of `train` and the ensemble **selected** on the inner-validation rows, then refitted on all of train and **scored** on the untouched holdout. `ensemble_score` is consequently no longer guaranteed to beat the best pool member — that guarantee was the bias | `test_ensemble.py::test_caruana_selects_on_inner_split_not_on_the_reported_holdout` |
-| 27 | `run_mlestar._score_submission` would have published a meaningless number for MLE-STAR, silently — the benchmark's headline comparison | MLE-STAR predicts the task's `test.csv`; the scorer aligned those predictions **by row order** against a holdout carved out of `train.csv`, guarding on nothing but `len(sub) == len(holdout)`. Those lengths collide **exactly on 8 of the 13 tasks** (test.csv is 20% of source, the old holdout was 25% of the 80% train — the same count), so the guard passed and predictions for one set of rows were scored against targets from a completely different set. Never fired only because MLE-STAR had not yet been run end-to-end | `test.csv` IS the shared bench now, so MLE-STAR's submission is the right rows by construction; the scorer reads `test_answer.csv` and returns `{"error": ...}` on any mismatch instead of a silent `None`-or-plausible-number | `test_shared_holdout.py::test_mlestar_scorer_refuses_a_mismatched_submission` |
-| 28 | Every relational task's holdout rows joined to **nothing** — all aux-derived features NaN at predict time, on the very tasks the skrub extension exists to win | `scripts/stage_tasks.py` filtered each aux table to the keys of `train` (`aux[aux[aux_key].isin(train[main_key])]`), so `test.csv`'s keys were absent: country-happiness holdout coverage was **0/29**. Latent while each method carved its holdout out of `train.csv` (whose keys *were* covered); it would have surfaced the moment `test.csv` became the shared bench | filter by the keys of the **whole** table (`df`), not `train`. Not leakage: aux tables carry features, never the target — and a holdout row you cannot join is a holdout row you cannot predict. Coverage is now 79–100% (country-happiness's 79% is countries genuinely missing from the World-Bank source, matching the train-side rate) | `test_shared_holdout.py` (aux coverage asserted via the relational task fixtures) |
+- **A bad *number* is worse than a bad *crash*, and the eval path is where they
+  hide** (#25–#28). Every one of those was a silent overstatement in our own
+  favour, found by reading the data flow rather than by any test failing. When
+  you touch scoring, splitting or ensembling, ask the one question the tests
+  can't: *are the rows I am selecting on the rows I am reporting on?*

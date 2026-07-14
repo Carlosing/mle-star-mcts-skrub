@@ -33,7 +33,9 @@ class TestGetUpdatedSuffix:
 
     def test_ensemble_plan_implement(self, empty_state):
         empty_state["ensemble_iter"] = 7
-        suffix = code_util.get_updated_suffix(empty_state, "ensemble_plan_implement_1")
+        suffix = code_util.get_updated_suffix(
+            empty_state, "ensemble_plan_implement_1"
+        )
         assert suffix == "7"
 
     def test_submission(self, empty_state):
@@ -78,19 +80,26 @@ class TestGetCodeExecutionResultStateKey:
             ("merger_1_3", "1_3", "merger_code_exec_result_1_3"),
             ("check_data_use_1", "1", "train_code_exec_result_0_1"),
             ("ablation_1", "4_1", "ablation_code_exec_result_4_1"),
-            ("plan_implement_1", "3_2_1", "train_code_improve_exec_result_3_2_1"),
+            (
+                "plan_implement_1",
+                "3_2_1",
+                "train_code_improve_exec_result_3_2_1",
+            ),
             ("ensemble_plan_implement", "7", "ensemble_code_exec_result_7"),
             ("submission", "", "submission_code_exec_result"),
         ],
     )
     def test_known_agents(self, agent_name, suffix, expected):
         assert (
-            code_util.get_code_execution_result_state_key(agent_name, suffix) == expected
+            code_util.get_code_execution_result_state_key(agent_name, suffix)
+            == expected
         )
 
     def test_unknown_agent_raises(self):
         with pytest.raises(ValueError, match="Unexpected agent name"):
-            code_util.get_code_execution_result_state_key("unknown_agent_1", "x")
+            code_util.get_code_execution_result_state_key(
+                "unknown_agent_1", "x"
+            )
 
 
 class TestExtractPerformanceFromText:
@@ -101,7 +110,9 @@ class TestExtractPerformanceFromText:
         assert code_util.extract_performance_from_text(text) == 123.45
 
     def test_extra_text_and_units(self):
-        text = "Some header\nFinal Validation Performance: 0.8765 (RMSE)\nFooter"
+        text = (
+            "Some header\nFinal Validation Performance: 0.8765 (RMSE)\nFooter"
+        )
         assert code_util.extract_performance_from_text(text) == 0.8765
 
     def test_scientific_notation(self):

@@ -95,7 +95,10 @@ def install_caps(counter: dict, token_sink: dict, max_output_tokens: int):
     runner's globals at call time. Returns the original for restoration.
     """
     from machine_learning_engineering import runner
-    from machine_learning_engineering.run_logging import add_usage, extract_usage
+    from machine_learning_engineering.run_logging import (
+        add_usage,
+        extract_usage,
+    )
 
     original = runner.llm_call
     default_model = _effective_model(counter["model"])
@@ -161,7 +164,9 @@ def _score_submission(task, out_workspace, seed):
 
     holdout = pipeline.load_holdout(task, target=target)
     if holdout is None:
-        return {"error": "no staged holdout; run scripts/stage_tasks.py --force"}
+        return {
+            "error": "no staged holdout; run scripts/stage_tasks.py --force"
+        }
 
     hits = glob.glob(
         os.path.join(out_workspace, "**", "final", "submission.csv"),
@@ -176,7 +181,7 @@ def _score_submission(task, out_workspace, seed):
     if len(sub) != len(holdout):
         return {
             "error": f"submission has {len(sub)} rows, holdout has "
-                     f"{len(holdout)} — not the same rows, refusing to score"
+            f"{len(holdout)} — not the same rows, refusing to score"
         }
 
     pred_col = sub.columns[-1]  # convention: last column holds predictions
@@ -188,9 +193,16 @@ def _score_submission(task, out_workspace, seed):
     return {"scorer": scorer, "score": score, "n": len(holdout)}
 
 
-def run_mlestar(task, out_dir, max_calls=60, time_budget_s=3600.0,
-                max_output_tokens=8192, seed=42, data_dir=None,
-                web_search=None):
+def run_mlestar(
+    task,
+    out_dir,
+    max_calls=60,
+    time_budget_s=3600.0,
+    max_output_tokens=8192,
+    seed=42,
+    data_dir=None,
+    web_search=None,
+):
     """Run capped MLE-STAR and emit a uniform result.json-style dict."""
     data_dir = data_dir or "./machine_learning_engineering/tasks/"
     overrides = {} if web_search is None else {"use_web_search": web_search}
@@ -253,14 +265,26 @@ def run_mlestar(task, out_dir, max_calls=60, time_budget_s=3600.0,
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Run capped MLE-STAR.")
     parser.add_argument("--task", required=True)
-    parser.add_argument("--max-calls", type=int, default=60,
-                        help="hard cap on total LLM calls (abort past it)")
+    parser.add_argument(
+        "--max-calls",
+        type=int,
+        default=60,
+        help="hard cap on total LLM calls (abort past it)",
+    )
     parser.add_argument("--time-budget-s", type=float, default=3600.0)
-    parser.add_argument("--max-output-tokens", type=int, default=8192,
-                        help="per-call output-token bound")
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=8192,
+        help="per-call output-token bound",
+    )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--web-search", action="store_true", default=None,
-                        help="enable DuckDuckGo model retrieval (paper-faithful)")
+    parser.add_argument(
+        "--web-search",
+        action="store_true",
+        default=None,
+        help="enable DuckDuckGo model retrieval (paper-faithful)",
+    )
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 

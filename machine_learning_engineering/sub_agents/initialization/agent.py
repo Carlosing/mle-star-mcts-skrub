@@ -25,7 +25,9 @@ def prepare_task(state) -> None:
     state["start_time"] = time.time()
     task_name = state.get("task_name", "")
     data_dir = state.get("data_dir", "")
-    task_description_path = os.path.join(data_dir, task_name, "task_description.txt")
+    task_description_path = os.path.join(
+        data_dir, task_name, "task_description.txt"
+    )
     with open(task_description_path, "r", encoding="utf-8") as f:
         task_description = f.read()
     state["task_description"] = task_description
@@ -39,13 +41,17 @@ def create_workspace(state, task_id) -> None:
     run_cwd = os.path.join(workspace_dir, task_name, str(task_id))
     if os.path.exists(run_cwd):
         shutil.rmtree(run_cwd)
-    os.makedirs(os.path.join(workspace_dir, task_name, str(task_id)), exist_ok=True)
+    os.makedirs(
+        os.path.join(workspace_dir, task_name, str(task_id)), exist_ok=True
+    )
     os.makedirs(
         os.path.join(workspace_dir, task_name, str(task_id), "input"),
         exist_ok=True,
     )
     os.makedirs(
-        os.path.join(workspace_dir, task_name, str(task_id), "model_candidates"),
+        os.path.join(
+            workspace_dir, task_name, str(task_id), "model_candidates"
+        ),
         exist_ok=True,
     )
     files = os.listdir(os.path.join(data_dir, task_name))
@@ -53,7 +59,9 @@ def create_workspace(state, task_id) -> None:
         if os.path.isdir(os.path.join(data_dir, task_name, file)):
             shutil.copytree(
                 os.path.join(data_dir, task_name, file),
-                os.path.join(workspace_dir, task_name, str(task_id), "input", file),
+                os.path.join(
+                    workspace_dir, task_name, str(task_id), "input", file
+                ),
             )
         elif "answer" not in file:
             common_util.copy_file(
@@ -337,7 +345,9 @@ def run_merger_and_debug_loop(state, task_id) -> None:
             max_retry=state.get("max_retry", 1),
             max_debug=state.get("max_debug_round", 1),
         )
-        result = state.get(f"merger_code_exec_result_{task_id}_{reference_idx}", {})
+        result = state.get(
+            f"merger_code_exec_result_{task_id}_{reference_idx}", {}
+        )
         score = result.get("score", 1e9 if lower else 0)
         if (lower and score < best_score) or (not lower and score > best_score):
             best_score = score

@@ -8,7 +8,10 @@
 > [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) (status + roadmap),
 > [docs/USAGE.md](docs/USAGE.md) (how to run), and `CLAUDE.md` (architecture
 > and conventions). The upstream code paths described below (`agent.py`,
-> `sub_agents/`, `eval/`) are legacy and off the MCTS path.
+> `sub_agents/`, `eval/`) are **off the MCTS path — but not dead**: they are the
+> original MLE-STAR agent, kept alive as the **benchmark baseline** this fork
+> compares itself against (`make bench-mlestar`). Don't build extension features
+> there.
 
 ## Overview
 

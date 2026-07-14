@@ -6,8 +6,14 @@ from types import SimpleNamespace
 import pytest
 
 from machine_learning_engineering.runner import AgentState
-from machine_learning_engineering.shared_libraries import code_util, debug_util, web_search_util
-from machine_learning_engineering.sub_agents.initialization import agent as init_agent
+from machine_learning_engineering.shared_libraries import (
+    code_util,
+    debug_util,
+    web_search_util,
+)
+from machine_learning_engineering.sub_agents.initialization import (
+    agent as init_agent,
+)
 
 
 def _make_response(content: str) -> SimpleNamespace:
@@ -25,10 +31,10 @@ def mock_responses():
             "California housing regression task predicting median house value."
         ),
         "model_retriever_agent_1": _make_response(
-            '[\n'
+            "[\n"
             '  {"model_name": "RandomForestRegressor", "example_code": "from sklearn.ensemble import RandomForestRegressor\\nmodel = RandomForestRegressor(n_estimators=100, random_state=42)"},\n'
             '  {"model_name": "GradientBoostingRegressor", "example_code": "from sklearn.ensemble import GradientBoostingRegressor\\nmodel = GradientBoostingRegressor(random_state=42)"}\n'
-            ']'
+            "]"
         ),
         "model_eval_1_1": _make_response(
             "```python\n"
@@ -58,7 +64,14 @@ def mock_responses():
 def setup_mocks(monkeypatch, mock_responses):
     """Patch run_agent and run_python_code so the pipeline runs offline."""
 
-    def fake_run_agent(state, agent_name, instruction, before_model=None, after_model=None, temperature=0.0):
+    def fake_run_agent(
+        state,
+        agent_name,
+        instruction,
+        before_model=None,
+        after_model=None,
+        temperature=0.0,
+    ):
         response = mock_responses.get(agent_name)
         if response is None:
             raise ValueError(f"No mock response configured for {agent_name}")
@@ -118,7 +131,9 @@ def setup_mocks(monkeypatch, mock_responses):
 class TestInitializationPipeline:
     """Tests for run_initialization_pipeline."""
 
-    def test_pipeline_creates_expected_state_keys(self, empty_state, setup_mocks):
+    def test_pipeline_creates_expected_state_keys(
+        self, empty_state, setup_mocks
+    ):
         empty_state.update(
             task_name="california-housing-prices",
             data_dir="./machine_learning_engineering/tasks/",
@@ -166,7 +181,10 @@ class TestInitializationPipeline:
         # Pretend the pipeline selected a merged solution that failed.
         state["best_idx_1"] = 2
         state["merger_code_1_2"] = "# failed merged code"
-        state["merger_code_exec_result_1_2"] = {"returncode": 1, "stderr": "fail"}
+        state["merger_code_exec_result_1_2"] = {
+            "returncode": 1,
+            "stderr": "fail",
+        }
 
         init_agent.select_best_solution(state, 1)
 
@@ -180,7 +198,9 @@ class TestInitializationPipeline:
         """When use_web_search is enabled, web_search_results_1 is populated."""
         fake_results = [{"title": "Web Result", "body": "Web body"}]
         monkeypatch.setattr(
-            web_search_util, "search_web", lambda query, num_results: fake_results
+            web_search_util,
+            "search_web",
+            lambda query, num_results: fake_results,
         )
 
         empty_state.update(

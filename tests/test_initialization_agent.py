@@ -51,9 +51,7 @@ class TestParseModelCandidates:
         assert models[1]["model_name"] == "GradientBoostingRegressor"
 
     def test_code_block_without_sklearn_import(self):
-        raw = (
-            "```python\nimport numpy as np\nmodel = SomeModel()\n```"
-        )
+        raw = "```python\nimport numpy as np\nmodel = SomeModel()\n```"
         models = _parse_model_candidates(raw, 1)
         assert len(models) == 1
         assert models[0]["model_name"] == "Model"
@@ -65,25 +63,45 @@ class TestParseModelCandidates:
 
     def test_get_model_candidates_fallback_to_defaults(self, tmp_path):
         raw = "This is not a valid response at all."
-        response = type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": raw})})]})()
+        response = type(
+            "Response",
+            (),
+            {
+                "choices": [
+                    type(
+                        "Choice",
+                        (),
+                        {"message": type("Message", (), {"content": raw})},
+                    )
+                ]
+            },
+        )()
         state = AgentState(
             task_name="test-task",
             workspace_dir=str(tmp_path),
             num_model_candidates=2,
         )
-        os.makedirs(tmp_path / "test-task" / "1" / "model_candidates", exist_ok=True)
+        os.makedirs(
+            tmp_path / "test-task" / "1" / "model_candidates", exist_ok=True
+        )
 
         get_model_candidates(state, "model_retriever_agent_1", response, 1)
 
         assert state["init_1_model_finish"] is True
-        assert state["init_1_model_1"]["model_name"] == _DEFAULT_CANDIDATES[0]["model_name"]
-        assert state["init_1_model_2"]["model_name"] == _DEFAULT_CANDIDATES[1]["model_name"]
+        assert (
+            state["init_1_model_1"]["model_name"]
+            == _DEFAULT_CANDIDATES[0]["model_name"]
+        )
+        assert (
+            state["init_1_model_2"]["model_name"]
+            == _DEFAULT_CANDIDATES[1]["model_name"]
+        )
 
     def test_partial_json_with_extra_text(self):
         raw = (
             "Some explanation before\n"
             "[\n"
-            "  {\"model_name\": \"RandomForestRegressor\", \"example_code\": \"code\"}\n"
+            '  {"model_name": "RandomForestRegressor", "example_code": "code"}\n'
             "]\n"
             "Some explanation after"
         )

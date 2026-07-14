@@ -125,7 +125,11 @@ def run_sequential(state, agents, description=""):
     for agent in agents:
         agent_name = agent["agent_name"]
         instruction = agent["instruction"]
-        kwargs = {k: v for k, v in agent.items() if k not in ("agent_name", "instruction")}
+        kwargs = {
+            k: v
+            for k, v in agent.items()
+            if k not in ("agent_name", "instruction")
+        }
         run_agent(state, agent_name, instruction, **kwargs)
 
 

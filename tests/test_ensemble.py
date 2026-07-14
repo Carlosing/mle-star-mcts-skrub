@@ -88,7 +88,9 @@ def test_caruana_selects_on_oof_predictions_not_on_the_reported_holdout(
         oof_splits=3,
     )
 
-    assert len(train_df) in seen, "selection did not score OOF over all of train"
+    assert len(train_df) in seen, (
+        "selection did not score OOF over all of train"
+    )
     assert len(holdout_df) in seen, "nothing scored the holdout rows"
     # every reported number is measured on the holdout
     assert len(report["individual_scores"]) == len(states)
@@ -109,8 +111,13 @@ def test_legacy_selection_flag_restores_the_biased_path(toy_search):
     states = ensemble.top_k_states(result["score_cache"], k=3)
 
     kwargs = dict(
-        plan=result["plan"], states=states, df=train_df, target="target",
-        task_type="classification", scoring="accuracy", holdout=holdout_df,
+        plan=result["plan"],
+        states=states,
+        df=train_df,
+        target="target",
+        task_type="classification",
+        scoring="accuracy",
+        holdout=holdout_df,
     )
     legacy = ensemble.evaluate_top_k(**kwargs, legacy_selection=True)
     honest = ensemble.evaluate_top_k(**kwargs, legacy_selection=False)
@@ -124,7 +131,9 @@ def test_legacy_selection_flag_restores_the_biased_path(toy_search):
     assert legacy["ensemble_score"] >= max(legacy["individual_scores"]) - 1e-9
 
 
-def test_pickled_ensemble_reproduces_its_holdout_predictions(toy_search, tmp_path):
+def test_pickled_ensemble_reproduces_its_holdout_predictions(
+    toy_search, tmp_path
+):
     """The fitted ensemble round-trips through pickle and predicts identically."""
     import pickle
 
@@ -134,8 +143,13 @@ def test_pickled_ensemble_reproduces_its_holdout_predictions(toy_search, tmp_pat
     states = ensemble.top_k_states(result["score_cache"], k=3)
 
     report = ensemble.evaluate_top_k(
-        result["plan"], states, train_df, "target", "classification",
-        scoring="accuracy", holdout=holdout_df,
+        result["plan"],
+        states,
+        train_df,
+        "target",
+        "classification",
+        scoring="accuracy",
+        holdout=holdout_df,
     )
     predictor = report["predictor"]
     assert len(predictor.learners) == report["k"]
@@ -178,7 +192,9 @@ def test_oof_folds_fall_back_to_kfold_when_a_class_is_too_thin():
     """
     df = make_toy_df().copy()
     df.loc[df.index[:-2], "target"] = 0  # leave one class with 2 members
-    folds = ensemble._oof_folds(df, "target", "classification", seed=42, n_splits=3)
+    folds = ensemble._oof_folds(
+        df, "target", "classification", seed=42, n_splits=3
+    )
     assert len(folds) == 3  # produced KFold rather than raising
 
 
@@ -269,7 +285,9 @@ def test_caruana_selects_both_members_when_they_decorrelate():
 
     y = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
     m0 = y + np.array([1.0, -1, 1, -1, 1, -1])
-    m1 = y + np.array([-1.0, 1, -1, 1, -1, 1])  # opposite error -> mean is exact
+    m1 = y + np.array(
+        [-1.0, 1, -1, 1, -1, 1]
+    )  # opposite error -> mean is exact
     members = [m0, m1]
 
     def score_idx(idx):
@@ -305,8 +323,13 @@ def test_evaluate_top_k_pool_and_weights(toy_search):
     result, df = toy_search
     pool = ensemble.top_k_states(result["score_cache"], k=5)
     report = ensemble.evaluate_top_k(
-        result["plan"], pool, df, "target", "classification",
-        scoring="accuracy", size=3,
+        result["plan"],
+        pool,
+        df,
+        "target",
+        "classification",
+        scoring="accuracy",
+        size=3,
     )
     assert report["pool_size"] == len(pool)
     assert 1 <= report["k"] <= 3
@@ -324,7 +347,7 @@ def test_top_k_states_collapses_states_that_are_the_same_pipeline():
     defaults = {"model": "LGBM", "n_trees": 550}
     cache = {
         (("model", "LGBM"), ("n_trees", 550)): 0.90,  # explicit default
-        (("model", "LGBM"),): 0.90,                   # same pipeline, omitted
+        (("model", "LGBM"),): 0.90,  # same pipeline, omitted
         (("model", "LGBM"), ("n_trees", 100)): 0.85,  # genuinely different
     }
     assert len(ensemble.top_k_states(cache, k=3)) == 3  # old behaviour

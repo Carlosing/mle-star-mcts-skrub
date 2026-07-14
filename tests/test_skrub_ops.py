@@ -106,8 +106,11 @@ def test_booster_rollout_is_identical_and_crashfree_across_n_jobs():
     n = 300
     rs = np.random.RandomState(0)
     d = pd.DataFrame(
-        {"a": rs.rand(n), "b": [f"t{i % 5}" for i in range(n)],
-         "y": [i % 2 for i in range(n)]}
+        {
+            "a": rs.rand(n),
+            "b": [f"t{i % 5}" for i in range(n)],
+            "y": [i % 2 for i in range(n)],
+        }
     )
     spec = resolve_spec(
         {"model": ["lightgbm.LGBMClassifier"]}, task_type="classification"
@@ -257,7 +260,11 @@ def test_impute_numeric_fills_nan_and_is_noop_when_clean():
 
     imp = skrub_ops._ImputeNumeric()
     X = pd.DataFrame(
-        {"num": [1.0, np.nan, 3.0], "clean": [10, 20, 30], "txt": ["a", "b", "c"]}
+        {
+            "num": [1.0, np.nan, 3.0],
+            "clean": [10, 20, 30],
+            "txt": ["a", "b", "c"],
+        }
     )
     out = imp.fit_transform(X)
     assert out["num"].tolist() == [1.0, 2.0, 3.0]  # median(1,3)=2 fills the NaN

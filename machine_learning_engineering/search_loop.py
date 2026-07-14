@@ -664,7 +664,9 @@ def make_llm_proposer(
         from google import genai  # lazy
         from google.genai import types as genai_types  # lazy
 
-        _gclient = genai.Client()  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI
+        _gclient = (
+            genai.Client()
+        )  # reads GOOGLE_API_KEY / GOOGLE_GENAI_USE_VERTEXAI
         search_tools = [
             genai_types.Tool(google_search=genai_types.GoogleSearch())
         ]
@@ -685,7 +687,8 @@ def make_llm_proposer(
         from openai import OpenAI  # lazy
 
         _oclient = OpenAI(
-            api_key=os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY"),
+            api_key=os.environ.get("API_KEY")
+            or os.environ.get("OPENAI_API_KEY"),
             base_url=os.environ.get("API_BASE")
             or os.environ.get("OPENAI_API_BASE"),
         )
@@ -763,7 +766,7 @@ def make_llm_proposer(
             '{"params": {...}, "slots": {"high_cardinality"|"low_cardinality"|'
             '"numeric"|"datetime": [<paths>]}} (each omitted knob keeps skrub\'s '
             "default; list a boolean's skrub default first). ALWAYS "
-            'give each new operator a generous hyperparameter range via '
+            "give each new operator a generous hyperparameter range via "
             '"params" ({"int": [lo, hi]}, {"float": [lo, hi], "log": true} or '
             '{"choice": [...]}) so it competes tuned — but avoid upper bounds '
             "that blow up training time. You may rate a new option with "

@@ -52,11 +52,15 @@ def spec_raw(task: str, task_type: str | None = None) -> str:
 def _generic_plan(task_type: str) -> dict:
     """A task-agnostic plan menu: clean/encoder choices + the three base models."""
     return {
-        "vectorizer": {"slots": {"high_cardinality": [
-            "skrub.GapEncoder",
-            "skrub.MinHashEncoder",
-            "skrub.StringEncoder",
-        ]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    "skrub.GapEncoder",
+                    "skrub.MinHashEncoder",
+                    "skrub.StringEncoder",
+                ]
+            }
+        },
         "stages": [
             {
                 "name": "scale",
@@ -95,7 +99,12 @@ def make_replay_proposer(extension: dict, log_dir=None):
     def propose(plan_json, context=None):
         calls[0] += 1
         if log_dir is not None:
-            _log(log_dir, calls[0], (context or {}).get("target_stage"), extension)
+            _log(
+                log_dir,
+                calls[0],
+                (context or {}).get("target_stage"),
+                extension,
+            )
         return extension
 
     return propose
@@ -184,7 +193,9 @@ PLANS: dict[str, dict] = {
     # All-numeric regression: no categoricals/dates — search scaling +
     # polynomial interactions (lat/long) + a tuned model.
     "california-housing-prices": {
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.StringEncoder"]}},  # no high-card cats; moot
+        "vectorizer": {
+            "slots": {"high_cardinality": ["skrub.StringEncoder"]}
+        },  # no high-card cats; moot
         "stages": [
             {
                 "name": "scale",
@@ -237,7 +248,11 @@ PLANS: dict[str, dict] = {
                 "cols": ["item", "make"],
             },
         ],
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+            }
+        },
         "stages": [
             {
                 "name": "scale",
@@ -248,7 +263,11 @@ PLANS: dict[str, dict] = {
     },
     # Dirty high-card categoricals (division 650, title 402) + a date string.
     "employee-salaries": {
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.StringEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.StringEncoder"]
+            }
+        },
         "scoped_encodings": [
             {
                 "name": "hire_date",
@@ -257,9 +276,7 @@ PLANS: dict[str, dict] = {
                     "skip",
                     {
                         "name": "skrub.DatetimeEncoder",
-                        "params": {
-                            "resolution": {"choice": ["month", "day"]}
-                        },
+                        "params": {"resolution": {"choice": ["month", "day"]}},
                     },
                 ],
                 "position": "pre_encode",
@@ -277,7 +294,11 @@ PLANS: dict[str, dict] = {
     # 9-class classification; many binary Yes/No cols + high-card free text
     # ("what would you call..." 780, ZIP 1734).
     "midwest-survey": {
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.StringEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.StringEncoder"]
+            }
+        },
         "scoped_encodings": [
             {
                 "name": "region_freetext",
@@ -293,11 +314,15 @@ PLANS: dict[str, dict] = {
     },
     # Binary classification; high-card dirty text with heavy missingness.
     "open-payments": {
-        "vectorizer": {"slots": {"high_cardinality": [
-            "skrub.GapEncoder",
-            "skrub.MinHashEncoder",
-            "skrub.StringEncoder",
-        ]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    "skrub.GapEncoder",
+                    "skrub.MinHashEncoder",
+                    "skrub.StringEncoder",
+                ]
+            }
+        },
         "model": _CLF_MODELS,
     },
     # --- staged by scripts/stage_tasks.py ------------------------------------
@@ -330,7 +355,11 @@ PLANS: dict[str, dict] = {
     },
     # Dirty high-cardinality provider names/addresses; two informative numerics.
     "medical-charge": {
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+            }
+        },
         "stages": [
             {
                 "name": "scale",
@@ -341,22 +370,33 @@ PLANS: dict[str, dict] = {
     },
     # ONE free-text column: the encoder stage is effectively the whole search.
     "toxicity": {
-        "vectorizer": {"slots": {"high_cardinality": [
-            {
-                "name": "skrub.GapEncoder",
-                "params": {"n_components": {"int": [10, 50]}},
-            },
-            {
-                "name": "skrub.MinHashEncoder",
-                "params": {"n_components": {"int": [20, 80]}},
-            },
-            "skrub.StringEncoder",
-        ]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    {
+                        "name": "skrub.GapEncoder",
+                        "params": {"n_components": {"int": [10, 50]}},
+                    },
+                    {
+                        "name": "skrub.MinHashEncoder",
+                        "params": {"n_components": {"int": [20, 80]}},
+                    },
+                    "skrub.StringEncoder",
+                ]
+            }
+        },
         "model": _CLF_MODELS,
     },
     # 40+ mixed columns, 4 imbalanced classes; free text + dates + Yes/No flags.
     "traffic-violations": {
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder", "skrub.StringEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    "skrub.MinHashEncoder",
+                    "skrub.StringEncoder",
+                ]
+            }
+        },
         "scoped_encodings": [
             {
                 "name": "stop_date",
@@ -371,11 +411,15 @@ PLANS: dict[str, dict] = {
     # Heavy-tailed sales from title/platform/genre/publisher only (regional
     # sales dropped as leakage) — the high-card 'Name' column dominates.
     "videogame-sales": {
-        "vectorizer": {"slots": {"high_cardinality": [
-            "skrub.GapEncoder",
-            "skrub.MinHashEncoder",
-            "skrub.StringEncoder",
-        ]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    "skrub.GapEncoder",
+                    "skrub.MinHashEncoder",
+                    "skrub.StringEncoder",
+                ]
+            }
+        },
         "model": _REG_MODELS,
     },
     # Relational, credit-fraud shaped: main is (Country, happiness_score), so
@@ -440,7 +484,14 @@ PLANS: dict[str, dict] = {
                 "cols": ["city", "state"],
             },
         ],
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.StringEncoder", "skrub.MinHashEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": [
+                    "skrub.StringEncoder",
+                    "skrub.MinHashEncoder",
+                ]
+            }
+        },
         "stages": [
             {
                 "name": "scale",
@@ -468,7 +519,11 @@ PLANS: dict[str, dict] = {
                 "cols": ["genres"],
             },
         ],
-        "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]}},
+        "vectorizer": {
+            "slots": {
+                "high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]
+            }
+        },
         "model": _REG_MODELS,
     },
 }

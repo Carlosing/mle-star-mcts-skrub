@@ -8,35 +8,95 @@ LLM never does the search; it only proposes the space (**O(1) LLM calls per
 task**, plus at most one call between search slices for Option 3 — never inside
 the inner search loop).
 
-_Last updated: 2026-07-11. Pre-ship quality upgrades (2026-07-10): whole-plan
-extending injection replaces stage-targeted Option 3, focused-refinement bonus
-phase replaces the HP-only one, structure-aware subsampling + seed-averaged
-rewards fix the noisy imbalanced-task proxy, `_SanitizeColumns` makes injected
-boosters fit through skrub's special-character column names. 2026-07-11 session:
-robustness + perf + second provider — parser rejects truncated JSON fragments;
-numeric grids include each dim's default (root reachable by `expand`);
-sparse/tuple params coerced; ensemble deduped on effective state; malformed/
-single-option stages surfaced (`dropped_sections`/`single_option_stages`);
-`all_aggregates` chains multi-table joins; rollout wall-clock cap 45→60s;
-**CV fold-parallelism `n_jobs=6` (default, booster-safe — the segfault is the
-estimator's own OpenMP, not joblib forking); `--n-jobs` CLI + `NJOBS` make var**;
-**two-provider env scheme (`PROVIDER=google|school`) live-validated on GWDG's
-qwen3.5-397b** (16k LiteLlm max_tokens for reasoning models, search hints
-stripped off-Gemini, `make probe-school`). Offline suite: **pytest tests/ green**
-(292 passed, 1 skipped — the gated live Gemini smoke; ~2 min with CV n_jobs=6).
-Option-3 proposer is now provider-agnostic (Gemini or school/OpenAI-compat, same
-env switch as the agents) — PROVIDER=school has full Option-3 parity, validated
-live on qwen3.5-397b (injected KMeans/QuantileTransformer/Spline). A malformed
-proposed HP (log scale + 0.0 low) that used to raise out of `resolve_spec` and
-silently drop the whole injection is fixed (`_build_choice` linear-fallback +
-per-param guard in `_make`); a merge that still won't resolve is recorded in
-`result["proposal_injection_error"]` and surfaced in summary.md, so a failed
-injection is distinguishable from "proposer added nothing". Friend-facing usage
-guide at `docs/USAGE.md`; `make probe-school`, `PROVIDER=`/`NJOBS=` flags. Owed: `llm_calls` miscounts offline replay proposers as real calls.
-Historical bugs (symptom → cause → fix → test) are catalogued in
-[BUG_LEDGER.md](BUG_LEDGER.md). Post-freeze improvement ideas (HPO-framework
-engine swap, warm-start revamp, space cuts, token ablations) are recorded in
-[FUTURE_WORK.md](FUTURE_WORK.md) — deliberately not implemented._
+_Last updated: **2026-07-14 — project hand-off.** The code is feature-complete and
+the offline suite is green. The **shipped results are knowingly biased in our own
+favour** and must be reported as such: they predate the on-disk train/holdout split
+(commit `517f954`), so the search selected its configs with the eval rows visible
+while AutoGluon's did not. The fix is in the code but there was no time to re-run
+the benchmark. Read
+[Hand-off — the published numbers are biased](#hand-off--the-published-numbers-are-biased)
+before you write a single number down._
+
+_History: the search core (MCTS + skrub + the two-agent plan) froze on 2026-07-09;
+pre-ship quality upgrades landed 07-10 (whole-plan extending injection,
+focused-refinement bonus phase, structure-aware subsampling, `_SanitizeColumns`);
+robustness + a second provider on 07-11 (truncated-JSON rejection, default-in-grid
+numeric options, CV fold-parallelism `n_jobs=6`, `PROVIDER=google|school`
+live-validated on GWDG's qwen3.5-397b). Weeks of 07-12→07-14 were **evaluation
+plumbing and evaluation-integrity fixes**, not new search features: always-on
+skrub backbones, the Caruana ensemble, the benchmark harness (AutoGluon + a
+revived MLE-STAR), and the shared on-disk bench — see
+[Landed after the freeze](#landed-after-the-freeze-jul-10--jul-14). Historical
+bugs (symptom → cause → fix → test) are catalogued in
+[BUG_LEDGER.md](BUG_LEDGER.md); post-freeze ideas that were deliberately NOT
+implemented are in [FUTURE_WORK.md](FUTURE_WORK.md)._
+
+## Hand-off — the published numbers are biased
+
+**Decision (2026-07-14): we ship the existing results and disclose the bias,
+rather than re-run the benchmark.** There was no time to re-run before the
+deadline. This section is the record of *exactly* what the bias is, so the
+writeup can state it precisely instead of hand-waving.
+
+### What is and isn't wrong with the archived results
+
+They are **not** garbage, and they are **not** incomparable. The two arms are on a
+common bench:
+
+- Both the extension and AutoGluon scored the **identical rows** — both called
+  `ensemble.holdout_split(train.csv, target, task_type, seed=42, frac=0.25)`, the
+  same function with the same seed, and `train.csv` was byte-stable across every
+  archived run (it last changed 2026-07-10; the earliest archived run is 07-12).
+- Both **fit on the same 75%** and scored the same 25%. The final-fit protocol is
+  symmetric.
+
+The asymmetry is in **model selection**, and it is one-directional:
+
+> `pipeline.run_pipeline` handed the **full** `train.csv` to `run_search_loop`, so
+> every MCTS rollout cross-validated over rows that were also in the 25% holdout.
+> The extension therefore *chose* its pipeline, model and hyperparameters with the
+> eval rows visible. AutoGluon chose its models having only ever seen the 75%.
+
+So the archived extension score is **optimistically biased**; AutoGluon's is
+clean. The reported extension−AutoGluon delta is an **upper bound** on the true
+delta. (Full write-up: BUG_LEDGER #25–#28.)
+
+### How to report it
+
+- ✅ **Quote `result["holdout"]["score"]`** — the *incumbent* on the shared 25%.
+  This is already what `scripts/make_figures.py` plots, and it carries **only**
+  the selection bias above.
+- ❌ **Do NOT quote `ensemble_score`** from the 28 Caruana-era archived runs
+  (anything after `4490d2e`, 07-13). There, `_caruana_select` greedily *maximised*
+  the holdout score and we then published that maximum — a **second, larger** bias
+  stacked on the first, and precisely the ensemble-overfitting flaw our own report
+  criticises MLE-STAR for (§8.3). The 6 pre-Caruana runs used an unweighted top-k
+  mean and carry only the selection bias, but the simplest safe rule is: **report
+  the incumbent, not the ensemble.**
+- State the bias **direction and cause**, and that its **magnitude is unmeasured**.
+  It is honest to write "optimistic, unquantified, upper bound"; it is not honest
+  to write "small" or "negligible" — nobody measured it.
+- **MLE-STAR has 0 runs.** It was never executed end-to-end. Do not put a number
+  in its column; the harness (caps + scorer) is tested but unused.
+
+### The cheap way out, if any time appears
+
+Re-running the extension does **not** cost API quota: `scripts/replay_from_run.py`
+/ `run_pipeline(spec_raw=…)` reuse a run's captured plan, so a replay on the fixed
+split is pure CPU and zero LLM calls (~3 min/arm on country-happiness). Re-running
+AutoGluon costs nothing but CPU either. Doing **three fast tasks** (country-happiness,
+california-housing-prices, toxicity) on the fixed split would turn "unquantified
+bias" into "bias measured at X on a 3-task sample" — a materially stronger claim
+for a few hours of compute and no quota. Protocol in
+[USAGE.md § Benchmark comparison](USAGE.md#benchmark-comparison-extension-vs-autogluon-vs-mle-star).
+
+### Also still true
+
+- **Any *fresh* run is clean** — the code is fixed. On a new run, check
+  `ensemble.selection == "oof_3fold"` (not `legacy_holdout`) before quoting it.
+- **Wide high-cardinality tasks remain intractable at a real budget**
+  (traffic-violations projected ~15h; GapEncoder forfeits on the 60s rollout cap).
+  See [BUG_LEDGER § Open / flagged](BUG_LEDGER.md#open--flagged-not-fixed).
 
 ## Architecture — three layers
 
@@ -55,13 +115,24 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 
 ## End-to-end flow (`pipeline.run_pipeline`)
 
+0. **The split already exists on disk.** `scripts/stage_tasks.py` (`make stage-tasks`)
+   wrote `train.csv` / `test.csv` / `test_answer.csv` once, before any method ran.
+   `load_task` reads **only** `train.csv`; `load_holdout` reads the other two and
+   is handed to the *scorers* alone. The search physically cannot see the holdout.
 1. **load_task** → dataframe + target + task_type + metric (parses `task_description.txt`).
 2. **make_data_summary** → compact EDA digest (the only thing the LLM sees of the data).
 3. **ADK agents** → `data_analyst` (web search) → `plan_author` → JSON plan in state.
 4. **resolve_spec** → JSON names/HP-ranges → seeded estimators + `choose_*` nodes (allowed-list, no `eval`).
 5. **build_staged_plan** → skrub DataOps plan; **get_action_space** → the MCTS search space; **get_choice_gating** → model→HP gate.
 6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs); `outer_steps>1` runs the budget as fixed-size slices on one tree, re-mining the tree between slices to pick a focus stage — a proposer hint only, expansion is never locked (Option 1, `retarget=`) — and, with a proposer, asking for a whole *extended plan* before each subsequent slice (Option 3 — `search → propose → search → …`; the extension is merged strictly additively via `_merge_raw_plans`, re-resolved, and rebuilt, so injected operators arrive with their HP ranges). After the budget, a **focused-refinement bonus phase** (`ceil(total/4)` rollouts, no LLM) descends from the incumbent node and explores ALL of its single-edit neighbors — structure and HPs alike (`refinement_phase=`, dims reported as `refined_dims`).
-7. **report** → score the incumbent on the competition metric (RMSE, etc.); write `runs/<task>_<ts>/{result.json,summary.md}`.
+7. **ensemble** (`top_k > 1`) → Caruana greedy selection over a candidate pool of the
+   top `max(2*top_k, ensemble_pool)` distinct cache configs. Members are **selected**
+   on 3-fold out-of-fold predictions spanning all of train, then **refit on all of
+   train and scored on the shared holdout** — selection rows and reported rows are
+   never the same rows (`ensemble.selection` records which logic ran).
+8. **report** → score the incumbent on the competition metric (RMSE, etc.) by CV
+   (`report`) *and* on the shared on-disk holdout (`holdout` — the cross-method
+   comparable number); write `runs/<task>_<ts>/{result.json,summary.md,ensemble.pkl}`.
 
 ## Module map
 
@@ -74,12 +145,25 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `build_root_agent` factory; `_resolve_model` env-switches native Gemini vs `LiteLlm` (OpenAI/compatible); `google_search` attached only on the Gemini path |
 | `metrics.py` | search-reward scorer (per task; adopts a bounded task metric like roc_auc) vs report metric (competition) |
-| `ensemble.py` | **top-k read-off**: `top_k_states` over the score cache + `evaluate_top_k` (seeded holdout, soft-vote/average) |
-| `pipeline.py` | end-to-end driver + CLI (`--budget`, `--outer-steps`, `--refine`, `--top-k`); multi-table `load_task` (`aux_*.csv`) |
-| `scripts/stage_credit_fraud.py` | stages the relational credit-fraud task under `tasks/` (`make stage-credit-fraud`) |
-| `run_logging.py` | sanity log of prompts+outputs to JSONL (`log_dir`) |
-| `agent.py`, `sub_agents/`, `eval/` | **deprecated** standalone OpenAI `ManagerAgent` template (OpenAI now runs *through* ADK via `LiteLlm`; decoupled, **off the MCTS path**) |
+| `ensemble.py` | **Caruana ensemble read-off** over the persisted score cache (no new search): `top_k_states` ranks the cache (deduped on the defaults-filled *effective* state), `_caruana_select` greedily builds a **weighted** ensemble with replacement + early stop, `evaluate_top_k` keeps **selection** (3-fold OOF over all of train) and **reporting** (refit on train, score the shared holdout) on disjoint rows and stamps `selection`; `holdout_split` is the seeded split helper; `EnsemblePredictor` is the fitted, picklable result (`ensemble.pkl`) |
+| `pipeline.py` | end-to-end driver + CLI (`--budget`, `--outer-steps`, `--refine`, `--top-k`, `--n-proposes`, `--n-jobs`, `--time-budget-s`, `--legacy-ensemble`); multi-table `load_task` (`aux_*.csv`, reads **only `train.csv`**); `load_holdout` (the shared on-disk bench); `save_run_artifacts` (`result.json` + `summary.md` + `ensemble.pkl`) |
+| `runner.py` | minimal OpenAI-compatible runner used by the **revived MLE-STAR baseline** in place of the ADK runtime; `llm_call` is the single chokepoint the benchmark harness wraps to impose call/token/time caps |
+| `run_logging.py` | sanity log of prompts+outputs to JSONL (`log_dir`), incl. per-call `tokens` |
+| `agent.py`, `sub_agents/`, `shared_libraries/`, `eval/` | the **upstream MLE-STAR agent, revived as the benchmark baseline** (driven by `scripts/run_mlestar.py` through `runner.py`, hard-capped). It is *not* on the MCTS path and no MCTS feature belongs here — but it is no longer dead code: it is the thing we compare against. `shared_libraries/web_search_util.py` (DuckDuckGo) backs its model-retrieval step |
 | `probe_gemini.py`, `probe_school.py` | standalone model/quota probes (Gemini; GWDG school endpoint) |
+
+### Benchmark + evaluation scripts
+
+| File | Role |
+|---|---|
+| `scripts/stage_tasks.py` | **Draws the one and only train/holdout split, on disk** (`make stage-tasks`): `train.csv` / `test.csv` / `test_answer.csv` per task, 80/20 seeded, stratified for classification. Also encodes the per-dataset knowledge that can't be inferred (leaky columns, subsample size, aux joins) |
+| `scripts/stage_credit_fraud.py` | downloads + stages the relational credit-fraud task (`make stage-credit-fraud`, online, once) |
+| `scripts/run_autogluon.py` | AutoGluon baseline on the **same** holdout + time budget (`make bench-autogluon`). Flat-table only — it never sees `aux_*.csv`, which is exactly the extension's relational advantage. `NUM_CPUS=1` required on macOS-ARM (libomp) |
+| `scripts/run_mlestar.py` | the revived MLE-STAR under hard caps (`make bench-mlestar`) — max LLM calls, per-call token bound, wall-clock deadline. Its token cost is otherwise *unbounded*; treat its result as one data point, not a curve |
+| `scripts/claude_agents.py`, `scripts/run_claude_pipeline.py` | offline Claude-authored plans + replay proposer → full runs at **zero API quota** (`make run-claude` / `make sweep-claude`) |
+| `scripts/replay_from_run.py` | re-runs the search from a stored run's captured plan (`spec_raw`), for A/Bs at zero agent cost |
+| `scripts/collect_results.py` | copies `result.json` artifacts from `runs/` into the small git-shareable `results/` mirror (leaves AutoGluon's multi-GB `ag_models/` behind) |
+| `scripts/make_figures.py` | renders `figures/`: `quality_at_cost.png`, `time_scaling.png`, `mechanism_table.md`, `comparison.csv`. All three methods emit the same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`, `wall_clock_s`), so it reads them uniformly |
 
 ---
 
@@ -152,10 +236,14 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 - ✅ **Richer Option-3 proposer** — the one-call-per-step prompt now carries the full
   cross-stage tree ledger, the incumbent config+score, the data digest and real column
   names; plan_author is instructed to give generous (registry-clipped) HP ranges up front.
-- ✅ **Top-k ensemble (thin read-off)** — `ensemble.top_k_states` ranks the persisted
-  score cache; `evaluate_top_k` fits each config on a seeded split and soft-votes /
-  averages on the holdout; `--top-k` / `TOP_K=` reports ensemble vs incumbent.
-  (`tests/test_ensemble.py`.)
+- ✅ **Top-k ensemble (thin read-off)** *(superseded 2026-07-13/14 — the unweighted
+  top-k mean is now a **Caruana** greedy weighted selection over a wider pool, and the
+  members are selected on out-of-fold rows rather than the reported holdout; see
+  [Landed after the freeze](#landed-after-the-freeze-jul-10--jul-14). The old combiner
+  still runs on the same fits and is returned as `ensemble_score_mean`, so every run is
+  a free A/B.)* — `ensemble.top_k_states` ranks the persisted score cache;
+  `evaluate_top_k` fits the pool and scores the holdout; `--top-k` / `TOP_K=` reports
+  ensemble vs incumbent. (`tests/test_ensemble.py`.)
 - ✅ **Search reward can adopt a bounded task metric** — `search_scorer(task_type, metric)`
   returns roc_auc/f1/etc. when the task metric is already bounded higher-is-better
   (accuracy is blind on 1.25%-positive credit-fraud).
@@ -323,47 +411,63 @@ figures.
    classification (minority < 5%); `--subsample-seeds` on the CLI.
    (`tests/test_profile_subsample.py`.)
 
-### Week 3 — freeze, evaluate, write, buffer (Jul 10 – Jul 15)
+### Landed after the freeze (Jul 10 – Jul 14)
 
-| Item | Est. |
-|---|---|
-| **Full evaluation** across all demo datasets | Wed–Thu (Jul 10–11) |
-| **Three headline figures + MLE-STAR comparison table + slides** | Fri–Sat (Jul 12–13) |
-| **Buffer** (dataset debugging, Gemini quota, dry-run) | Sun–Mon (Jul 13–14) |
-| **Submit** | Tue Jul 15, before 18:00 |
+Everything here is **evaluation plumbing or an integrity fix** — no new search
+features, and the LLM-call invariant was never touched.
 
-- **Full evaluation** on `employee_salaries`, `credit_fraud`, `california_housing`
-  (+ `midwest_survey`/`bike_sharing` if clean).
-- **Three headline comparisons:** (1) **flexibility lift** — fixed space vs Option 3;
-  (2) **relational lift** — assemble vs flat on `credit_fraud` (ideally vs an AutoGluon
-  flat-table baseline); (3) **time-scaling at constant LLM cost** — several budgets per
-  task via repeated `make run-live` (the old "Option 1 on vs off" comparison was shown
-  to be a null axis on 2026-07-13, and the sweep harness was removed with it). Plus the
-  ensemble lift.
-- **Writeup + slides:** the MLE-STAR comparison table (mechanism / debug cost / token cost /
-  leakage handling / adaptivity) + the figures.
+| Landed | What | Why it matters |
+|---|---|---|
+| **Jul 12** | **Always-on skrub backbones** (`8cc66f9`) — `clean`/`encode` are now always a bare `Cleaner()` + `TableVectorizer()` (skrub's own defaults = the robust root). The register-operator default menus were deleted; their knobs are now LLM-authored like any HP (`cleaner`/`vectorizer` spec keys). Scalar `choice` lists are reordered **default-first** so the root reproduces stock behaviour (trap: `skrub.choose_bool()` defaults to `True`) | The old code-owned fallback menus were arbitrary; the space is now entirely LLM-proposed, code-validated |
+| **Jul 12** | **TextEncoder backbone cache + JSON parse safety nets** (`3c00e95`) — the e5-small-v2 backbone is cached per `model_name` (1 load per run, not per rollout); `parse_spec_json` repairs Python literals (`None`/`True`) and balanced-but-broken JSON, still rejecting truncation | qwen emitted Python `None` and silently fell back to a bare plan; the fix recovered the rich plan (traffic-violations holdout 0.882 vs 0.837) |
+| **Jul 13** | **Retarget lock removed** (`42536c6`) — Option 1's stage pick is now a **proposer hint only**; expansion is never locked to it | Replay A/Bs showed the variance ledger elects `model` on essentially every pick (a null A/B axis), while the lock *starved* off-target injections until the bonus phase — on country-happiness the winning edit was exactly such a rescue (−753.87 → −716.95). `mcts.expand`'s `target_key` capability remains, just unused |
+| **Jul 13** | **Sweep harness removed** (`42536c6`, `ed932c4`) — `sweep.py`, `sweeps/`, `make sweep*`, `tests/test_sweep.py` | Budget and `N_PROPOSES` are chosen by wall-clock and LLM-call count, not by sweeping the search's own HPs — and the one axis it existed to A/B (`retarget`) was null. What survives: `run_pipeline(spec_raw=…)` spec reuse, the `--c`/`--seed` CLI plumbing, and the time-scaling figure (now read from `result.json` artifacts at different budgets) |
+| **Jul 13** | **Caruana ensemble** (`4490d2e`) — greedy weighted selection with replacement + early stop over a **pool** of the top `max(2*top_k, 10)` distinct configs, replacing the unweighted top-k mean. Plus `_ImputeNumeric` (post-aggregation NaNs were silently failing models) | The pool reaches *past* the incumbent's near-duplicate cousins for real model-family diversity; the early stop collapses a duplicate pool to one member, so it is never worse than the incumbent. `ensemble_score_mean` returns the old combiner on the same fits — a free A/B every run |
+| **Jul 14** | **Shared on-disk train/holdout split** (`517f954`) — the split is drawn by `stage_tasks.py` *before any method sees the data*; `load_task` reads only `train.csv` | **The integrity fix.** Previously the search CV'd over rows that later became its own eval set, so every extension-vs-AutoGluon delta was overstated. See BUG_LEDGER #25–#28 |
+| **Jul 14** | **OOF ensemble selection** (`dbc0f77`) — Caruana selects on 3-fold out-of-fold predictions over *all* of train, then refits and scores the untouched holdout; `selection` stamped on every artifact | Selecting on the reported rows made `ensemble_score` a greedy maximum over the published metric — the exact flaw the MLE-STAR report criticises MLE-STAR for. Corollary: the ensemble is **no longer guaranteed** to beat the best pool member; that guarantee *was* the bias |
+| **Jul 14** | **`--legacy-ensemble` flag, pickled `EnsemblePredictor`, root `figures/`** (`eb94f55`) | `LEGACY_ENSEMBLE=1` keeps pre-fix results reproducible and makes the two paths A/B-able on an identical split; `ensemble.pkl` is the fitted final model, built free from fits the reporting pass already did |
+| **Jul 11–14** | **Benchmark harness** — `run_autogluon.py`, `run_mlestar.py` (revived MLE-STAR under hard caps), `collect_results.py`, `make_figures.py`, token instrumentation (`result["tokens"]`), `--time-budget-s` | The three-way comparison at the heart of the writeup. All arms emit one uniform `result.json` schema |
 
-### Ops / housekeeping (fit in around the above)
+### What's next (in order)
+
+1. **Write up the results with the bias disclosed.** Follow
+   [How to report it](#how-to-report-it) to the letter: quote the incumbent
+   `holdout` score, never the Caruana-era `ensemble_score`; state the bias as
+   optimistic / unquantified / an upper bound on the delta; leave MLE-STAR's
+   column empty.
+2. **The headline comparisons.** (a) **relational lift** — assemble vs flat on
+   credit-fraud / country-happiness, where AutoGluon is *structurally* blind to
+   `aux_*.csv`. Note this one is **not** undermined by the bias: it is an
+   architectural capability gap, not a score delta. (b) **time-scaling at constant
+   LLM cost** — several budgets per task; also robust, since it is a within-method
+   trend, and both ends carry the same bias. (c) **flexibility lift** — fixed space
+   vs Option 3, likewise within-method. *The bias hurts the head-to-head
+   quality-vs-AutoGluon number most, and the structural claims least — lead with
+   the structural claims.*
+3. **Writeup + slides:** the MLE-STAR comparison table (mechanism / debug cost /
+   token cost / leakage handling / adaptivity) + the figures. The token-cost axis
+   (constant vs unbounded) is measured and unaffected by the split bug.
+4. **If time appears:** the zero-quota partial re-run described in
+   [The cheap way out](#the-cheap-way-out-if-any-time-appears).
+
+### Ops / housekeeping
 
 - `uv lock` reconcile when online (`make sync`); local/Docker version parity.
-- ~~Acquire/stage the relational dataset (`fetch_credit_fraud`) under `tasks/`.~~ ✅ done
-  (`make stage-credit-fraud` → `tasks/credit-fraud/`).
-- Stable live-eval runs once Gemini quota is steady.
+- Benchmark deps are an extra, deliberately out of the core: `uv sync --extra bench`.
+- The `results/` mirror is git-shareable by construction (`make collect-results`
+  leaves AutoGluon's multi-GB `ag_models/` behind).
 
 ### Explicitly cut (do not reopen)
 
-- Full MLE-STAR iterative ensembler (the thin top-k read-off in `ensemble.py` replaces it).
+- Full MLE-STAR iterative ensembler (the Caruana read-off in `ensemble.py` replaces it —
+  it reuses the search's own score cache, so it costs no new rollouts).
 - ArchPilot-style restart, mid-search GEN/progressive-widening — wrong fit (our scorer is fixed), wrong cost class.
 - `post-process` skrub stage, per-model training loss as a searchable HP — future work.
   (`scope` was on this list but was **reopened by decision and shipped 2026-07-05** as
   `scoped_encodings`.)
 - Per-expansion or per-rollout LLM calls — the invariant; rejected regardless of per-call cost.
-
-### Fallback
-
-If relational assemble isn't stable end-to-end by midweek 2, ship **Option 1 + Option 3 +
-top-k ensemble** as the evaluated result and present relational as designed/partially-built
-future work. **Protect Week-3 evaluation time above any single feature.**
+- The sweep harness (removed 2026-07-13) — do not rebuild it to A/B `retarget`; that
+  axis was measured and is null.
 
 ---
 
@@ -379,6 +483,11 @@ future work. **Protect Week-3 evaluation time above any single feature.**
   Option 3's injected paths go through the same import gate.
 - **Two scorers** — bounded higher-is-better reward for *search*; the competition
   metric only for the *final report* (they must not be conflated).
+- **The bench is drawn on disk, before any method runs** — not by convention inside
+  each method. A method cannot be trusted-but-verified into honouring a holdout; the
+  rows are simply absent from every file it can read. The same principle applies one
+  level down: the ensemble **selects** on out-of-fold rows and **reports** on the
+  holdout, because a number you fitted to is not a number you may publish.
 - **Persist the tree, don't restart** — our scorer is fixed, so a config's reward never
   changes when the target moves; the tree is a running ablation we mine for free.
 - **LLM-call complexity is the cost model** — O(1) per task, ≤ O(outer steps) with Option 3;

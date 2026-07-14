@@ -149,7 +149,9 @@ def test_parse_plan_accepts_fenced_json_objects():
     }
     assert _parse_plan(
         '```json\n{"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}\n```'
-    ) == {"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}
+    ) == {
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}
+    }
     # prose around the object is tolerated (parse_spec_json brace-scan)
     assert _parse_plan('Here you go: {"model": ["x.Y"]} hope it helps') == {
         "model": ["x.Y"]
@@ -246,14 +248,16 @@ def _fake_genai_client(script):
     return _Client
 
 
-def test_proposer_retries_without_search_and_logs_by_call(tmp_path, monkeypatch):
+def test_proposer_retries_without_search_and_logs_by_call(
+    tmp_path, monkeypatch
+):
     from google import genai
 
     # grounded (search) call returns nothing; the search-off retry returns a plan
     client_cls = _fake_genai_client(
-        lambda mode: ""
-        if mode == "search"
-        else '{"model": ["lightgbm.LGBMRegressor"]}'
+        lambda mode: (
+            "" if mode == "search" else '{"model": ["lightgbm.LGBMRegressor"]}'
+        )
     )
     monkeypatch.setattr(genai, "Client", client_cls)
 
@@ -282,14 +286,18 @@ def test_proposer_no_retry_when_grounded_call_succeeds(tmp_path, monkeypatch):
     from google import genai
 
     client_cls = _fake_genai_client(
-        lambda mode: '{"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}'
+        lambda mode: (
+            '{"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}'
+        )
     )
     monkeypatch.setattr(genai, "Client", client_cls)
 
     propose = make_llm_proposer(model="gemini-2.5-flash", log_dir=str(tmp_path))
     out = propose({"model": ["sklearn.linear_model.Ridge"]}, {"columns": ["a"]})
 
-    assert out == {"vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}}
+    assert out == {
+        "vectorizer": {"slots": {"high_cardinality": ["skrub.MinHashEncoder"]}}
+    }
     resp = json.load(open(tmp_path / "proposer_1_response.json"))
     assert len(resp) == 1  # grounded success -> no retry record
     assert not any("retry" in r for r in resp)

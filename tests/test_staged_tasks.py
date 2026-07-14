@@ -68,7 +68,9 @@ def test_search_scorer_exists_for_task(task):
 def test_target_has_no_missing_values_after_load(task):
     # load_task drops unlabeled rows; nothing downstream tolerates NaN targets
     name, df, target, *_ = task
-    assert not df[target].isna().any(), f"{name}: NaN targets survived load_task"
+    assert not df[target].isna().any(), (
+        f"{name}: NaN targets survived load_task"
+    )
 
 
 def test_no_single_feature_perfectly_predicts_the_target(task):

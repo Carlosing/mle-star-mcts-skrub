@@ -32,8 +32,15 @@ from scripts.claude_agents import (
 )
 
 
-def run_task(task: str, out_dir: str, budget: int, n_proposes: int, top_k: int,
-             seed: int, legacy_ensemble: bool = False) -> dict:
+def run_task(
+    task: str,
+    out_dir: str,
+    budget: int,
+    n_proposes: int,
+    top_k: int,
+    seed: int,
+    legacy_ensemble: bool = False,
+) -> dict:
     """Run one task offline (Claude plan + Claude proposer) and return the result."""
     outer_steps = n_proposes + 1
     refine = n_proposes > 0
@@ -53,7 +60,9 @@ def run_task(task: str, out_dir: str, budget: int, n_proposes: int, top_k: int,
         propose=propose,
         top_k=top_k,
         legacy_ensemble=legacy_ensemble,
-        spec_raw=spec_raw(task, task_type),  # <- skips both ADK agents; no Gemini
+        spec_raw=spec_raw(
+            task, task_type
+        ),  # <- skips both ADK agents; no Gemini
     )
 
 
@@ -66,21 +75,27 @@ def _fmt(x, nd=4):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task", default=None, help="one task (default: all 5)")
-    parser.add_argument("--budget", type=int, default=20, help="rollouts per slice")
+    parser.add_argument(
+        "--task", default=None, help="one task (default: all 5)"
+    )
+    parser.add_argument(
+        "--budget", type=int, default=20, help="rollouts per slice"
+    )
     parser.add_argument(
         "--n-proposes",
         type=int,
         default=2,
         help="Option-3 proposer calls between slices (0 = off; Option 1 + HP-refine only)",
     )
-    parser.add_argument("--top-k", type=int, default=3, help="ensemble top-k (1 = off)")
+    parser.add_argument(
+        "--top-k", type=int, default=3, help="ensemble top-k (1 = off)"
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--legacy-ensemble",
         action="store_true",
         help="select the ensemble on the reported holdout (pre-2026-07-14 logic; "
-             "optimistic). Stamped ensemble.selection='legacy_holdout'",
+        "optimistic). Stamped ensemble.selection='legacy_holdout'",
     )
     parser.add_argument(
         "--out",
@@ -101,8 +116,13 @@ def main() -> None:
         started = time.time()
         try:
             r = run_task(
-                task, out_dir, args.budget, args.n_proposes, args.top_k,
-                args.seed, args.legacy_ensemble
+                task,
+                out_dir,
+                args.budget,
+                args.n_proposes,
+                args.top_k,
+                args.seed,
+                args.legacy_ensemble,
             )
             rep = r.get("report") or {}
             ens = r.get("ensemble") or {}
@@ -116,7 +136,9 @@ def main() -> None:
                     else "-",
                     "ensemble": _fmt(ens.get("ensemble_score")) if ens else "-",
                     "injected": ",".join(r.get("injected_options", [])) or "-",
-                    "proposer_calls": r["llm_calls"],  # spec_raw set -> base 0, so == n_proposes
+                    "proposer_calls": r[
+                        "llm_calls"
+                    ],  # spec_raw set -> base 0, so == n_proposes
                     "wall_s": round(time.time() - started, 1),
                     "status": "ok",
                 }
@@ -144,7 +166,9 @@ def main() -> None:
             )
         else:
             print(f"  {row['task']:<26} FAILED  {row.get('error', '')}")
-    print("\nGemini network calls: 0 (Claude authored every plan + proposal offline).")
+    print(
+        "\nGemini network calls: 0 (Claude authored every plan + proposal offline)."
+    )
     print(f"Artifacts: {parent}/<task>/{{result.json,summary.md}}")
 
 

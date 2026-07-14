@@ -161,9 +161,7 @@ def test_load_task_drops_unlabeled_rows(tmp_path):
     (task_dir / "task_description.txt").write_text(
         "Predict the target.\n\n# Metric\nrmse\n"
     )
-    loaded, target, *_ = pipeline.load_task(
-        "nan-task", data_dir=str(tmp_path)
-    )
+    loaded, target, *_ = pipeline.load_task("nan-task", data_dir=str(tmp_path))
     assert target == "target"
     assert not loaded["target"].isna().any()
     assert len(loaded) == 47
@@ -204,9 +202,7 @@ def test_negative_r2_config_ranks_above_a_failed_one():
     plan = skrub_ops.build_staged_plan(
         {"model": {"LR": LinearRegression()}}, df
     )
-    rollout = skrub_ops.make_rollout_fn(
-        plan, df, scoring="r2", target="target"
-    )
+    rollout = skrub_ops.make_rollout_fn(plan, df, scoring="r2", target="target")
     bad = rollout({"model": "LR"})
     failed = rollout({"model": "DoesNotExist"})
     assert failed == 0.0
@@ -234,13 +230,10 @@ def test_all_sub_baseline_landscape_stays_ordered():
         },
         df,
     )
-    rollout = skrub_ops.make_rollout_fn(
-        plan, df, scoring="r2", target="target"
-    )
+    rollout = skrub_ops.make_rollout_fn(plan, df, scoring="r2", target="target")
     lr, bad = rollout({"model": "LR"}), rollout({"model": "Bad"})
     # under the old [0,1] clamp BOTH were exactly 0.0 and UCT was blind here
     assert 0.0 < bad < lr < 0.5
-
 
 
 # --- AggJoiner "mode" leaves an array in the cell on a tie -------------------
@@ -250,7 +243,9 @@ def test_aggjoiner_mode_really_does_emit_array_cells():
     """Pin the upstream behavior the fix exists for (so we notice if skrub fixes it)."""
     main = pd.DataFrame({"k": ["a", "b", "c"]})
     # 'b' has a modal TIE (Y and Z once each); 'c' has no aux rows at all
-    aux = pd.DataFrame({"k": ["a", "a", "b", "b"], "city": ["X", "X", "Y", "Z"]})
+    aux = pd.DataFrame(
+        {"k": ["a", "a", "b", "b"], "city": ["X", "X", "Y", "Z"]}
+    )
     joined = skrub.AggJoiner(
         aux, "mode", main_key="k", aux_key="k", cols=["city"]
     ).fit_transform(main)
@@ -260,7 +255,9 @@ def test_aggjoiner_mode_really_does_emit_array_cells():
 
 
 def test_scalarize_aggregates_collapses_ties_and_leaves_scalars():
-    df = pd.DataFrame({"a": ["X", np.array(["Y", "Z"]), np.nan], "n": [1, 2, 3]})
+    df = pd.DataFrame(
+        {"a": ["X", np.array(["Y", "Z"]), np.nan], "n": [1, 2, 3]}
+    )
     out = skrub_ops._ScalarizeAggregates().fit(df).transform(df)
     assert out["a"].tolist()[:2] == ["X", "Y"]  # first element, deterministic
     assert out["n"].tolist() == [1, 2, 3]  # untouched
@@ -300,14 +297,20 @@ def test_mode_assemble_option_scores_instead_of_silently_zeroing():
                     "cols": ["city"],
                 }
             ],
-            "model": {"RF": RandomForestRegressor(n_estimators=20, random_state=0)},
+            "model": {
+                "RF": RandomForestRegressor(n_estimators=20, random_state=0)
+            },
         },
         main,
         target="target",
         aux_tables={"aux": aux},
     )
     rollout = skrub_ops.make_rollout_fn(
-        plan, main, aux={"aux": aux}, main_var="data", scoring="r2",
+        plan,
+        main,
+        aux={"aux": aux},
+        main_var="data",
+        scoring="r2",
         target="target",
     )
     assert rollout({"assemble": "city_mode", "model": "RF"}) > 0.5

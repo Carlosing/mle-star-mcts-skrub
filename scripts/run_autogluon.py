@@ -134,7 +134,9 @@ def run_autogluon(
             train,
             time_limit=time_budget_s,
             presets=presets,
-            ag_args_fit={"num_cpus": num_cpus},  # single-thread boosters (libomp)
+            ag_args_fit={
+                "num_cpus": num_cpus
+            },  # single-thread boosters (libomp)
         )
 
         pred = np.asarray(predictor.predict(features))
@@ -166,7 +168,9 @@ def run_autogluon(
 
 
 def _main() -> None:
-    parser = argparse.ArgumentParser(description="AutoGluon benchmark baseline.")
+    parser = argparse.ArgumentParser(
+        description="AutoGluon benchmark baseline."
+    )
     parser.add_argument("--task", required=True, help="staged task name")
     parser.add_argument(
         "--time-budget-s",
@@ -211,15 +215,15 @@ def _main() -> None:
     )
     import json
 
-    with open(
-        os.path.join(out_dir, "result.json"), "w", encoding="utf-8"
-    ) as f:
+    with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False, default=str)
 
     print(f"\nAutoGluon | task: {result['task']} ({result['task_type']})")
-    print(f"time budget: {result['time_budget_s']}s  |  "
-          f"wall clock: {result['wall_clock_s']}s  |  "
-          f"status: {result.get('status')}")
+    print(
+        f"time budget: {result['time_budget_s']}s  |  "
+        f"wall clock: {result['wall_clock_s']}s  |  "
+        f"status: {result.get('status')}"
+    )
     hold = result.get("holdout")
     if hold:
         print(f"holdout {hold['scorer']}: {hold['score']:.4f}")

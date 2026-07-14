@@ -158,11 +158,20 @@ def test_action_space_contains_each_numeric_dims_default():
             )
         },
     }
-    df = pd.DataFrame({"a": range(40), "b": [f"t{i%4}" for i in range(40)],
-                       "y": [float(i) for i in range(40)]})
+    df = pd.DataFrame(
+        {
+            "a": range(40),
+            "b": [f"t{i % 4}" for i in range(40)],
+            "y": [float(i) for i in range(40)],
+        }
+    )
     plan = build_staged_plan(spec, df, target="y")
     space, root = get_action_space(plan), get_default_state(plan)
 
-    unreachable = [k for k, v in root.items() if k in space and v not in space[k]]
-    assert not unreachable, f"root dims expand() can never select: {unreachable}"
+    unreachable = [
+        k for k, v in root.items() if k in space and v not in space[k]
+    ]
+    assert not unreachable, (
+        f"root dims expand() can never select: {unreachable}"
+    )
     assert 550 in space["model__RandomForestRegressor__n_estimators"]

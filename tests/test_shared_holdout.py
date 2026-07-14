@@ -20,7 +20,8 @@ from machine_learning_engineering import pipeline
 
 TASKS_DIR = "machine_learning_engineering/tasks"
 TASKS = sorted(
-    t for t in os.listdir(TASKS_DIR)
+    t
+    for t in os.listdir(TASKS_DIR)
     if os.path.isdir(os.path.join(TASKS_DIR, t))
 )
 
@@ -89,7 +90,9 @@ def test_load_holdout_refuses_a_stale_task_dir(tmp_path):
 def test_load_holdout_is_none_when_not_staged(tmp_path):
     task_dir = tmp_path / "toy"
     task_dir.mkdir()
-    pd.DataFrame({"x": [1], "y": [1]}).to_csv(task_dir / "train.csv", index=False)
+    pd.DataFrame({"x": [1], "y": [1]}).to_csv(
+        task_dir / "train.csv", index=False
+    )
     assert pipeline.load_holdout("toy", data_dir=str(tmp_path)) is None
 
 
@@ -135,4 +138,6 @@ def test_mlestar_scorer_scores_a_correct_submission(tmp_path):
     res = R._score_submission(task, str(tmp_path / "ws"), seed=42)
     assert "error" not in res, res
     assert res["n"] == len(holdout)
-    assert res["score"] == pytest.approx(0.0, abs=1e-9)  # neg RMSE of a perfect fit
+    assert res["score"] == pytest.approx(
+        0.0, abs=1e-9
+    )  # neg RMSE of a perfect fit

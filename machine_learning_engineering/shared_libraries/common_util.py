@@ -32,9 +32,7 @@ def get_text_from_response(response) -> str:
     content = getattr(response, "content", None)
     if content is not None and getattr(content, "parts", None):
         return "".join(
-            part.text
-            for part in content.parts
-            if getattr(part, "text", None)
+            part.text for part in content.parts if getattr(part, "text", None)
         )
 
     return ""

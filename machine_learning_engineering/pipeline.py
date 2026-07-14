@@ -4,11 +4,20 @@ This is the glue that finally connects the agent layer to the search layer:
 
     load_task -> make_data_summary -> [ADK: analyst -> plan_author]
       -> resolve_spec -> build_staged_plan -> get_action_space + make_rollout_fn
-      -> mcts_search -> (report on the incumbent)
+      -> run_search_loop -> Caruana ensemble -> report
 
-The only live-LLM cost is the two agent turns; the MCTS rollouts are pure skrub
-(no quota). Spec parsing/resolution is wrapped so a malformed or truncated LLM
-response falls back to a minimal default rather than crashing the run.
+The only live-LLM cost is the two agent turns (+1 per Option-3 propose); the
+MCTS rollouts are pure skrub (no quota). Spec parsing/resolution is wrapped so a
+malformed or truncated LLM response falls back to a minimal default rather than
+crashing the run.
+
+The train/holdout boundary is NOT enforced here — it is drawn on disk by
+`scripts/stage_tasks.py` before any method runs. `load_task` reads only
+`train.csv`, so the holdout rows are physically absent from the frame the search
+sees; `load_holdout` reads `test.csv` + `test_answer.csv` and is handed to the
+*scorers* alone. That asymmetry is deliberate: a holdout honoured by convention
+inside the driver is one refactor away from leaking, and the leak is silent (it
+shows up as a good score). See docs/BUG_LEDGER.md #25-#28.
 
 Run:  uv run python -m machine_learning_engineering.pipeline --budget 20
 """
@@ -157,7 +166,13 @@ def _parse_metric(desc: str) -> str:
 # --- agent run ---------------------------------------------------------------
 
 
-_TRANSIENT_AGENT_ERRORS = ("503", "UNAVAILABLE", "500", "INTERNAL", "overloaded")
+_TRANSIENT_AGENT_ERRORS = (
+    "503",
+    "UNAVAILABLE",
+    "500",
+    "INTERNAL",
+    "overloaded",
+)
 
 
 def _is_transient(exc: Exception) -> bool:
@@ -352,7 +367,9 @@ def run_pipeline(
     df, target, task_type, metric, description, aux_tables = load_task(
         task_name, data_dir=data_dir, target=target
     )
-    summary = make_data_summary(df, target, aux_tables=aux_tables, metric=metric)
+    summary = make_data_summary(
+        df, target, aux_tables=aux_tables, metric=metric
+    )
 
     agent_usage: dict = {}  # per-agent token totals from the ADK callbacks
     if spec_raw is None:
@@ -382,9 +399,7 @@ def run_pipeline(
             analysis = session.state.get("dataset_analysis", "") or analysis
     else:
         raw, analysis = spec_raw, ""  # reused spec: no agent turns, no analysis
-    aux_schemas = {
-        name: list(adf.columns) for name, adf in aux_tables.items()
-    }
+    aux_schemas = {name: list(adf.columns) for name, adf in aux_tables.items()}
     main_columns = [c for c in df.columns if c != target]
     spec, raw_plan, used_fallback = _safe_resolve(
         raw, task_type, aux_schemas=aux_schemas, main_columns=main_columns
@@ -452,8 +467,15 @@ def run_pipeline(
         ),
         # incumbent on the SHARED holdout — the cross-method comparable number
         "holdout": _holdout_report(
-            search, df, target, task_type, metric, aux_tables, seed,
-            errors=scoring_errors, holdout=holdout,
+            search,
+            df,
+            target,
+            task_type,
+            metric,
+            aux_tables,
+            seed,
+            errors=scoring_errors,
+            holdout=holdout,
         ),
         "action_space": search["action_space"],
         "target_key": search["target_key"],
@@ -462,8 +484,17 @@ def run_pipeline(
         "refined_dims": search.get("refined_dims", []),
         "subsample_seeds": subsample_seeds,
         "ensemble": _top_k_report(
-            search, df, target, task_type, metric, aux_tables, top_k, seed,
-            errors=scoring_errors, pool=ensemble_pool, holdout=holdout,
+            search,
+            df,
+            target,
+            task_type,
+            metric,
+            aux_tables,
+            top_k,
+            seed,
+            errors=scoring_errors,
+            pool=ensemble_pool,
+            holdout=holdout,
             legacy_ensemble=legacy_ensemble,
         ),
         "used_fallback_spec": used_fallback,
@@ -515,7 +546,9 @@ def save_run_artifacts(result: dict, out_dir: str) -> str:
         try:
             with open(path, "wb") as f:
                 pickle.dump(predictor, f)
-        except Exception as exc:  # a model that will not pickle must not kill the run
+        except (
+            Exception
+        ) as exc:  # a model that will not pickle must not kill the run
             errors = result.get("scoring_errors") or {}
             errors["ensemble_pickle"] = f"{type(exc).__name__}: {exc}"[:300]
             result["scoring_errors"] = errors
@@ -643,8 +676,18 @@ def _result_markdown(r: dict) -> str:
 
 
 def _top_k_report(
-    search, df, target, task_type, metric, aux_tables, top_k, seed,
-    errors=None, pool=10, holdout=None, legacy_ensemble=False,
+    search,
+    df,
+    target,
+    task_type,
+    metric,
+    aux_tables,
+    top_k,
+    seed,
+    errors=None,
+    pool=10,
+    holdout=None,
+    legacy_ensemble=False,
 ):
     """Caruana ensemble over a candidate pool vs incumbent on a holdout.
 
@@ -689,7 +732,14 @@ def _note_error(errors, key, exc) -> None:
 
 
 def _holdout_report(
-    search, df, target, task_type, metric, aux_tables, seed, errors=None,
+    search,
+    df,
+    target,
+    task_type,
+    metric,
+    aux_tables,
+    seed,
+    errors=None,
     holdout=None,
 ):
     """Score the incumbent on the SHARED seeded holdout (the cross-method bench).
@@ -808,9 +858,9 @@ def _main() -> None:
         "--legacy-ensemble",
         action="store_true",
         help="select the ensemble on the reported holdout (the pre-2026-07-14 "
-             "logic: optimistic, since it maximises the number it publishes). "
-             "Kept to reproduce results measured that way; the run is stamped "
-             "ensemble.selection='legacy_holdout'",
+        "logic: optimistic, since it maximises the number it publishes). "
+        "Kept to reproduce results measured that way; the run is stamped "
+        "ensemble.selection='legacy_holdout'",
     )
     parser.add_argument(
         "--c", type=float, default=0.5, help="UCT exploration constant"

@@ -36,7 +36,9 @@ def _filename_from_agent_name(state, agent_name: str) -> str:
     return "script"
 
 
-def get_code_from_response(state, agent_name, response, do_eval: bool = True) -> None:
+def get_code_from_response(
+    state, agent_name, response, do_eval: bool = True
+) -> None:
     """Extract code from LLM response, store it in state, and optionally evaluate it.
 
     Args:
@@ -56,7 +58,9 @@ def get_code_from_response(state, agent_name, response, do_eval: bool = True) ->
     if agent_name.startswith("check_data_use"):
         if "All the provided information is used" in code:
             state[f"check_data_use_finish_{suffix}"] = True
-        check_data_use_finish = state.get(f"check_data_use_finish_{suffix}", False)
+        check_data_use_finish = state.get(
+            f"check_data_use_finish_{suffix}", False
+        )
         if check_data_use_finish:
             return
         new_code = code
@@ -69,7 +73,9 @@ def get_code_from_response(state, agent_name, response, do_eval: bool = True) ->
             inner_iter = state.get(f"inner_iter_{task_id}", 0)
             # Keep the current working solution in sync with the latest improvement.
             state[f"train_code_{step}_{task_id}"] = new_code
-            state[f"train_code_improve_{inner_iter}_{step}_{task_id}"] = new_code
+            state[f"train_code_improve_{inner_iter}_{step}_{task_id}"] = (
+                new_code
+            )
     else:
         new_code = code
 
@@ -81,7 +87,9 @@ def get_code_from_response(state, agent_name, response, do_eval: bool = True) ->
 def _get_result(state, agent_name: str) -> dict:
     """Get the execution result dict for an agent from state."""
     suffix = code_util.get_updated_suffix(state, agent_name)
-    result_key = code_util.get_code_execution_result_state_key(agent_name, suffix)
+    result_key = code_util.get_code_execution_result_state_key(
+        agent_name, suffix
+    )
     return state.get(result_key, {})
 
 
@@ -117,7 +125,9 @@ def run_and_debug(
             agent_name,
             instruction,
             before_model=before_model,
-            after_model=lambda s, n, r: get_code_from_response(s, n, r, do_eval=True),
+            after_model=lambda s, n, r: get_code_from_response(
+                s, n, r, do_eval=True
+            ),
             temperature=1.0,
         )
 

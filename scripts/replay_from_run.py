@@ -126,7 +126,9 @@ def replay_from_run(
     if n_proposes > len(proposals):
         logged = sorted(
             os.path.basename(p)
-            for p in glob.glob(os.path.join(source_dir, "proposer_*_response.json"))
+            for p in glob.glob(
+                os.path.join(source_dir, "proposer_*_response.json")
+            )
         )
         raise ValueError(
             f"requested n_proposes={n_proposes} but {source_dir!r} only logged "
@@ -169,7 +171,9 @@ def replay_budget_sweep(
         # -> {20: {...}, 40: {...}, 60: {...}, 80: {...}}
     """
     return {
-        budget: replay_from_run(source_dir, n_proposes, seed=seed, budget=budget)
+        budget: replay_from_run(
+            source_dir, n_proposes, seed=seed, budget=budget
+        )
         for budget in sorted(budgets)
     }
 
@@ -236,8 +240,10 @@ def _main() -> None:
             "results",
             f"sweep_{task}_np{args.n_proposes}_{datetime.now():%Y%m%d-%H%M}",
         )
-        print(f"\nBudget sweep | task: {task}  source: {source_dir}  "
-              f"n_proposes: {args.n_proposes}  budgets: {sorted(args.budget_sweep)}")
+        print(
+            f"\nBudget sweep | task: {task}  source: {source_dir}  "
+            f"n_proposes: {args.n_proposes}  budgets: {sorted(args.budget_sweep)}"
+        )
         for budget in sorted(args.budget_sweep):
             result = replay_from_run(
                 source_dir, args.n_proposes, seed=args.seed, budget=budget
@@ -248,9 +254,11 @@ def _main() -> None:
                 os.path.join(budget_dir, "result.json"), "w", encoding="utf-8"
             ) as f:
                 json.dump(result, f, indent=2, ensure_ascii=False, default=str)
-            print(f"  budget={budget}: best_search_score="
-                  f"{result.get('best_search_score')}  |  "
-                  f"report: {result.get('report')}")
+            print(
+                f"  budget={budget}: best_search_score="
+                f"{result.get('best_search_score')}  |  "
+                f"report: {result.get('report')}"
+            )
         print(f"artifacts: {sweep_dir}")
         return
 
@@ -268,10 +276,14 @@ def _main() -> None:
         json.dump(result, f, indent=2, ensure_ascii=False, default=str)
 
     hold = result.get("report")
-    print(f"\nReplay | task: {task}  source: {source_dir}  "
-          f"n_proposes: {args.n_proposes}")
-    print(f"best_search_score: {result.get('best_search_score')}  |  "
-          f"report: {hold}")
+    print(
+        f"\nReplay | task: {task}  source: {source_dir}  "
+        f"n_proposes: {args.n_proposes}"
+    )
+    print(
+        f"best_search_score: {result.get('best_search_score')}  |  "
+        f"report: {hold}"
+    )
     print(f"artifacts: {out_dir}")
 
 

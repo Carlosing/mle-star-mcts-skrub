@@ -68,11 +68,14 @@ def recover(task: str, src_slug: str, write: bool) -> bool:
             c
             for c in source.columns
             if c not in test.columns
-            and set(_norm(source[[c]])[c]) >= set(_norm(train[[target]])[target])
+            and set(_norm(source[[c]])[c])
+            >= set(_norm(train[[target]])[target])
         ]
         if len(candidates) != 1:
-            print(f"  {task:<26} REFUSED: cannot identify target in source "
-                  f"(candidates={candidates})")
+            print(
+                f"  {task:<26} REFUSED: cannot identify target in source "
+                f"(candidates={candidates})"
+            )
             return False
         source = source.rename(columns={candidates[0]: target})
 
@@ -97,20 +100,21 @@ def recover(task: str, src_slug: str, write: bool) -> bool:
     unmatched = int(merged["n_targets"].isna().sum())
     ambiguous = int((merged["n_targets"] > 1).sum())
     if unmatched or ambiguous:
-        print(f"  {task:<26} REFUSED: {unmatched} unmatched, "
-              f"{ambiguous} ambiguous of {len(test)} holdout rows")
+        print(
+            f"  {task:<26} REFUSED: {unmatched} unmatched, "
+            f"{ambiguous} ambiguous of {len(test)} holdout rows"
+        )
         return False
 
-    answers = (
-        test_keyed.merge(
-            src_keyed.drop_duplicates(subset=features), on=features, how="left"
-        )[target]
-        .to_numpy()
-    )
+    answers = test_keyed.merge(
+        src_keyed.drop_duplicates(subset=features), on=features, how="left"
+    )[target].to_numpy()
     # cast back to the train column's dtype (the join stringified everything)
     answers = pd.Series(answers).astype(train[target].dtype)
 
-    print(f"  {task:<26} OK: {len(test)} / {len(test)} holdout rows matched 1:1")
+    print(
+        f"  {task:<26} OK: {len(test)} / {len(test)} holdout rows matched 1:1"
+    )
     if write:
         pd.DataFrame({"row_id": range(len(test)), target: answers}).to_csv(
             os.path.join(task_dir, "test_answer.csv"), index=False
@@ -124,18 +128,14 @@ def recover(task: str, src_slug: str, write: bool) -> bool:
 # ground truth. It shrinks train.csv, so results measured on the old train.csv
 # no longer apply and must be re-run.
 RESPLIT = {
-    "california-housing-prices":
-        "staged from the Kaggle housing.csv schema; data/california_housing/ is "
-        "the unrelated sklearn version (MedInc/AveRooms) — no source to join to",
-    "employee-salaries":
-        "feature vectors repeat in the source with different salaries "
-        "(117/1600 holdout rows ambiguous)",
-    "open-payments":
-        "feature vectors repeat in the source with different statuses "
-        "(85/1600 holdout rows ambiguous)",
-    "credit-fraud":
-        "relational task staged by stage_credit_fraud.py; it has no test.csv at "
-        "all, so it never had a holdout",
+    "california-housing-prices": "staged from the Kaggle housing.csv schema; data/california_housing/ is "
+    "the unrelated sklearn version (MedInc/AveRooms) — no source to join to",
+    "employee-salaries": "feature vectors repeat in the source with different salaries "
+    "(117/1600 holdout rows ambiguous)",
+    "open-payments": "feature vectors repeat in the source with different statuses "
+    "(85/1600 holdout rows ambiguous)",
+    "credit-fraud": "relational task staged by stage_credit_fraud.py; it has no test.csv at "
+    "all, so it never had a holdout",
 }
 
 SEED = 42
@@ -159,25 +159,29 @@ def resplit(task: str, write: bool) -> bool:
         holdout = full.sample(frac=0.2, random_state=SEED)
     train = full.drop(index=holdout.index)
 
-    print(f"  {task:<26} resplit: {len(full)} -> train {len(train)} + "
-          f"holdout {len(holdout)}"
-          f"{' (stratified)' if categorical else ''}")
+    print(
+        f"  {task:<26} resplit: {len(full)} -> train {len(train)} + "
+        f"holdout {len(holdout)}"
+        f"{' (stratified)' if categorical else ''}"
+    )
     if write:
         train.to_csv(os.path.join(task_dir, "train.csv"), index=False)
         holdout.drop(columns=[target]).to_csv(
             os.path.join(task_dir, "test.csv"), index=False
         )
         pd.DataFrame(
-            {"row_id": range(len(holdout)),
-             target: holdout[target].to_numpy()}
+            {"row_id": range(len(holdout)), target: holdout[target].to_numpy()}
         ).to_csv(os.path.join(task_dir, "test_answer.csv"), index=False)
     return True
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true",
-                        help="verify the join only; write nothing")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify the join only; write nothing",
+    )
     args = parser.parse_args()
 
     print("Recovering holdout targets by joining test.csv back to its source:")
@@ -187,7 +191,9 @@ def main() -> None:
             unrecovered.append(task)
 
     print("\nNot recoverable — carving a fresh labelled holdout from train.csv")
-    print("(this SHRINKS train.csv; results measured on the old one must be re-run):")
+    print(
+        "(this SHRINKS train.csv; results measured on the old one must be re-run):"
+    )
     for task, why in RESPLIT.items():
         print(f"  {task:<26} {why}")
     print()

@@ -35,7 +35,9 @@ def collect_results(runs_dir: str, out_dir: str) -> list[str]:
         dest_dir = os.path.join(out_dir, rel) if rel != "." else out_dir
         src = os.path.join(root, "result.json")
         dst = os.path.join(dest_dir, "result.json")
-        if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
+        if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(
+            src
+        ):
             continue
         os.makedirs(dest_dir, exist_ok=True)
         shutil.copy2(src, dst)
@@ -49,7 +51,9 @@ def _main() -> None:
         "from runs/ to results/."
     )
     parser.add_argument("--runs", default="runs", help="source runs directory")
-    parser.add_argument("--out", default="results", help="destination directory")
+    parser.add_argument(
+        "--out", default="results", help="destination directory"
+    )
     args = parser.parse_args()
 
     copied = collect_results(args.runs, args.out)

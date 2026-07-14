@@ -5,7 +5,10 @@ from types import SimpleNamespace
 import pytest
 
 from machine_learning_engineering.runner import AgentState
-from machine_learning_engineering.shared_libraries import check_leakage_util, code_util
+from machine_learning_engineering.shared_libraries import (
+    check_leakage_util,
+    code_util,
+)
 
 
 def _make_response(content: str) -> SimpleNamespace:
@@ -72,7 +75,9 @@ class TestCheckAndFixLeakage:
 
         monkeypatch.setattr(check_leakage_util, "run_agent", fake_run_agent)
 
-        assert check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        assert (
+            check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        )
         assert state[code_key] == original_code
 
     def test_yes_leakage_replaces_block(self, state, monkeypatch):
@@ -104,10 +109,14 @@ class TestCheckAndFixLeakage:
         monkeypatch.setattr(check_leakage_util, "run_agent", fake_run_agent)
         monkeypatch.setattr(code_util, "evaluate_code", lambda s, n: None)
 
-        result_key = code_util.get_code_execution_result_state_key(agent_name, suffix)
+        result_key = code_util.get_code_execution_result_state_key(
+            agent_name, suffix
+        )
         state[result_key] = {"returncode": 0, "score": 1.0}
 
-        assert check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        assert (
+            check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        )
         assert refined_block in state[code_key]
         assert leaky_block not in state[code_key]
 
@@ -125,7 +134,9 @@ class TestCheckAndFixLeakage:
 
         monkeypatch.setattr(check_leakage_util, "run_agent", fake_run_agent)
 
-        assert check_leakage_util.check_and_fix_leakage(state, agent_name) is False
+        assert (
+            check_leakage_util.check_and_fix_leakage(state, agent_name) is False
+        )
 
     def test_malformed_response_treated_as_no_leakage(self, state, monkeypatch):
         agent_name = "model_eval_1_1"
@@ -139,5 +150,7 @@ class TestCheckAndFixLeakage:
 
         monkeypatch.setattr(check_leakage_util, "run_agent", fake_run_agent)
 
-        assert check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        assert (
+            check_leakage_util.check_and_fix_leakage(state, agent_name) is True
+        )
         assert state[code_key] == original_code

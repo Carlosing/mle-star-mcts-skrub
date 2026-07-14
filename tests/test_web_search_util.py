@@ -10,8 +10,16 @@ class TestSearchWeb:
 
     def test_returns_results_from_ddgs(self):
         fake_results = [
-            {"title": "Result A", "href": "https://a.example", "body": "Body A"},
-            {"title": "Result B", "href": "https://b.example", "body": "Body B"},
+            {
+                "title": "Result A",
+                "href": "https://a.example",
+                "body": "Body A",
+            },
+            {
+                "title": "Result B",
+                "href": "https://b.example",
+                "body": "Body B",
+            },
         ]
 
         ddgs_instance = mock.MagicMock()
@@ -23,7 +31,9 @@ class TestSearchWeb:
             mock_ddgs_class.return_value.__enter__ = mock.MagicMock(
                 return_value=ddgs_instance
             )
-            mock_ddgs_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+            mock_ddgs_class.return_value.__exit__ = mock.MagicMock(
+                return_value=False
+            )
             results = web_search_util.search_web("test query", num_results=2)
 
         assert results == fake_results

@@ -75,15 +75,36 @@ with empty content → fallback spec. The LiteLlm path therefore sets
 the endpoint currently serves with `make probe-school` (`SMOKE=1` health-checks
 each model).
 
-## Deprecated: the standalone OpenAI `ManagerAgent`
+## The second stack: MLE-STAR, revived as the benchmark baseline
 
-The earlier design carried a **second** stack — a hand-rolled OpenAI
-`ManagerAgent` in `agent.py` with its own client built in
-`machine_learning_engineering/__init__.py` (plus `sub_agents/`, `eval/`). Now
-that OpenAI runs *through ADK* (LiteLlm), that stack is **deprecated and off the
-MCTS path**, retained only for merge/reference history; new work targets the ADK
-graph. Do **not** re-add an import-time client to `__init__.py` — that would
-re-couple the pure MCTS/skrub layer to an LLM key.
+The repo carries a **second** agent stack — the hand-rolled OpenAI `ManagerAgent`
+in `agent.py` plus `sub_agents/` and `shared_libraries/`. This is the *upstream
+MLE-STAR agent*: it writes and debugs Python, rather than authoring a search
+space. It was deprecated when OpenAI moved onto ADK (LiteLlm) — and then
+**revived as the thing we benchmark against** (`make bench-mlestar`,
+`scripts/run_mlestar.py`).
+
+It no longer runs on ADK. `runner.py` is a minimal OpenAI-compatible runner that
+replaces the ADK runtime, and its **`llm_call` is the single chokepoint** every
+sub-agent reaches the provider through — which is what lets the harness wrap one
+function to impose the caps MLE-STAR needs (max LLM calls, per-call output-token
+bound, wall-clock deadline). Its token cost is otherwise unbounded: it is a
+code-and-debug loop, so a hard task can cascade indefinitely. That unboundedness
+*is* the comparison — see [PROJECT_STATE.md](PROJECT_STATE.md).
+
+Two rules still hold:
+
+- **It is off the MCTS path.** No extension feature belongs in `agent.py` /
+  `sub_agents/`. Touch it only to keep the baseline running.
+- **Do not re-add an import-time client to `__init__.py`.** The package builds
+  the OpenAI client lazily (PEP 562 `__getattr__`), so `import
+  machine_learning_engineering.mcts` still constructs nothing and needs no
+  `.env`. An eager client would re-couple the pure MCTS/skrub layer to an LLM key
+  and break the offline suite.
+
+`shared_libraries/web_search_util.py` (DuckDuckGo) backs the baseline's
+model-retrieval step — the MLE-STAR analogue of the analyst's `google_search`,
+and the reason `ddgs` is a core dependency.
 
 See also: [pipeline-stages.md](pipeline-stages.md) (the skrub search space the
 plan author targets) and [mcts-uct.md](mcts-uct.md) (the engine the plan is

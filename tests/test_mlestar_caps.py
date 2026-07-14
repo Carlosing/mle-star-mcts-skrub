@@ -21,9 +21,7 @@ def _fake_response(total=30):
     """A minimal OpenAI-compatible completion with usage."""
     return types.SimpleNamespace(
         choices=[
-            types.SimpleNamespace(
-                message=types.SimpleNamespace(content="ok")
-            )
+            types.SimpleNamespace(message=types.SimpleNamespace(content="ok"))
         ],
         usage=types.SimpleNamespace(
             prompt_tokens=10, completion_tokens=20, total_tokens=total

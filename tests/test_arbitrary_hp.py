@@ -196,7 +196,9 @@ def test_log_scale_with_zero_low_does_not_kill_resolve():
             "model": [
                 {
                     "name": "sklearn.ensemble.GradientBoostingRegressor",
-                    "params": {"learning_rate": {"float": [0.0, 0.3], "log": True}},
+                    "params": {
+                        "learning_rate": {"float": [0.0, 0.3], "log": True}
+                    },
                 }
             ]
         },

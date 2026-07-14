@@ -187,5 +187,3 @@ def test_failed_rollouts_do_not_crash_search():
         start, ACTION_SPACE, flaky, budget=20
     )
     assert best_score >= 0.0
-
-

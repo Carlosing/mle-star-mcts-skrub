@@ -26,7 +26,9 @@ def save_state(state: AgentState) -> None:
     task_name = state.get("task_name", "")
     run_cwd = os.path.join(workspace_dir, task_name)
     os.makedirs(run_cwd, exist_ok=True)
-    with open(os.path.join(run_cwd, "final_state.json"), "w", encoding="utf-8") as f:
+    with open(
+        os.path.join(run_cwd, "final_state.json"), "w", encoding="utf-8"
+    ) as f:
         json.dump(state.to_dict(), f, indent=2, default=str)
 
 

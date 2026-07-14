@@ -6,7 +6,11 @@ import re
 import shutil
 
 from machine_learning_engineering.runner import run_agent
-from machine_learning_engineering.shared_libraries import code_util, common_util, debug_util
+from machine_learning_engineering.shared_libraries import (
+    code_util,
+    common_util,
+    debug_util,
+)
 from machine_learning_engineering.sub_agents.ensemble import prompt
 
 
@@ -85,7 +89,9 @@ def get_ensemble_plan_refine_agent_instruction(state, agent_name: str) -> str:
     )
 
 
-def get_ensemble_plan_implement_agent_instruction(state, agent_name: str) -> str:
+def get_ensemble_plan_implement_agent_instruction(
+    state, agent_name: str
+) -> str:
     """Build the ensemble implementation prompt."""
     ensemble_iter = state.get("ensemble_iter", 0)
     plan = state.get(f"ensemble_plan_{ensemble_iter}", "")

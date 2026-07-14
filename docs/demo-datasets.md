@@ -27,11 +27,18 @@ one call and run in seconds. For the full status + roadmap see
   choices** (import allow-list only, no `eval`).
 - **End-to-end driver** ([pipeline.py](../machine_learning_engineering/pipeline.py))
   — `run_pipeline`: task → data digest → agents → resolve → MCTS search
-  (Option 1 targeting, Option 3 injection, focused refinement, top-k
-  ensemble) → report.
+  (Option 1 focus hint, Option 3 injection, focused refinement) → Caruana
+  ensemble → report on the shared on-disk holdout.
+- **Benchmark harness** — AutoGluon and a revived, hard-capped MLE-STAR run on
+  the *same* task, holdout and time budget, all three emitting one uniform
+  `result.json` (`make bench-autogluon` / `make bench-mlestar` / `make figures`).
 
-[PROJECT_STATE.md](PROJECT_STATE.md) is the canonical status; what's left is
-Week-3 evaluation and writeup.
+[PROJECT_STATE.md](PROJECT_STATE.md) is the canonical status. **The code is
+complete and green, but the shipped results are knowingly biased in our favour** —
+they predate the on-disk train/holdout split (2026-07-14), so the search chose its
+configs with the eval rows visible while AutoGluon's did not. Read
+[Hand-off](PROJECT_STATE.md#hand-off--the-published-numbers-are-biased) before
+quoting any number.
 
 ## What the demo shows
 

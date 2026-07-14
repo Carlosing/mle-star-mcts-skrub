@@ -207,7 +207,8 @@ RECIPES: dict[str, dict] = {
 def _is_classification(series: pd.Series) -> bool:
     """Mirror data_summary.infer_task_type so the description matches reality."""
     return not (
-        pd.api.types.is_numeric_dtype(series) and series.nunique(dropna=True) > 20
+        pd.api.types.is_numeric_dtype(series)
+        and series.nunique(dropna=True) > 20
     )
 
 

@@ -159,8 +159,9 @@ class EnsemblePredictor:
         pred.predict(new_rows_df, aux={"gdp": g})  # relational task
     """
 
-    def __init__(self, learners, weights, task_type, classes, main_var,
-                 scorer, states):
+    def __init__(
+        self, learners, weights, task_type, classes, main_var, scorer, states
+    ):
         self.learners = list(learners)
         self.weights = list(weights)
         self.task_type = task_type
@@ -178,22 +179,30 @@ class EnsemblePredictor:
             raise ValueError("predict_proba is classification-only")
         env = self._env(data, aux)
         total = sum(self.weights)
-        return sum(
-            w * np.asarray(learner.predict_proba(env))
-            for learner, w in zip(self.learners, self.weights)
-        ) / total
+        return (
+            sum(
+                w * np.asarray(learner.predict_proba(env))
+                for learner, w in zip(self.learners, self.weights)
+            )
+            / total
+        )
 
     def predict(self, data, aux=None):
         """Weighted mean (regression) / weighted proba-argmax or vote (classification)."""
         env = self._env(data, aux)
         total = sum(self.weights)
         if self.task_type != "classification":
-            return sum(
-                w * np.asarray(learner.predict(env))
-                for learner, w in zip(self.learners, self.weights)
-            ) / total
+            return (
+                sum(
+                    w * np.asarray(learner.predict(env))
+                    for learner, w in zip(self.learners, self.weights)
+                )
+                / total
+            )
         try:
-            return self.classes[np.argmax(self.predict_proba(data, aux), axis=1)]
+            return self.classes[
+                np.argmax(self.predict_proba(data, aux), axis=1)
+            ]
         except Exception:
             # no proba available -> weighted vote
             votes: dict = {}
@@ -201,10 +210,12 @@ class EnsemblePredictor:
                 for row, label in enumerate(np.asarray(learner.predict(env))):
                     votes.setdefault(row, {})
                     votes[row][label] = votes[row].get(label, 0.0) + w
-            return np.array([
-                max(votes[row].items(), key=lambda kv: kv[1])[0]
-                for row in range(len(next(iter(env.values()))))
-            ])
+            return np.array(
+                [
+                    max(votes[row].items(), key=lambda kv: kv[1])[0]
+                    for row in range(len(next(iter(env.values()))))
+                ]
+            )
 
 
 def _oof_folds(df, target: str, task_type: str, seed: int, n_splits: int):
@@ -382,8 +393,9 @@ def evaluate_top_k(
         labels = np.unique(y) if classify else None
 
         preds = [np.empty(n, dtype=object) for _ in states]
-        probs = [np.zeros((n, len(labels))) if classify else None
-                 for _ in states]
+        probs = [
+            np.zeros((n, len(labels))) if classify else None for _ in states
+        ]
         proba_ok = [classify] * len(states)
 
         for fit_idx, val_idx in folds:
@@ -459,8 +471,9 @@ def evaluate_top_k(
             df, target, task_type, seed=seed, holdout_frac=holdout_frac
         )
         sel_preds, sel_probs, sel_classes, _ = _fit_pool(inner_fit, inner_val)
-        score_select = _combiner(sel_preds, sel_probs, sel_classes,
-                                 inner_val[target])
+        score_select = _combiner(
+            sel_preds, sel_probs, sel_classes, inner_val[target]
+        )
         selection = "inner_split"
 
     individual = [score_report([i]) for i in range(len(states))]

@@ -71,7 +71,9 @@ def _check_leakage_status(state, agent_name: str) -> tuple[str, str]:
 
 def _refine_leakage_block(state, agent_name: str, leakage_block: str) -> str:
     """Ask the LLM to refine a leaky code block."""
-    instruction = data_leakage_prompt.LEAKAGE_REFINE_INSTR.format(code=leakage_block)
+    instruction = data_leakage_prompt.LEAKAGE_REFINE_INSTR.format(
+        code=leakage_block
+    )
     response = run_agent(
         state,
         f"refine_leakage_agent_{agent_name}",

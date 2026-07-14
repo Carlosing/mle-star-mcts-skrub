@@ -4,7 +4,11 @@ import json
 import re
 
 from machine_learning_engineering.runner import run_agent
-from machine_learning_engineering.shared_libraries import code_util, common_util, debug_util
+from machine_learning_engineering.shared_libraries import (
+    code_util,
+    common_util,
+    debug_util,
+)
 from machine_learning_engineering.sub_agents.refinement import prompt
 
 
@@ -18,7 +22,9 @@ def _set_current_solution(state, task_id, step, code):
     state[f"train_code_{step}_{task_id}"] = code
 
 
-_DEFAULT_PLAN = "Simplify the model training block and use a more robust validation setup."
+_DEFAULT_PLAN = (
+    "Simplify the model training block and use a more robust validation setup."
+)
 _DEFAULT_CODE_BLOCK = ""
 
 
@@ -48,7 +54,9 @@ def get_ablation_summary_agent_instruction(state, agent_name: str) -> str:
     """Build the ablation summary prompt."""
     task_id = agent_name.split("_")[-1]
     step = state.get(f"refine_step_{task_id}", 0)
-    ablation_result = state.get(f"ablation_code_exec_result_{step}_{task_id}", {})
+    ablation_result = state.get(
+        f"ablation_code_exec_result_{step}_{task_id}", {}
+    )
     ablation_output = ablation_result.get("ablation_result", "")
     return prompt.ABLATION_SUMMARY_INSTR.format(
         task_description=state.get("task_description", ""),
@@ -89,7 +97,9 @@ def get_plan_implement_agent_instruction(state, agent_name: str) -> str:
     inner_iter = state.get(f"inner_iter_{task_id}", 0)
     code = _get_current_solution(state, task_id, step)
     plan = state.get(f"refine_plan_{inner_iter}_{step}_{task_id}", "")
-    code_block = state.get(f"refine_code_block_{inner_iter}_{step}_{task_id}", "")
+    code_block = state.get(
+        f"refine_code_block_{inner_iter}_{step}_{task_id}", ""
+    )
     return prompt.PLAN_IMPLEMENT_INSTR.format(
         task_description=state.get("task_description", ""),
         code=code,
@@ -126,9 +136,9 @@ def _select_best_improvement(state, task_id, step, inner_iters) -> str:
     """Select the best improvement from the inner loop."""
     lower = state.get("lower", True)
     best_code = _get_current_solution(state, task_id, step)
-    best_score = state.get(
-        f"train_code_exec_result_0_{task_id}", {}
-    ).get("score", 1e9 if lower else 0)
+    best_score = state.get(f"train_code_exec_result_0_{task_id}", {}).get(
+        "score", 1e9 if lower else 0
+    )
 
     for inner_iter in inner_iters:
         result = state.get(
