@@ -1,0 +1,15 @@
+# Task
+
+Predict the happiness_score.
+
+This is a relational task: aggregate the auxiliary table(s) per main row before modelling (aux_gdp.csv on main.Country = gdp.Country Name; aux_life_expectancy.csv on main.Country = life_expectancy.Country Name; aux_legal_rights.csv on main.Country = legal_rights.Country Name).
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Regression task (117 training rows, 1 feature columns). train.csv has the features and the 'happiness_score' column; test.csv has the features only.
+
+Relational, credit-fraud shaped: the main table is reduced to (Country, happiness_score) — every leaky decomposition column was dropped — so ALL signal must arrive through aggregate joins on three World-Bank aux tables. Only 146 rows, and the join is by country NAME across differently-named key columns (Country <-> 'Country Name'), so misses are silent.

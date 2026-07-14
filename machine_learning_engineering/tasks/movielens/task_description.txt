@@ -1,0 +1,15 @@
+# Task
+
+Predict the rating.
+
+This is a relational task: aggregate the auxiliary table(s) per main row before modelling (aux_movies.csv on main.movieId = movies.movieId).
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Classification task (11999 training rows, 2 feature columns). train.csv has the features and the 'rating' column; test.csv has the features only.
+
+Relational: the main table is (userId, movieId, rating) — pure IDs, so the model must aggregate-join movie titles/genres to learn anything. Target is a 0.5-5.0 half-star scale (10 distinct values), which sits right on the regression / classification inference boundary.

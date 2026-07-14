@@ -1,0 +1,11 @@
+# Task
+
+Predict the current_annual_salary.
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Single-table regression task (8000 rows, 8 feature columns, high-cardinality categoricals). train.csv has the features and the 'current_annual_salary' column; test.csv has the features only.
