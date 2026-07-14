@@ -49,6 +49,52 @@ def toy_search():
     return result, df
 
 
+def test_caruana_selects_on_inner_split_not_on_the_reported_holdout(
+    toy_search, monkeypatch
+):
+    """Selection and reporting must not touch the same rows.
+
+    With a shared holdout, Caruana selects on an inner split carved out of the
+    TRAIN frame and the ensemble is only scored on the holdout. Selecting on the
+    holdout would make `ensemble_score` a greedy maximum over the number we
+    publish — the ensemble-overfitting flaw we criticise MLE-STAR for.
+
+    We spy on `_score` and record how many rows each call scored: a selection
+    call must see the inner-validation rows, a reporting call the holdout rows,
+    and the two counts must differ.
+    """
+    result, df = toy_search
+    train_df = df.iloc[:80].reset_index(drop=True)
+    holdout_df = df.iloc[80:].reset_index(drop=True)
+    assert len(holdout_df) != int(len(train_df) * 0.25)  # counts must be distinct
+
+    states = ensemble.top_k_states(result["score_cache"], k=3)
+    seen = []
+    real_score = ensemble._score
+
+    def spy(scoring, y_true, pred, proba):
+        seen.append(len(y_true))
+        return real_score(scoring, y_true, pred, proba)
+
+    monkeypatch.setattr(ensemble, "_score", spy)
+    report = ensemble.evaluate_top_k(
+        result["plan"],
+        states,
+        train_df,
+        "target",
+        "classification",
+        scoring="accuracy",
+        holdout=holdout_df,
+    )
+
+    inner_n = int(len(train_df) * 0.25)
+    assert inner_n in seen, "nothing scored the inner-validation rows"
+    assert len(holdout_df) in seen, "nothing scored the holdout rows"
+    # every reported number is measured on the holdout
+    assert len(report["individual_scores"]) == len(states)
+    assert 0.0 <= report["ensemble_score"] <= 1.0
+
+
 def test_evaluate_top_k_classification(toy_search):
     result, df = toy_search
     states = ensemble.top_k_states(result["score_cache"], k=3)

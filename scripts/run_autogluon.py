@@ -95,8 +95,16 @@ def run_autogluon(
     if scorer is None or scorer not in ensemble._METRIC_FNS:
         raise ValueError(f"no comparable report scorer for metric {metric!r}")
 
-    # the SHARED bench: identical rows to the extension's holdout score
-    train, holdout = ensemble.holdout_split(df, target, task_type, seed=seed)
+    # The SHARED bench, drawn on disk before any method saw the data
+    # (scripts/stage_tasks.py): train on ALL of train.csv, predict the rows of
+    # test.csv, score against test_answer.csv. Identical rows for every arm.
+    holdout = pipeline.load_holdout(task, target=target)
+    if holdout is None:
+        raise ValueError(
+            f"{task}: no staged holdout (test.csv + test_answer.csv). "
+            "Run scripts/stage_tasks.py --force."
+        )
+    train = df
     y_true = holdout[target]
     features = holdout.drop(columns=[target])
 

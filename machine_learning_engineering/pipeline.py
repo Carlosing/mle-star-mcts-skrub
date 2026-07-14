@@ -88,6 +88,51 @@ def load_task(
     )
 
 
+def load_holdout(
+    task_name: str | None = None,
+    data_dir: str | None = None,
+    target: str | None = None,
+) -> pd.DataFrame | None:
+    """Return the SHARED holdout (``test.csv`` + ``test_answer.csv``), or None.
+
+    This is the one bench every method is scored on. The split lives on disk
+    (``scripts/stage_tasks.py``): ``train.csv`` is the only thing any method may
+    train on, ``test.csv`` holds the holdout features, and ``test_answer.csv``
+    the holdout targets — which no method ever sees, so the boundary cannot be
+    violated by accident. The two files are row-aligned by construction
+    (``row_id``); a length mismatch means the task dir is stale and we refuse it
+    rather than score against the wrong rows.
+
+    Returns the holdout with the target column re-attached (what
+    ``ensemble.evaluate_top_k`` wants), or ``None`` for a task that has not been
+    re-staged.
+
+    Example:
+        load_holdout("california-housing-prices")
+        # -> DataFrame[480 rows] with the 8 features + median_house_value
+    """
+    task_name = task_name or config.CONFIG.task_name
+    data_dir = data_dir or config.CONFIG.data_dir
+    task_dir = os.path.join(data_dir, task_name)
+
+    features_path = os.path.join(task_dir, "test.csv")
+    answers_path = os.path.join(task_dir, "test_answer.csv")
+    if not (os.path.exists(features_path) and os.path.exists(answers_path)):
+        return None
+
+    holdout = pd.read_csv(features_path)
+    answers = pd.read_csv(answers_path)
+    if len(holdout) != len(answers):
+        raise ValueError(
+            f"{task_name}: test.csv has {len(holdout)} rows but "
+            f"test_answer.csv has {len(answers)} — re-run scripts/stage_tasks.py"
+        )
+    if target is None:
+        target = [c for c in answers.columns if c != "row_id"][0]
+    holdout[target] = answers[target].to_numpy()
+    return holdout
+
+
 def _read_description(task_dir: str) -> str:
     path = os.path.join(task_dir, "task_description.txt")
     if os.path.exists(path):
@@ -298,6 +343,10 @@ def run_pipeline(
         log_dir = out_dir
 
     wall_start = time.perf_counter()
+    # the SHARED bench: rows no method — ours or a baseline — may train on.
+    # None for a task that has not been re-staged (scoring then falls back to a
+    # split carved out of df, which is NOT cross-method comparable).
+    holdout = load_holdout(task_name, data_dir, target=target)
     df, target, task_type, metric, description, aux_tables = load_task(
         task_name, data_dir=data_dir, target=target
     )
@@ -402,7 +451,7 @@ def run_pipeline(
         # incumbent on the SHARED holdout — the cross-method comparable number
         "holdout": _holdout_report(
             search, df, target, task_type, metric, aux_tables, seed,
-            errors=scoring_errors,
+            errors=scoring_errors, holdout=holdout,
         ),
         "action_space": search["action_space"],
         "target_key": search["target_key"],
@@ -412,7 +461,7 @@ def run_pipeline(
         "subsample_seeds": subsample_seeds,
         "ensemble": _top_k_report(
             search, df, target, task_type, metric, aux_tables, top_k, seed,
-            errors=scoring_errors, pool=ensemble_pool,
+            errors=scoring_errors, pool=ensemble_pool, holdout=holdout,
         ),
         "used_fallback_spec": used_fallback,
         "dropped_sections": spec.get("dropped_sections", []),
@@ -556,7 +605,7 @@ def _result_markdown(r: dict) -> str:
 
 def _top_k_report(
     search, df, target, task_type, metric, aux_tables, top_k, seed,
-    errors=None, pool=10,
+    errors=None, pool=10, holdout=None,
 ):
     """Caruana ensemble over a candidate pool vs incumbent on a holdout.
 
@@ -586,6 +635,7 @@ def _top_k_report(
             aux=aux_tables or None,
             seed=seed,
             size=top_k,
+            holdout=holdout,
         )
     except Exception as e:
         _note_error(errors, "ensemble", e)
@@ -599,7 +649,8 @@ def _note_error(errors, key, exc) -> None:
 
 
 def _holdout_report(
-    search, df, target, task_type, metric, aux_tables, seed, errors=None
+    search, df, target, task_type, metric, aux_tables, seed, errors=None,
+    holdout=None,
 ):
     """Score the incumbent on the SHARED seeded holdout (the cross-method bench).
 
@@ -624,6 +675,7 @@ def _holdout_report(
             scoring=scorer,
             aux=aux_tables or None,
             seed=seed,
+            holdout=holdout,
         )
         return {"scorer": scorer, "score": res["individual_scores"][0]}
     except Exception as e:

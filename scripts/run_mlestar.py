@@ -131,11 +131,22 @@ def restore_caps(original) -> None:
 
 
 def _score_submission(task, out_workspace, seed):
-    """Best-effort: re-score MLE-STAR's final/submission.csv on the SHARED holdout.
+    """Score MLE-STAR's final/submission.csv against the SHARED holdout answers.
 
-    MLE-STAR reads the standard task dir, so this aligns its predictions to the
-    shared holdout target by row order — the only number comparable across the
-    three arms. Returns ``{scorer, score}`` or ``None``.
+    MLE-STAR predicts the rows of the task's ``test.csv`` (it is told to, and it
+    never sees ``test_answer.csv`` — create_workspace skips any file matching
+    "answer"). Those are exactly the shared-bench rows, so its submission is
+    directly comparable to the extension's and AutoGluon's holdout scores.
+
+    Alignment is positional — the submission-format contract is one prediction
+    per test row, in order — so a length mismatch means the submission does not
+    correspond to the holdout and we REFUSE it. It must not fall through to a
+    plausible-looking score: `test.csv` and a 25%-of-train holdout used to have
+    the same length on 8 of 13 tasks, which is precisely how a meaningless number
+    would get published.
+
+    Returns ``{scorer, score, n}``, or ``{"error": ...}`` — never a silent None
+    that reads as "no result" when it means "wrong result".
     """
     import glob
 
@@ -143,29 +154,38 @@ def _score_submission(task, out_workspace, seed):
 
     from machine_learning_engineering import ensemble, metrics, pipeline
 
-    df, target, task_type, metric, _desc, _aux = pipeline.load_task(task)
+    _df, target, _task_type, metric, _desc, _aux = pipeline.load_task(task)
     scorer = metrics.report_scorer(metric)
     if scorer is None or scorer not in ensemble._METRIC_FNS:
-        return None
-    _train, holdout = ensemble.holdout_split(df, target, task_type, seed=seed)
+        return {"error": f"no comparable report scorer for metric {metric!r}"}
+
+    holdout = pipeline.load_holdout(task, target=target)
+    if holdout is None:
+        return {"error": "no staged holdout; run scripts/stage_tasks.py --force"}
+
     hits = glob.glob(
         os.path.join(out_workspace, "**", "final", "submission.csv"),
         recursive=True,
     )
     if not hits:
-        return None
+        return {"error": "MLE-STAR produced no final/submission.csv"}
+
     import pandas as pd
 
     sub = pd.read_csv(sorted(hits)[0])
     if len(sub) != len(holdout):
-        return None  # can't align a differently-sized submission
+        return {
+            "error": f"submission has {len(sub)} rows, holdout has "
+                     f"{len(holdout)} — not the same rows, refusing to score"
+        }
+
     pred_col = sub.columns[-1]  # convention: last column holds predictions
     pred = np.asarray(sub[pred_col])
     try:
         score = ensemble._score(scorer, holdout[target], pred, None)
-    except Exception:
-        return None
-    return {"scorer": scorer, "score": score}
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+    return {"scorer": scorer, "score": score, "n": len(holdout)}
 
 
 def run_mlestar(task, out_dir, max_calls=60, time_budget_s=3600.0,

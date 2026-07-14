@@ -3,15 +3,25 @@
 `data/<slug>/` holds skrub's downloaded CSVs + a `metadata.json` naming the
 target. A *task* is the layout `pipeline.load_task` expects:
 
-    tasks/<name>/train.csv               <- features + target (the only file the code reads)
-    tasks/<name>/test.csv                <- same rows minus the target column (held out)
+    tasks/<name>/train.csv               <- features + target; the ONLY file any method may train on
+    tasks/<name>/test.csv                <- the shared holdout, features only (no target)
+    tasks/<name>/test_answer.csv         <- the holdout targets; SCORERS ONLY, never given to a method
     tasks/<name>/aux_<table>.csv         <- auxiliary tables, joined whole (relational)
     tasks/<name>/task_description.txt    <- "Predict the <target>." + "# Metric"
 
-The split is 80/20, seeded, stratified for classification — matching the five
-tasks already staged. NOTE: nothing in the pipeline currently reads `test.csv`;
-search cross-validates `train.csv` and the ensemble carves its own holdout out
-of it. `test.csv` is written for convention/future final-scoring only.
+The split is 80/20, seeded, stratified for classification. It is the *only*
+train/test boundary in the project, and it is drawn HERE, on disk, before any
+method sees the data — so no method can be trusted-but-verified into honouring
+it; the holdout rows are simply absent from every file a method can read.
+
+Every arm of the benchmark (the skrub+MCTS extension, AutoGluon, MLE-STAR)
+trains on `train.csv`, predicts the rows of `test.csv`, and is scored against
+`test_answer.csv`. That is what makes the three numbers comparable.
+
+Historically `test.csv` was written WITHOUT its targets and read by nobody: the
+extension and AutoGluon each carved a private holdout out of `train.csv`, and
+the search cross-validated over rows that later became the extension's own eval
+set. See docs/BUG_LEDGER.md.
 
 Each recipe declares the *dataset-specific* knowledge that cannot be inferred:
 which columns leak the target, how big a subsample keeps CV rollouts fast, and
@@ -288,11 +298,29 @@ def stage(name: str, recipe: dict, force: bool = False) -> str | None:
     test.drop(columns=[target]).to_csv(
         os.path.join(out_dir, "test.csv"), index=False
     )
+    # The held-out targets — the ground truth that makes test.csv scoreable.
+    # Written in the SAME row order as test.csv (the submission-format contract:
+    # one prediction per test row, in order); `row_id` makes that order explicit
+    # and lets the scorers assert alignment instead of trusting it.
+    #
+    # The "answer" in the filename is load-bearing: MLE-STAR's create_workspace
+    # copies the task dir into the agent's ./input but skips any file matching
+    # "answer", so this stays invisible to the agent that must predict test.csv.
+    test_answer = pd.DataFrame(
+        {"row_id": range(len(test)), target: test[target].to_numpy()}
+    )
+    test_answer.to_csv(os.path.join(out_dir, "test_answer.csv"), index=False)
 
     for aux_name, cfg in (recipe.get("aux") or {}).items():
         aux = pd.read_csv(os.path.join(src, cfg["csv"]))
-        # follow the main table's keys so an aux table can't dwarf it
-        aux = aux[aux[cfg["aux_key"]].isin(train[cfg["main_key"]])]
+        # Follow the main table's keys so an aux table can't dwarf it — but the
+        # keys of the WHOLE table, train and holdout alike. Filtering to `train`
+        # left every holdout row joining to nothing (0/29 covered on
+        # country-happiness), so each aux-derived feature came out NaN at predict
+        # time and the relational tasks were unscoreable on the shared holdout.
+        # This is not leakage: aux tables carry features, never the target, and a
+        # holdout row you cannot join is a holdout row you cannot predict.
+        aux = aux[aux[cfg["aux_key"]].isin(df[cfg["main_key"]])]
         aux.to_csv(os.path.join(out_dir, f"aux_{aux_name}.csv"), index=False)
 
     with open(
