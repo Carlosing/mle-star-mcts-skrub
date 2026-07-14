@@ -49,24 +49,24 @@ def toy_search():
     return result, df
 
 
-def test_caruana_selects_on_inner_split_not_on_the_reported_holdout(
+def test_caruana_selects_on_oof_predictions_not_on_the_reported_holdout(
     toy_search, monkeypatch
 ):
     """Selection and reporting must not touch the same rows.
 
-    With a shared holdout, Caruana selects on an inner split carved out of the
-    TRAIN frame and the ensemble is only scored on the holdout. Selecting on the
-    holdout would make `ensemble_score` a greedy maximum over the number we
+    With a shared holdout, Caruana selects on out-of-fold predictions spanning
+    ALL of train, and the ensemble is only scored on the holdout. Selecting on
+    the holdout would make `ensemble_score` a greedy maximum over the number we
     publish — the ensemble-overfitting flaw we criticise MLE-STAR for.
 
-    We spy on `_score` and record how many rows each call scored: a selection
-    call must see the inner-validation rows, a reporting call the holdout rows,
-    and the two counts must differ.
+    We spy on `_score` and record how many rows each call scored: selection must
+    see all `len(train)` rows (that is the point of OOF over an inner split),
+    reporting only the holdout rows, and the two counts must differ.
     """
     result, df = toy_search
     train_df = df.iloc[:80].reset_index(drop=True)
     holdout_df = df.iloc[80:].reset_index(drop=True)
-    assert len(holdout_df) != int(len(train_df) * 0.25)  # counts must be distinct
+    assert len(holdout_df) != len(train_df)  # counts must be distinguishable
 
     states = ensemble.top_k_states(result["score_cache"], k=3)
     seen = []
@@ -85,14 +85,44 @@ def test_caruana_selects_on_inner_split_not_on_the_reported_holdout(
         "classification",
         scoring="accuracy",
         holdout=holdout_df,
+        oof_splits=3,
     )
 
-    inner_n = int(len(train_df) * 0.25)
-    assert inner_n in seen, "nothing scored the inner-validation rows"
+    assert len(train_df) in seen, "selection did not score OOF over all of train"
     assert len(holdout_df) in seen, "nothing scored the holdout rows"
     # every reported number is measured on the holdout
     assert len(report["individual_scores"]) == len(states)
     assert 0.0 <= report["ensemble_score"] <= 1.0
+
+
+def test_oof_folds_are_shared_by_every_candidate():
+    """One fold assignment for the whole pool — the OOF matrix depends on it.
+
+    Model i's prediction for row 5 and model j's are only combinable if neither
+    trained on row 5. Per-candidate folds would make the matrix meaningless.
+    """
+    df = make_toy_df()
+    a = ensemble._oof_folds(df, "target", "classification", seed=42, n_splits=3)
+    b = ensemble._oof_folds(df, "target", "classification", seed=42, n_splits=3)
+    assert len(a) == 3
+    for (fit_a, val_a), (fit_b, val_b) in zip(a, b):
+        assert (val_a == val_b).all()
+        assert (fit_a == fit_b).all()
+    # the validation folds partition the rows: every row predicted exactly once
+    covered = sorted(i for _fit, val in a for i in val)
+    assert covered == list(range(len(df)))
+
+
+def test_oof_folds_fall_back_to_kfold_when_a_class_is_too_thin():
+    """A class with fewer members than folds cannot be stratified — don't try.
+
+    A fold landing on zero positives NaNs the scorer silently (skrub_ops._cv_kwarg
+    documents the same trap).
+    """
+    df = make_toy_df().copy()
+    df.loc[df.index[:-2], "target"] = 0  # leave one class with 2 members
+    folds = ensemble._oof_folds(df, "target", "classification", seed=42, n_splits=3)
+    assert len(folds) == 3  # produced KFold rather than raising
 
 
 def test_evaluate_top_k_classification(toy_search):
