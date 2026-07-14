@@ -18,6 +18,7 @@ import asyncio
 import glob
 import json
 import os
+import pickle
 import re
 import time
 from datetime import datetime
@@ -316,6 +317,7 @@ def run_pipeline(
     n_jobs: int = 6,
     time_budget_s: float | None = None,
     ensemble_pool: int = 10,
+    legacy_ensemble: bool = False,
 ) -> dict:
     """Run the full agent -> MCTS pipeline and return a results dict.
 
@@ -462,6 +464,7 @@ def run_pipeline(
         "ensemble": _top_k_report(
             search, df, target, task_type, metric, aux_tables, top_k, seed,
             errors=scoring_errors, pool=ensemble_pool, holdout=holdout,
+            legacy_ensemble=legacy_ensemble,
         ),
         "used_fallback_spec": used_fallback,
         "dropped_sections": spec.get("dropped_sections", []),
@@ -492,8 +495,33 @@ def default_out_dir(task: str) -> str:
 
 
 def save_run_artifacts(result: dict, out_dir: str) -> str:
-    """Write result.json (full) + summary.md (readable) into out_dir."""
+    """Write result.json + summary.md + ensemble.pkl into out_dir.
+
+    The fitted ensemble rides out of ``evaluate_top_k`` on ``result["ensemble"]
+    ["predictor"]`` (an ``ensemble.EnsemblePredictor`` — the selected members
+    already fitted on all of train, so it cost no extra fits). It is POPPED here:
+    pickled to ``ensemble.pkl`` and removed from the dict, so ``result.json``
+    stays real JSON rather than a `default=str` smear of a model object.
+
+    Reload it with:
+        pred = pickle.load(open(f"{out_dir}/ensemble.pkl", "rb"))
+        pred.predict(rows_df, aux=aux_tables)
+    """
     os.makedirs(out_dir, exist_ok=True)
+
+    predictor = (result.get("ensemble") or {}).pop("predictor", None)
+    if predictor is not None:
+        path = os.path.join(out_dir, "ensemble.pkl")
+        try:
+            with open(path, "wb") as f:
+                pickle.dump(predictor, f)
+        except Exception as exc:  # a model that will not pickle must not kill the run
+            errors = result.get("scoring_errors") or {}
+            errors["ensemble_pickle"] = f"{type(exc).__name__}: {exc}"[:300]
+            result["scoring_errors"] = errors
+            if os.path.exists(path):  # never leave a half-written pickle
+                os.remove(path)
+
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False, default=str)
     with open(os.path.join(out_dir, "summary.md"), "w", encoding="utf-8") as f:
@@ -562,11 +590,22 @@ def _result_markdown(r: dict) -> str:
         )
     ens = r.get("ensemble")
     if ens:
+        selection = ens.get("selection", "?")
         lines.append(
             f"- Caruana ensemble ({ens['scorer']}, {ens['k']} of "
             f"{ens.get('pool_size', '?')} pool): {ens['ensemble_score']:.4f} "
             f"(unweighted mean-combine {ens.get('ensemble_score_mean', float('nan')):.4f}) "
             f"vs individuals {['%.4f' % s for s in ens['individual_scores']]}"
+        )
+        # say out loud how the members were chosen: a legacy_holdout score is
+        # selected on the rows it reports, so it is not out-of-sample
+        lines.append(
+            f"- ensemble selection: `{selection}`"
+            + (
+                "  **(optimistic — selected on the reported holdout)**"
+                if selection == "legacy_holdout"
+                else ""
+            )
         )
         if ens.get("weights"):
             lines.append(
@@ -605,7 +644,7 @@ def _result_markdown(r: dict) -> str:
 
 def _top_k_report(
     search, df, target, task_type, metric, aux_tables, top_k, seed,
-    errors=None, pool=10, holdout=None,
+    errors=None, pool=10, holdout=None, legacy_ensemble=False,
 ):
     """Caruana ensemble over a candidate pool vs incumbent on a holdout.
 
@@ -636,6 +675,7 @@ def _top_k_report(
             seed=seed,
             size=top_k,
             holdout=holdout,
+            legacy_selection=legacy_ensemble,
         )
     except Exception as e:
         _note_error(errors, "ensemble", e)
@@ -765,6 +805,14 @@ def _main() -> None:
         help="candidate-pool size for the Caruana ensemble (>= 2*top-k used)",
     )
     parser.add_argument(
+        "--legacy-ensemble",
+        action="store_true",
+        help="select the ensemble on the reported holdout (the pre-2026-07-14 "
+             "logic: optimistic, since it maximises the number it publishes). "
+             "Kept to reproduce results measured that way; the run is stamped "
+             "ensemble.selection='legacy_holdout'",
+    )
+    parser.add_argument(
         "--c", type=float, default=0.5, help="UCT exploration constant"
     )
     parser.add_argument(
@@ -814,6 +862,7 @@ def _main() -> None:
         propose=propose,
         top_k=args.top_k,
         ensemble_pool=args.ensemble_pool,
+        legacy_ensemble=args.legacy_ensemble,
         c=args.c,
         retarget=not args.no_retarget,
         subsample_seeds=args.subsample_seeds,

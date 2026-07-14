@@ -95,6 +95,63 @@ def test_caruana_selects_on_oof_predictions_not_on_the_reported_holdout(
     assert 0.0 <= report["ensemble_score"] <= 1.0
 
 
+def test_legacy_selection_flag_restores_the_biased_path(toy_search):
+    """`legacy_selection=True` selects on the reported rows — the pre-fix logic.
+
+    Kept so results measured that way stay reproducible, and so the two can be
+    A/B'd on an identical split. Its tell is that Caruana seeds with the best
+    member ON THE REPORTED HOLDOUT and early-stops, so the ensemble can never
+    come out below it — the very guarantee whose absence marks the honest path.
+    """
+    result, df = toy_search
+    train_df = df.iloc[:80].reset_index(drop=True)
+    holdout_df = df.iloc[80:].reset_index(drop=True)
+    states = ensemble.top_k_states(result["score_cache"], k=3)
+
+    kwargs = dict(
+        plan=result["plan"], states=states, df=train_df, target="target",
+        task_type="classification", scoring="accuracy", holdout=holdout_df,
+    )
+    legacy = ensemble.evaluate_top_k(**kwargs, legacy_selection=True)
+    honest = ensemble.evaluate_top_k(**kwargs, legacy_selection=False)
+
+    # every artifact records which logic produced it
+    assert legacy["selection"] == "legacy_holdout"
+    assert honest["selection"] == "oof_3fold"
+
+    # the legacy path cannot lose to its own best member: it picked that member
+    # by looking at the rows it reports on. That is the bias, stated as a test.
+    assert legacy["ensemble_score"] >= max(legacy["individual_scores"]) - 1e-9
+
+
+def test_pickled_ensemble_reproduces_its_holdout_predictions(toy_search, tmp_path):
+    """The fitted ensemble round-trips through pickle and predicts identically."""
+    import pickle
+
+    result, df = toy_search
+    train_df = df.iloc[:80].reset_index(drop=True)
+    holdout_df = df.iloc[80:].reset_index(drop=True)
+    states = ensemble.top_k_states(result["score_cache"], k=3)
+
+    report = ensemble.evaluate_top_k(
+        result["plan"], states, train_df, "target", "classification",
+        scoring="accuracy", holdout=holdout_df,
+    )
+    predictor = report["predictor"]
+    assert len(predictor.learners) == report["k"]
+    assert len(predictor.weights) == report["k"]
+
+    before = predictor.predict(holdout_df)
+    path = tmp_path / "ensemble.pkl"
+    path.write_bytes(pickle.dumps(predictor))
+    after = pickle.loads(path.read_bytes()).predict(holdout_df)
+
+    assert (before == after).all()
+    # and it is the ensemble that was scored, not some other combination
+    scored = ensemble._score("accuracy", holdout_df["target"], after, None)
+    assert scored == pytest.approx(report["ensemble_score"], abs=1e-9)
+
+
 def test_oof_folds_are_shared_by_every_candidate():
     """One fold assignment for the whole pool — the OOF matrix depends on it.
 

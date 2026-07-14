@@ -326,3 +326,81 @@ def test_run_agents_reraises_non_transient_immediately(monkeypatch):
     with pytest.raises(RuntimeError, match="RESOURCE_EXHAUSTED"):
         asyncio.run(pipeline._run_agents(object(), "hi", backoff_s=0.0))
     assert calls["n"] == 1  # no retry burned on a quota wall
+
+
+class _ToyPredictor:
+    """Stands in for ensemble.EnsemblePredictor; must be module-level to pickle."""
+
+    def predict(self, data, aux=None):
+        return [1, 2, 3]
+
+
+def test_save_run_artifacts_pickles_the_ensemble_beside_result_json(tmp_path):
+    """The fitted ensemble is persisted per-run, and result.json stays real JSON.
+
+    `evaluate_top_k` returns the fitted EnsemblePredictor on
+    result["ensemble"]["predictor"]. save_run_artifacts must POP it into
+    ensemble.pkl — left in the dict, `json.dump(default=str)` would silently
+    smear a model object into a string field.
+    """
+    import json
+    import pickle
+
+    result = {
+        "task": "toy",
+        "task_type": "regression",
+        "metric": "r2",
+        "ensemble": {
+            "scorer": "r2",
+            "selection": "oof_3fold",
+            "k": 1,
+            "pool_size": 3,
+            "individual_scores": [0.9],
+            "ensemble_score": 0.9,
+            "ensemble_score_mean": 0.88,
+            "predictor": _ToyPredictor(),
+        },
+    }
+    out_dir = tmp_path / "run"
+    pipeline.save_run_artifacts(result, str(out_dir))
+
+    # the pickle is beside the run's other artifacts
+    blob = out_dir / "ensemble.pkl"
+    assert blob.exists()
+    assert pickle.loads(blob.read_bytes()).predict(None) == [1, 2, 3]
+
+    # ...and result.json is untainted by it
+    written = json.loads((out_dir / "result.json").read_text())
+    assert "predictor" not in written["ensemble"]
+    assert written["ensemble"]["ensemble_score"] == 0.9
+
+
+def test_save_run_artifacts_survives_an_unpicklable_ensemble(tmp_path):
+    """A model that will not pickle must not kill the run — record and move on."""
+    import json
+
+    class _Unpicklable:
+        def __reduce__(self):
+            raise TypeError("nope")
+
+    result = {
+        "task": "toy",
+        "task_type": "regression",
+        "metric": "r2",
+        "ensemble": {
+            "scorer": "r2",
+            "selection": "oof_3fold",
+            "k": 1,
+            "pool_size": 3,
+            "individual_scores": [0.9],
+            "ensemble_score": 0.9,
+            "ensemble_score_mean": 0.88,
+            "predictor": _Unpicklable(),
+        },
+    }
+    out_dir = tmp_path / "run"
+    pipeline.save_run_artifacts(result, str(out_dir))  # must not raise
+
+    assert not (out_dir / "ensemble.pkl").exists()  # no half-written blob
+    written = json.loads((out_dir / "result.json").read_text())
+    assert "ensemble_pickle" in written["scoring_errors"]

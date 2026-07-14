@@ -19,8 +19,8 @@ credit-fraud,extension,roc_auc,0.8091340546193139,0,0,288.6,,False
 credit-fraud,extension,roc_auc,0.8280290276429118,0,1,573.5,,False
 credit-fraud,extension,roc_auc,0.8235789268046035,0,2,1096.5,,False
 flight-delays,autogluon,neg_root_mean_squared_error,-35.23502533408456,0,0,2018.8,3600.0,False
-medical-charge,autogluon,neg_root_mean_squared_error,-1694.9288486557803,0,0,3634.9,3600.0,False
 flight-delays,extension,neg_root_mean_squared_error,-36.30816836454055,65418,4,3710.7,,False
+medical-charge,autogluon,neg_root_mean_squared_error,-1694.9288486557803,0,0,3634.9,3600.0,False
 medical-charge,extension,neg_root_mean_squared_error,-2003.061245014411,34467,4,2239.1,,False
 movielens,autogluon,neg_root_mean_squared_error,-0.9542485146403629,0,0,1753.9,3600.0,False
 movielens,extension,neg_root_mean_squared_error,-1.0059928503637303,33138,4,1868.4,,False

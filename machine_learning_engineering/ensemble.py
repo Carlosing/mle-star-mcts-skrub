@@ -143,6 +143,70 @@ def holdout_split(
     return train, holdout
 
 
+class EnsemblePredictor:
+    """The fitted final ensemble — pickle it, load it, predict new rows.
+
+    Holds the fitted learners of the SELECTED members together with their
+    Caruana weights. It is built from the learners the reporting pass already
+    fitted on all of train, so constructing it costs no extra fits.
+
+    ``aux`` tables are NOT stored (they can dwarf the models); pass them back at
+    predict time exactly as they were at fit time.
+
+    Example:
+        pred = pickle.load(open("runs/<run>/ensemble.pkl", "rb"))
+        pred.predict(new_rows_df)                  # flat task
+        pred.predict(new_rows_df, aux={"gdp": g})  # relational task
+    """
+
+    def __init__(self, learners, weights, task_type, classes, main_var,
+                 scorer, states):
+        self.learners = list(learners)
+        self.weights = list(weights)
+        self.task_type = task_type
+        self.classes = None if classes is None else np.asarray(classes)
+        self.main_var = main_var
+        self.scorer = scorer
+        self.states = list(states)  # the configs, for provenance
+
+    def _env(self, data, aux=None):
+        return {self.main_var: data, **(aux or {})}
+
+    def predict_proba(self, data, aux=None):
+        """Weighted mean of the members' class probabilities."""
+        if self.task_type != "classification":
+            raise ValueError("predict_proba is classification-only")
+        env = self._env(data, aux)
+        total = sum(self.weights)
+        return sum(
+            w * np.asarray(learner.predict_proba(env))
+            for learner, w in zip(self.learners, self.weights)
+        ) / total
+
+    def predict(self, data, aux=None):
+        """Weighted mean (regression) / weighted proba-argmax or vote (classification)."""
+        env = self._env(data, aux)
+        total = sum(self.weights)
+        if self.task_type != "classification":
+            return sum(
+                w * np.asarray(learner.predict(env))
+                for learner, w in zip(self.learners, self.weights)
+            ) / total
+        try:
+            return self.classes[np.argmax(self.predict_proba(data, aux), axis=1)]
+        except Exception:
+            # no proba available -> weighted vote
+            votes: dict = {}
+            for learner, w in zip(self.learners, self.weights):
+                for row, label in enumerate(np.asarray(learner.predict(env))):
+                    votes.setdefault(row, {})
+                    votes[row][label] = votes[row].get(label, 0.0) + w
+            return np.array([
+                max(votes[row].items(), key=lambda kv: kv[1])[0]
+                for row in range(len(next(iter(env.values()))))
+            ])
+
+
 def _oof_folds(df, target: str, task_type: str, seed: int, n_splits: int):
     """The fold assignment used for OOF selection — ONE assignment, shared.
 
@@ -185,6 +249,7 @@ def evaluate_top_k(
     size: int | None = None,
     holdout: pd.DataFrame | None = None,
     oof_splits: int = 3,
+    legacy_selection: bool = False,
 ) -> dict:
     """Fit a candidate POOL and Caruana-select a weighted ensemble.
 
@@ -216,6 +281,17 @@ def evaluate_top_k(
     of an inner split, and the ensemble step already dominates wall clock on the
     large tasks (the search subsamples to 2000 rows; this does not).
 
+    ``legacy_selection=True`` restores the pre-2026-07-14 behaviour: Caruana
+    selects on the reported holdout itself. That is the optimistic path — it is
+    kept so the results measured that way stay reproducible and so the two can
+    be A/B'd on an identical split. The returned ``selection`` field records
+    which logic ran, so no artifact is ambiguous about its own provenance:
+
+        "legacy_holdout"  selected on the reported rows (biased, pre-fix)
+        "oof_3fold"       selected on out-of-fold predictions over all of train
+        "inner_split"     too few rows to fold; one split of train
+        "single_member"   a one-config pool; nothing to select
+
     When ``holdout`` is None (no staged bench) it falls back to carving a split
     out of ``df`` and selecting on the same rows it reports — an optimistic
     upper bound. Prefer passing the staged holdout.
@@ -240,16 +316,22 @@ def evaluate_top_k(
         size = len(states)
 
     def _fit_pool(fit_rows, eval_rows):
-        """Fit every pool member on `fit_rows`, predict `eval_rows`."""
+        """Fit every pool member on `fit_rows`, predict `eval_rows`.
+
+        Returns the fitted learners too — the reporting pass fits the pool on all
+        of train, which is exactly the ensemble we want to persist, so keeping
+        them lets `EnsemblePredictor` be built for free.
+        """
         fit_env = {main_var: fit_rows, **(aux or {})}
         # the plan's X node drops the target itself, so eval_rows keeps the
         # column (only fit mode ever evaluates the y mark)
         eval_env = {main_var: eval_rows, **(aux or {})}
-        preds, probs, klasses = [], [], None
+        preds, probs, learners, klasses = [], [], [], None
         for state in states:
             apply_state(plan, state)
             learner = plan.skb.make_learner()
             learner.fit(fit_env)
+            learners.append(learner)
             preds.append(np.asarray(learner.predict(eval_env)))
             proba = None
             if task_type == "classification":
@@ -259,7 +341,7 @@ def evaluate_top_k(
                 except Exception:
                     proba = None
             probs.append(proba)
-        return preds, probs, klasses
+        return preds, probs, klasses, learners
 
     def _combiner(preds, probs, klasses, y):
         """Score a weighted ensemble of member `indices` (repeats carry weight)."""
@@ -335,52 +417,51 @@ def evaluate_top_k(
         )
 
     if holdout is None:
-        # Legacy/offline path: no on-disk bench, so carve one out of `df`. The
-        # ensemble is then SELECTED on the very rows it is scored on — an
-        # optimistic upper bound, not an out-of-sample score. Only used where no
-        # staged holdout exists (see pipeline.load_holdout).
+        # No on-disk bench, so carve one out of `df`. Selection then has nowhere
+        # to go but the reported rows — implicitly legacy.
         fit_rows, holdout = holdout_split(
             df, target, task_type, seed=seed, holdout_frac=holdout_frac
         )
-        select_on_report_rows = True
+        legacy_selection = True
     else:
         # Shared-bench path: `holdout` is the on-disk test.csv/test_answer.csv
         # that no method trained on. Fit on ALL of train.
         fit_rows = df
-        select_on_report_rows = False
 
     y_true = holdout[target]
     # too few rows to fold -> fall back to the single inner split
     can_oof = len(df) >= 2 * oof_splits
 
-    if select_on_report_rows or len(states) == 1:
-        # nothing to select (single member), or the legacy path
-        predictions, probas, classes = _fit_pool(fit_rows, holdout)
-        score_report = _combiner(predictions, probas, classes, y_true)
+    # REPORTING always refits the pool on all of train and predicts the holdout,
+    # so the reported model is the config the search chose, fit on everything.
+    predictions, probas, classes, fitted = _fit_pool(fit_rows, holdout)
+    score_report = _combiner(predictions, probas, classes, y_true)
+
+    if legacy_selection or len(states) == 1:
+        # LEGACY: Caruana selects on the very rows it reports, so ensemble_score
+        # is a greedy maximum over the published metric — optimistic, not
+        # out-of-sample. Kept behind the flag because the results measured before
+        # 2026-07-14 were produced this way and must stay reproducible; every
+        # such run is stamped `selection: "legacy_holdout"` in result.json.
+        # (Also the path when there is nothing to select: a single member.)
         score_select = score_report
+        selection = "legacy_holdout" if legacy_selection else "single_member"
+    elif can_oof:
+        # OOF over ALL of train — k folds at (k-1)/k of the rows each. Selection
+        # never touches the reported holdout.
+        sel_preds, sel_probs, sel_classes = _oof_pool(df, oof_splits)
+        score_select = _combiner(sel_preds, sel_probs, sel_classes, df[target])
+        selection = f"oof_{oof_splits}fold"
     else:
-        # SELECTION never touches the reported holdout, or Caruana would be
-        # greedily maximising the number we publish (exactly the ensemble-
-        # overfitting failure we criticise MLE-STAR for). It runs on OOF
-        # predictions over all of train — k folds at (k-1)/k of the rows each,
-        # so k=3 costs ~2 train-equivalents per member against the 0.75 of a
-        # single inner split, and buys a selection signal 4x the size.
-        if can_oof:
-            sel_preds, sel_probs, sel_classes = _oof_pool(df, oof_splits)
-            score_select = _combiner(sel_preds, sel_probs, sel_classes,
-                                     df[target])
-        else:
-            inner_fit, inner_val = holdout_split(
-                df, target, task_type, seed=seed, holdout_frac=holdout_frac
-            )
-            sel_preds, sel_probs, sel_classes = _fit_pool(inner_fit, inner_val)
-            score_select = _combiner(sel_preds, sel_probs, sel_classes,
-                                     inner_val[target])
-        # REPORTING refits the pool on all of train and predicts the real
-        # holdout — so the reported model is the config the search chose, fit on
-        # everything, not an average of fold-models.
-        predictions, probas, classes = _fit_pool(fit_rows, holdout)
-        score_report = _combiner(predictions, probas, classes, y_true)
+        # too few rows to fold: a single inner split of train still beats
+        # selecting on the reported rows
+        inner_fit, inner_val = holdout_split(
+            df, target, task_type, seed=seed, holdout_frac=holdout_frac
+        )
+        sel_preds, sel_probs, sel_classes, _ = _fit_pool(inner_fit, inner_val)
+        score_select = _combiner(sel_preds, sel_probs, sel_classes,
+                                 inner_val[target])
+        selection = "inner_split"
 
     individual = [score_report([i]) for i in range(len(states))]
 
@@ -396,8 +477,25 @@ def evaluate_top_k(
     distinct = list(counts)  # pool indices, first-selected order
     total = len(selected)
 
+    predictor = EnsemblePredictor(
+        learners=[fitted[i] for i in distinct],
+        weights=[counts[i] / total for i in distinct],
+        task_type=task_type,
+        classes=classes,
+        main_var=main_var,
+        scorer=scoring,
+        states=[states[i] for i in distinct],
+    )
+
     return {
         "scorer": scoring,
+        # the fitted ensemble, ready to pickle. pipeline.save_run_artifacts pops
+        # it out to ensemble.pkl so result.json stays JSON.
+        "predictor": predictor,
+        # how the members were CHOSEN — "legacy_holdout" means the score below
+        # is optimistic (selected on the rows it reports). Stamped on every
+        # artifact so a result is never ambiguous about its own provenance.
+        "selection": selection,
         "k": len(distinct),
         "pool_size": len(states),
         "states": states,

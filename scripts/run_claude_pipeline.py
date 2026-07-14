@@ -32,7 +32,8 @@ from scripts.claude_agents import (
 )
 
 
-def run_task(task: str, out_dir: str, budget: int, n_proposes: int, top_k: int, seed: int) -> dict:
+def run_task(task: str, out_dir: str, budget: int, n_proposes: int, top_k: int,
+             seed: int, legacy_ensemble: bool = False) -> dict:
     """Run one task offline (Claude plan + Claude proposer) and return the result."""
     outer_steps = n_proposes + 1
     refine = n_proposes > 0
@@ -51,6 +52,7 @@ def run_task(task: str, out_dir: str, budget: int, n_proposes: int, top_k: int, 
         outer_steps=outer_steps,
         propose=propose,
         top_k=top_k,
+        legacy_ensemble=legacy_ensemble,
         spec_raw=spec_raw(task, task_type),  # <- skips both ADK agents; no Gemini
     )
 
@@ -75,6 +77,12 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=3, help="ensemble top-k (1 = off)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--legacy-ensemble",
+        action="store_true",
+        help="select the ensemble on the reported holdout (pre-2026-07-14 logic; "
+             "optimistic). Stamped ensemble.selection='legacy_holdout'",
+    )
+    parser.add_argument(
         "--out",
         default=None,
         help="parent dir for run artifacts (default: runs/claude_<timestamp>)",
@@ -93,7 +101,8 @@ def main() -> None:
         started = time.time()
         try:
             r = run_task(
-                task, out_dir, args.budget, args.n_proposes, args.top_k, args.seed
+                task, out_dir, args.budget, args.n_proposes, args.top_k,
+                args.seed, args.legacy_ensemble
             )
             rep = r.get("report") or {}
             ens = r.get("ensemble") or {}

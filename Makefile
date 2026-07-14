@@ -43,7 +43,7 @@ help:
 	@echo "make probe        - probe Gemini models + live quota (probe_gemini.py)"
 	@echo "make probe-school - list school (GWDG) models; SMOKE=1 to health-check each"
 	@echo "make run-live   - full pipeline on the REAL API; writes runs/<task>_<ts>/"
-	@echo "                  vars: PROVIDER=$(PROVIDER) (google|school) BUDGET=$(BUDGET) TASK=<name> TOP_K=<k> N_PROPOSES=<n> NJOBS=$(NJOBS)"
+	@echo "                  vars: PROVIDER=$(PROVIDER) (google|school) BUDGET=$(BUDGET) TASK=<name> TOP_K=<k> N_PROPOSES=<n> NJOBS=$(NJOBS) LEGACY_ENSEMBLE=1"
 	@echo "                  full usage guide: docs/USAGE.md"
 	@echo "make run-refine - run-live with Option 1 + Option 3 on (OUTER_STEPS=3, REFINE=1)"
 	@echo ""
@@ -59,7 +59,7 @@ help:
 	@echo "make bench-autogluon - AutoGluon baseline, same holdout + time budget; TASK=<name> TIME_BUDGET=3600 NUM_CPUS=1 PRESETS=best_quality"
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
 	@echo "make collect-results - copy result.json artifacts from SRC=runs into a small git-shareable DST=results mirror"
-	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=results OUT=<dir>"
+	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=results OUT=figures"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
 sync:
@@ -81,7 +81,8 @@ run-live:
 		--n-jobs $(NJOBS) \
 		$(if $(TIME_BUDGET),--time-budget-s $(TIME_BUDGET),) \
 		$(if $(TASK),--task $(TASK),) $(if $(REFINE),--refine,) \
-		$(if $(N_PROPOSES),--n-proposes $(N_PROPOSES),)
+		$(if $(N_PROPOSES),--n-proposes $(N_PROPOSES),) \
+		$(if $(LEGACY_ENSEMBLE),--legacy-ensemble,)
 
 run-refine:
 	$(MAKE) run-live OUTER_STEPS=3 REFINE=1 BUDGET=$(BUDGET) TASK=$(TASK)
@@ -145,4 +146,4 @@ collect-results:
 RUNS ?= results
 figures:
 	uv run python scripts/make_figures.py --runs $(RUNS) \
-		--out $(if $(OUT),$(OUT),results/figures)
+		--out $(if $(OUT),$(OUT),figures)

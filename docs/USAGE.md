@@ -152,12 +152,27 @@ Notes:
 
 ## What you get back
 
-Each live run creates `runs/<task>_<timestamp>/`. The two files you'll read:
+Each live run creates `runs/<task>_<timestamp>/`. The files you'll read:
 
 - **`summary.md`** — the human-readable report: the task, the plan the LLM
   wrote, the best configuration found, its score, and any plan-quality warnings.
 - **`result.json`** — the same data as machine-readable JSON (every score, the
   full search space, the ensemble, etc.).
+- **`ensemble.pkl`** — the *fitted* final ensemble (the selected members, already
+  fit on all of `train.csv`, plus their Caruana weights). Reload and predict:
+
+  ```python
+  import pickle
+  from machine_learning_engineering import pipeline
+
+  pred = pickle.load(open("runs/<task>_<ts>/ensemble.pkl", "rb"))
+  holdout = pipeline.load_holdout("<task>")
+  pred.predict(holdout)                      # flat task
+  pred.predict(holdout, aux=aux_tables)      # relational task — pass aux back
+  ```
+
+  Aux tables are deliberately *not* stored inside the pickle (they can dwarf the
+  models), so hand them back at predict time exactly as they were at fit time.
 
 The rest are logs of exactly what each agent said:
 `data_analyst_*.json`, `plan_author_*.json`, `proposer_*.json`. Each response log
@@ -171,8 +186,36 @@ now also records that call's `tokens`.
 | `best_state` | The winning pipeline config (encoder, model, tuned HPs). |
 | `best_search_score` | The internal MCTS reward (bounded, higher-is-better). |
 | `report` `{scorer, score}` | The incumbent on the competition metric via **CV** (reporting only). |
-| `holdout` `{scorer, score}` | The incumbent on a **seeded 25% holdout** — the number that is directly comparable across the extension, AutoGluon and MLE-STAR. |
+| `holdout` `{scorer, score}` | The incumbent on the **shared on-disk holdout** (`test.csv` + `test_answer.csv`, drawn by `stage_tasks.py` before any method sees the data) — the number directly comparable across the extension, AutoGluon and MLE-STAR. |
 | `ensemble` | Top-`K` ensemble vs the single incumbent, on the same holdout. |
+| `ensemble.selection` | **How the members were chosen** — see below. A result is never ambiguous about its own provenance. |
+
+### `ensemble.selection` — and the `LEGACY_ENSEMBLE` flag
+
+Caruana has to *pick* its members on some rows, and those rows must not be the
+ones it reports on — otherwise `ensemble_score` is a greedy maximum over the
+published metric rather than an out-of-sample number.
+
+| `selection` | Meaning |
+|---|---|
+| `oof_3fold` | **Default.** Selected on 3-fold out-of-fold predictions spanning *all* of `train.csv`, then refit on all of train and scored on the untouched holdout. |
+| `legacy_holdout` | Selected on the reported holdout itself — **optimistic**. The pre-2026-07-14 logic. |
+| `inner_split` | Too few rows to fold; one split of train. |
+| `single_member` | A one-config pool; nothing to select. |
+
+Results measured **before 2026-07-14 were produced with `legacy_holdout`** and
+carry that slight optimistic bias. The path is kept so those runs stay
+reproducible and so the two can be A/B'd on an identical split:
+
+```bash
+make run-live TASK=california-housing-prices LEGACY_ENSEMBLE=1   # the old logic
+make run-live TASK=california-housing-prices                     # the honest one
+```
+
+On california-housing the legacy path reports **−57128** against the honest
+**−57240** — it looks ~112 RMSE better purely from selecting on the rows it
+publishes. Note the corollary: with honest selection `ensemble_score` is *no
+longer guaranteed* to beat the best pool member. That guarantee **was** the bias.
 | `llm_calls` | Exact number of LLM calls made (**`2`** for a plain run: `data_analyst` + `plan_author`; `+1` per `N_PROPOSES`). |
 | `tokens` `{prompt, completion, total}` | **Real token cost** of the whole run. |
 | `tokens_by_agent` | Per-agent token breakdown (`data_analyst`, `plan_author`, `proposer`), each `{prompt, completion, total, calls}`. |
@@ -257,7 +300,7 @@ The time-scaling curve is drawn per task from any *extension* `result.json`
 artifacts under `RUNS` whose budget differs (e.g. several
 `make run-live BUDGET=...` runs), skipped when no task has two budget points.
 
-This writes `runs/figures/`: `quality_at_cost.png`, `time_scaling.png`,
+This writes `figures/` (project root): `quality_at_cost.png`, `time_scaling.png`,
 `mechanism_table.md`, and a flat `comparison.csv`. All three methods emit the
 same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`,
 `wall_clock_s`), so the figure script reads them uniformly.

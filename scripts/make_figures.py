@@ -42,7 +42,7 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    / token cost / leakage handling / adaptivity), written as markdown.
 
 Run:
-    uv run python scripts/make_figures.py --runs results --out results/figures
+    uv run python scripts/make_figures.py --runs results --out figures
 Needs matplotlib (the `bench` extra):  uv sync --extra bench
 
 Reads from ``results/`` (a small, git-shareable mirror of ``runs/`` containing
@@ -613,7 +613,7 @@ def _main() -> None:
         default=["results"],
         help="root dir(s) to scan for uniform result.json artifacts",
     )
-    parser.add_argument("--out", default="results/figures", help="output dir")
+    parser.add_argument("--out", default="figures", help="output dir")
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
