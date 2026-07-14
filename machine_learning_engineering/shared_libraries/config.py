@@ -26,10 +26,10 @@ class DefaultConfig:
         300  # The maximum time in seconds allowed to complete the task.
     )
     num_solutions: int = 1  # The number of different solutions to generate or attempt for the given task.
-    num_model_candidates: int = 2  # The number of different model architectures or hyperparameter sets to consider as candidates.
-    max_retry: int = 2  # The maximum number of times to retry a failed operation.
-    max_debug_round: int = 2  # The maximum number of iterations or rounds allowed for the debugging step.
-    max_rollback_round: int = 2  # The maximum number of times the system can rollback to a previous state, in case of errors or poor performance.
+    num_model_candidates: int = 1  # The number of different model architectures or hyperparameter sets to consider as candidates.
+    max_retry: int = 1  # The maximum number of times to retry a failed operation.
+    max_debug_round: int = 1  # The maximum number of iterations or rounds allowed for the debugging step.
+    max_rollback_round: int = 1  # The maximum number of times the system can rollback to a previous state, in case of errors or poor performance.
     inner_loop_round: int = 1  # The number of iterations or rounds to be executed within an inner loop of the system.
     outer_loop_round: int = 1  # The number of iterations or rounds to be executed within the outer loop, which might encompass multiple inner loops.
     ensemble_loop_round: int = 1  # The number of rounds or iterations dedicated to ensembling, combining multiple models or solutions.
