@@ -28,11 +28,16 @@ dependencies = [
     "xgboost>=2.0.0",
     # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu
     # to ensure the CPU version of torch is prioritized.
+    # torch is a *transitive* need (sentence-transformers / skrub's TextEncoder).
+    # It must never sit on the pipeline import chain — a second OpenMP runtime
+    # segfaults xgboost. See docs/BUG_LEDGER.md #11.
     "torch>=2.7.1",
     "openai>=1.14.0",
-    "python-dotenv>=1.0.1",
     "ruff>=0.15.17",
     "json-repair>=0.61.4",
+    # DuckDuckGo search, used by the MLE-STAR baseline's model-retrieval step
+    # (shared_libraries/web_search_util.py).
+    "ddgs",
 ]
 
 [dependency-groups]
@@ -86,12 +91,6 @@ known-first-party = ["machine_learning_engineering"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-[tool.agent-starter-pack]
-example_question = "Execute the California housing prices task."
-
-[tool.agent-starter-pack.settings]
-agent_directory = "machine_learning_engineering"
 
 [build-system]
 requires = ["hatchling"]

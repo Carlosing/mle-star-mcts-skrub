@@ -1,257 +1,127 @@
-"""Utility functions for leakage check agent."""
+"""OpenAI-compatible data leakage checker utilities."""
 
-import functools
 import json
+import re
 
-from google.adk import agents
-from google.adk.agents import callback_context as callback_context_module
-from google.adk.models import llm_request as llm_request_module
-from google.adk.models import llm_response as llm_response_module
-from google.genai import types
-
+from machine_learning_engineering.runner import run_agent
 from machine_learning_engineering.shared_libraries import (
     code_util,
     common_util,
-    config,
     data_leakage_prompt,
 )
 
 
-def get_check_leakage_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the check leakage agent instruction."""
-    agent_name = context.agent_name
-    suffix = code_util.get_updated_suffix(callback_context=context)
-    code_state_key = code_util.get_code_state_key(
-        agent_name=agent_name,
-        suffix=suffix,
-    )
-    code = context.state.get(code_state_key, "")
-    return data_leakage_prompt.CHECK_LEAKAGE_INSTR.format(
-        code=code,
-    )
+def _get_code_for_agent(state, agent_name: str) -> str:
+    """Get the current code block associated with an agent."""
+    suffix = code_util.get_updated_suffix(state, agent_name)
+    code_state_key = code_util.get_code_state_key(agent_name, suffix)
+    return state.get(code_state_key, "")
 
 
-def get_refine_leakage_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the refine leakage agent instruction."""
-    agent_name = context.agent_name
-    suffix = code_util.get_updated_suffix(callback_context=context)
-    code_state_key = code_util.get_code_state_key(
-        agent_name=agent_name,
-        suffix=suffix,
-    )
-    code = context.state.get(code_state_key, "")
-    return data_leakage_prompt.LEAKAGE_REFINE_INSTR.format(
-        code=code,
-    )
+def _set_code_for_agent(state, agent_name: str, code: str) -> None:
+    """Store the updated code block associated with an agent."""
+    suffix = code_util.get_updated_suffix(state, agent_name)
+    code_state_key = code_util.get_code_state_key(agent_name, suffix)
+    state[code_state_key] = code
 
 
-def parse_leakage_status(text: str) -> tuple[str, str]:
-    """Parses the leakage status from the text."""
+def _parse_leakage_response(text: str) -> tuple[str, str]:
+    """Parse leakage status and code block from an LLM response.
+
+    Returns:
+        Tuple of (leakage_status, code_block). If parsing fails, defaults to
+        "No Data Leakage" and an empty code block.
+    """
+    # Try to find a JSON list/object in the response.
     start_idx, end_idx = text.find("["), text.rfind("]") + 1
-    text = text[start_idx:end_idx]
-    result = json.loads(text)[0]
-    leakage_status = result["leakage_status"]
-    code_block = (
-        result["code_block"].replace("```python", "").replace("```", "")
-    )
-    return leakage_status, code_block
+    if start_idx == -1 or end_idx == 0:
+        start_idx, end_idx = text.find("{"), text.rfind("}") + 1
+    if start_idx == -1 or end_idx == 0:
+        return "No Data Leakage", ""
 
-
-def update_extract_status(
-    callback_context: callback_context_module.CallbackContext,
-    llm_response: llm_response_module.LlmResponse,
-    prefix: str,
-) -> llm_response_module.LlmResponse | None:
-    """Updates the status of extraction."""
-    response_text = common_util.get_text_from_response(llm_response)
-    agent_name = callback_context.agent_name
-    suffix = code_util.get_updated_suffix(callback_context=callback_context)
-    code_state_key = code_util.get_code_state_key(
-        agent_name=agent_name,
-        suffix=suffix,
-    )
-    code = callback_context.state.get(code_state_key, "")
-    if "No Data Leakage" in response_text:
-        leakage_status = "No Data Leakage"
+    snippet = text[start_idx:end_idx]
     try:
-        leakage_status, code_block = parse_leakage_status(response_text)
-        if leakage_status == "No Data Leakage":
-            extract_status = True
-        else:
-            extract_status = code_block in code
+        parsed = json.loads(snippet)
+        if isinstance(parsed, list):
+            parsed = parsed[0]
+        leakage_status = parsed.get("leakage_status", "No Data Leakage")
+        code_block = parsed.get("code_block", "")
+        code_block = code_block.replace("```python", "").replace("```", "")
+        return leakage_status, code_block
     except Exception:
-        code_block = ""
-        extract_status = False
-    extract_status_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="extract_status",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    leakage_block_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="leakage_block",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    leakage_status_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="leakage_status",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    callback_context.state[extract_status_key] = extract_status
-    callback_context.state[leakage_block_key] = code_block
-    callback_context.state[leakage_status_key] = leakage_status
-    return None
+        return "No Data Leakage", ""
 
 
-def check_extract_status(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-    prefix: str,
-) -> llm_response_module.LlmResponse | None:
-    """Checks the status of extraction."""
-    suffix = code_util.get_updated_suffix(callback_context=callback_context)
-    extract_status_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="extract_status",
-        prefix=prefix,
-        suffix=suffix,
+def _check_leakage_status(state, agent_name: str) -> tuple[str, str]:
+    """Run the leakage checker agent and parse the result."""
+    code = _get_code_for_agent(state, agent_name)
+    if not code:
+        return "No Data Leakage", ""
+
+    instruction = data_leakage_prompt.CHECK_LEAKAGE_INSTR.format(code=code)
+    response = run_agent(
+        state,
+        f"check_leakage_agent_{agent_name}",
+        instruction,
+        temperature=0.0,
     )
-    skip_data_leakage_check_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="skip_data_leakage_check",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    extract_status = callback_context.state.get(extract_status_key, False)
-    skip_flag = callback_context.state.get(skip_data_leakage_check_key, False)
-    if skip_flag or extract_status:
-        return llm_response_module.LlmResponse()
-    return None
+    response_text = common_util.get_text_from_response(response)
+    return _parse_leakage_response(response_text)
 
 
-def replace_leakage_code(
-    callback_context: callback_context_module.CallbackContext,
-    llm_response: llm_response_module.LlmResponse,
-    prefix: str,
-) -> llm_response_module.LlmResponse | None:
-    """Replace the code block that has the data leakage issue."""
-    response_text = common_util.get_text_from_response(llm_response)
-    refined_code_block = response_text.replace("```python", "").replace(
-        "```", ""
+def _refine_leakage_block(state, agent_name: str, leakage_block: str) -> str:
+    """Ask the LLM to refine a leaky code block."""
+    instruction = data_leakage_prompt.LEAKAGE_REFINE_INSTR.format(code=leakage_block)
+    response = run_agent(
+        state,
+        f"refine_leakage_agent_{agent_name}",
+        instruction,
+        temperature=0.0,
     )
-    agent_name = callback_context.agent_name
-    suffix = code_util.get_updated_suffix(callback_context=callback_context)
-    leakage_block_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="leakage_block",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    code_block = callback_context.state.get(leakage_block_key, "")
-    code_state_key = code_util.get_code_state_key(
-        agent_name=agent_name,
-        suffix=suffix,
-    )
-    code = callback_context.state.get(code_state_key, "")
-    refined_code = code.replace(code_block, refined_code_block)
-    callback_context.state[code_state_key] = refined_code
-    code_util.evaluate_code(callback_context=callback_context)
-    return None
+    response_text = common_util.get_text_from_response(response)
+    refined = response_text.replace("```python", "").replace("```", "")
+    return refined
 
 
-def check_data_leakage(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-    prefix: str,
-) -> llm_response_module.LlmResponse | None:
-    """Checks if the code has the data leakage issue."""
-    suffix = code_util.get_updated_suffix(callback_context=callback_context)
-    leakage_status_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="leakage_status",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    skip_data_leakage_check_key = code_util.get_name_with_prefix_and_suffix(
-        base_name="skip_data_leakage_check",
-        prefix=prefix,
-        suffix=suffix,
-    )
-    leakage_status = callback_context.state.get(leakage_status_key, "")
-    skip_flag = callback_context.state.get(skip_data_leakage_check_key, False)
-    if skip_flag or ("Yes Data Leakage" not in leakage_status):
-        return llm_response_module.LlmResponse()
-    return None
+def check_and_fix_leakage(
+    state,
+    agent_name: str,
+    max_iterations: int = 2,
+) -> bool:
+    """Check an agent's code for data leakage and fix it when found.
 
+    Args:
+        state: AgentState instance.
+        agent_name: Name of the agent whose code should be checked.
+        max_iterations: Maximum leakage fix iterations.
 
-def get_data_leakage_checker_agent(
-    prefix: str,
-    suffix: str,
-) -> agents.SequentialAgent:
-    """Gets the data leakage checker agent."""
-    check_leakage_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=code_util.get_name_with_prefix_and_suffix(
-            base_name="check_leakage_agent",
-            prefix=prefix,
-            suffix=suffix,
-        ),
-        description="Check if the code has the data leakage issue.",
-        instruction=get_check_leakage_agent_instruction,
-        before_model_callback=functools.partial(
-            check_extract_status,
-            prefix=prefix,
-        ),
-        after_model_callback=functools.partial(
-            update_extract_status,
-            prefix=prefix,
-        ),
-        generate_content_config=types.GenerateContentConfig(
-            temperature=0.0,
-        ),
-        include_contents="none",
-    )
-    check_leakage_loop_agent = agents.LoopAgent(
-        name=code_util.get_name_with_prefix_and_suffix(
-            base_name="check_leakage_loop_agent",
-            prefix=prefix,
-            suffix=suffix,
-        ),
-        description="Check if the code has the data leakage issue until extraction succeeds.",
-        sub_agents=[
-            check_leakage_agent,
-        ],
-        max_iterations=config.CONFIG.max_retry,
-    )
-    refine_leakage_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=code_util.get_name_with_prefix_and_suffix(
-            base_name="refine_leakage_agent",
-            prefix=prefix,
-            suffix=suffix,
-        ),
-        description="Refine the code to address the data leakage issue.",
-        instruction=get_refine_leakage_agent_instruction,
-        before_model_callback=functools.partial(
-            check_data_leakage,
-            prefix=prefix,
-        ),
-        after_model_callback=replace_leakage_code,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=0.0,
-        ),
-        include_contents="none",
-    )
-    data_leakage_checker_agent = agents.SequentialAgent(
-        name=code_util.get_name_with_prefix_and_suffix(
-            base_name="data_leakage_checker_agent",
-            prefix=prefix,
-            suffix=suffix,
-        ),
-        description="Check and refine the code to address the data leakage issue.",
-        sub_agents=[
-            check_leakage_loop_agent,
-            refine_leakage_agent,
-        ],
-    )
-    return data_leakage_checker_agent
+    Returns:
+        True if the code ended with no detected leakage, False otherwise.
+    """
+    if not state.get("use_data_leakage_checker", False):
+        return True
+
+    for _ in range(max_iterations):
+        leakage_status, leakage_block = _check_leakage_status(state, agent_name)
+        if leakage_status != "Yes Data Leakage" or not leakage_block:
+            return True
+
+        code = _get_code_for_agent(state, agent_name)
+        if leakage_block not in code:
+            # The reported block is not an exact substring; give up fixing.
+            return False
+
+        refined_block = _refine_leakage_block(state, agent_name, leakage_block)
+        new_code = code.replace(leakage_block, refined_block, 1)
+        _set_code_for_agent(state, agent_name, new_code)
+        code_util.evaluate_code(state, agent_name)
+
+        result = code_util.get_code_execution_result_state_key(
+            agent_name, code_util.get_updated_suffix(state, agent_name)
+        )
+        exec_result = state.get(result, {})
+        if exec_result.get("returncode", 1) != 0:
+            return False
+
+    leakage_status, _ = _check_leakage_status(state, agent_name)
+    return leakage_status != "Yes Data Leakage"

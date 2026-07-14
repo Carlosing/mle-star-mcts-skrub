@@ -1,75 +1,92 @@
-"""Submission agent for Machine Learning Engineering."""
+"""Submission agent for Machine Learning Engineering (OpenAI-compatible MVP)."""
 
-from google.adk.agents import callback_context as callback_context_module
-from google.adk.models import llm_request as llm_request_module
-from google.adk.models import llm_response as llm_response_module
+import os
+import shutil
 
-from machine_learning_engineering.shared_libraries import debug_util
+from machine_learning_engineering.shared_libraries import common_util, debug_util
 from machine_learning_engineering.sub_agents.submission import prompt
 
 
-def check_submission_finish(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-) -> llm_response_module.LlmResponse | None:
-    """Checks if adding codes for submission is finished."""
-    result_dict = callback_context.state.get("submission_code_exec_result", {})
-    callback_context.state["submission_skip_data_leakage_check"] = True
-    if result_dict:
-        return llm_response_module.LlmResponse()
-    callback_context.state["submission_skip_data_leakage_check"] = False
-    return None
+def _create_submission_workspace(state) -> None:
+    """Create the ensemble workspace directory used by the submission agent.
+
+    Copies the task input files into the ensemble workspace so the final
+    solution can load the test data from ./input. If the workspace already
+    exists (e.g., created by the ensemble agent), it is preserved.
+    """
+    data_dir = state.get("data_dir", "")
+    workspace_dir = state.get("workspace_dir", "")
+    task_name = state.get("task_name", "")
+    run_cwd = os.path.join(workspace_dir, task_name, "ensemble")
+    os.makedirs(run_cwd, exist_ok=True)
+    os.makedirs(os.path.join(run_cwd, "input"), exist_ok=True)
+    os.makedirs(os.path.join(run_cwd, "final"), exist_ok=True)
+    if os.listdir(os.path.join(run_cwd, "input")):
+        return
+    files = os.listdir(os.path.join(data_dir, task_name))
+    for file in files:
+        if os.path.isdir(os.path.join(data_dir, task_name, file)):
+            shutil.copytree(
+                os.path.join(data_dir, task_name, file),
+                os.path.join(run_cwd, "input", file),
+            )
+        elif "answer" not in file:
+            common_util.copy_file(
+                os.path.join(data_dir, task_name, file),
+                os.path.join(run_cwd, "input"),
+            )
 
 
-def get_submission_and_debug_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the submission agent instruction."""
-    num_solutions = context.state.get("num_solutions", 2)
-    outer_loop_round = context.state.get("outer_loop_round", 2)
-    ensemble_loop_round = context.state.get("ensemble_loop_round", 2)
-    task_description = context.state.get("task_description", "")
-    lower = context.state.get("lower", True)
-    final_solution = ""
-    best_score = None
-    for task_id in range(1, num_solutions + 1):
-        curr_code = context.state.get(
-            f"train_code_{outer_loop_round}_{task_id}", ""
-        )
-        curr_exec_result = context.state.get(
-            f"train_code_exec_result_{outer_loop_round}_{task_id}", ""
-        )
-        curr_score = curr_exec_result["score"]
-        if (
-            (best_score is None)
-            or (lower and curr_score < best_score)
-            or (not lower and curr_score > best_score)
+def _select_final_solution(state) -> str:
+    """Choose the best refined solution or ensemble output for submission."""
+    best_ensemble_code = state.get("best_ensemble_code", "")
+    best_ensemble_score = state.get("best_ensemble_score")
+    refined_score = state.get("best_refined_score")
+    refined_code = state.get("best_refined_code", "")
+    initial_code = state.get("best_initial_code", refined_code)
+
+    # Pick the best available solution among successful refinements/ensembles.
+    best_code = refined_code
+    best_score = refined_score
+    if best_ensemble_code and best_ensemble_score is not None:
+        lower = state.get("lower", True)
+        if best_score is None or (
+            (lower and best_ensemble_score <= best_score)
+            or (not lower and best_ensemble_score >= best_score)
         ):
-            final_solution = curr_code
-            best_score = curr_score
-    for ensemble_iter in range(ensemble_loop_round + 1):
-        curr_code = context.state.get(f"ensemble_code_{ensemble_iter}", {})
-        curr_exec_result = context.state.get(
-            f"ensemble_code_exec_result_{ensemble_iter}", {}
-        )
-        curr_score = curr_exec_result["score"]
-        if (
-            (best_score is None)
-            or (lower and curr_score < best_score)
-            or (not lower and curr_score > best_score)
-        ):
-            final_solution = curr_code
-            best_score = curr_score
+            best_code = best_ensemble_code
+            best_score = best_ensemble_score
+
+    # If the selected solution is broken, fall back to the best initial candidate.
+    if not best_code or best_score is None or best_score == 1e9:
+        best_code = initial_code
+    return best_code
+
+
+def get_submission_and_debug_agent_instruction(state, agent_name: str) -> str:
+    """Builds the submission prompt using the best available solution."""
+    task_description = state.get("task_description", "")
+    final_solution = _select_final_solution(state)
     return prompt.ADD_TEST_FINAL_INSTR.format(
         task_description=task_description,
         code=final_solution,
     )
 
 
-submission_agent = debug_util.get_run_and_debug_agent(
-    prefix="submission",
-    suffix="",
-    agent_description="Add codes for creating a submission file.",
-    instruction_func=get_submission_and_debug_agent_instruction,
-    before_model_callback=check_submission_finish,
-)
+def run_submission_pipeline(state) -> None:
+    """Generates the final solution and submission.csv.
+
+    Args:
+        state: AgentState instance.
+
+    Returns:
+        None.
+    """
+    _create_submission_workspace(state)
+    debug_util.run_and_debug(
+        state,
+        "submission",
+        get_submission_and_debug_agent_instruction,
+        max_retry=state.get("max_retry", 1),
+        max_debug=state.get("max_debug_round", 1),
+    )

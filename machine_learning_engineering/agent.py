@@ -1,187 +1,81 @@
-from machine_learning_engineering import client, MODEL_NAME
-from machine_learning_engineering import prompt
+"""Entry point for the OpenAI-compatible MLE-STAR MVP."""
+
+import dataclasses
+import json
+import os
+
+from machine_learning_engineering.runner import AgentState
+from machine_learning_engineering.shared_libraries import config
+from machine_learning_engineering.sub_agents.ensemble import (
+    agent as ensemble_agent_module,
+)
+from machine_learning_engineering.sub_agents.initialization import (
+    agent as initialization_agent_module,
+)
+from machine_learning_engineering.sub_agents.refinement import (
+    agent as refinement_agent_module,
+)
+from machine_learning_engineering.sub_agents.submission import (
+    agent as submission_agent_module,
+)
 
 
-class ManagerAgent:
-    def __init__(self):
-        """This function is executed automatically when the agent is born."""
-        self.nombre = "MLE_Frontdoor_Manager"
-        self.total_tokens_spent = 0
-        self.token_limit = 5000
-
-        complete_instructions = (
-            prompt.SYSTEM_INSTRUCTION + "\n\n" + prompt.FRONTDOOR_INSTRUCTION
-        )
-
-        self.history = [{"role": "system", "content": complete_instructions}]
-
-    def solve_task(self, user_task):
-
-        if self.total_tokens_spent >= self.token_limit:
-            return "Limit tokens reached"
-
-        self.history.append({"role": "user", "content": user_task})
-
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME, messages=self.history, temperature=0.02
-            )
-
-            agent_response = response.choices[0].message.content
-
-            self.history.append(
-                {"role": "assistant", "content": agent_response}
-            )
-
-            self.total_tokens_spent += response.usage.total_tokens
-
-            return agent_response
-
-        except Exception as e:
-            return f"Connection error {e}"
-
-    def delegate_task(self, employee):
-
-        if self.total_tokens_spent >= self.token_limit:
-            return "Limit tokens reached"
-
-        agent_response, cost = employee.work(self.history)
-
-        self.total_tokens_spent += cost
-
-        self.history.append({"role": "assistant", "content": agent_response})
-
-        return agent_response
+def save_state(state: AgentState) -> None:
+    """Saves the final state to a JSON file in the task workspace."""
+    workspace_dir = state.get("workspace_dir", "")
+    task_name = state.get("task_name", "")
+    run_cwd = os.path.join(workspace_dir, task_name)
+    os.makedirs(run_cwd, exist_ok=True)
+    with open(os.path.join(run_cwd, "final_state.json"), "w", encoding="utf-8") as f:
+        json.dump(state.to_dict(), f, indent=2, default=str)
 
 
-class SubAgent:
-    def __init__(self, Agent_name, instructions, use_web_search=False):
+def run_pipeline(
+    task_name: str | None = None,
+    data_dir: str | None = None,
+    workspace_dir: str | None = None,
+) -> AgentState:
+    """Runs the MLE-STAR MVP pipeline.
 
-        self.Agent_name = Agent_name
+    Every field of ``config.CONFIG`` is seeded onto the state first. The
+    sub-agents read their knobs from ``state`` (``state.get("max_debug_round")``,
+    ``state.get("use_web_search")``, …), so anything left unseeded silently falls
+    back to a hardcoded default — which previously meant ``use_web_search`` could
+    never fire here, and the benchmark harness's clamps were ignored. Seeding
+    from config makes ``config.CONFIG`` the single source of truth it reads like.
 
-        self.instructions = instructions
+    Args:
+        task_name: Optional override for the task name.
+        data_dir: Optional override for the data directory.
+        workspace_dir: Optional override for the workspace directory.
 
-        # Opt-in provider-native web search. This is the OpenAI stack's
-        # counterpart to the Gemini stack's google_search tool (adk_agent.py).
-        # It uses the OpenAI Responses API's built-in web_search tool, which
-        # requires a REAL OpenAI endpoint (api.openai.com) + key + model — it is
-        # NOT available through AI Studio's OpenAI-compatible endpoint. See
-        # docs/agent-architecture.md. Default False keeps the original flow.
-        self.use_web_search = use_web_search
+    Returns:
+        AgentState containing the full pipeline state.
+    """
+    state = AgentState()
+    cfg = config.CONFIG
 
-    def work(self, Manager_history):
+    for field in dataclasses.fields(cfg):
+        state[field.name] = getattr(cfg, field.name)
 
-        if self.use_web_search:
-            return self._work_with_search(Manager_history)
+    state["task_name"] = task_name or cfg.task_name
+    state["data_dir"] = data_dir or cfg.data_dir
+    state["workspace_dir"] = workspace_dir or cfg.workspace_dir
+    state["total_tokens_spent"] = 0
 
-        temp_history = [{"role": "system", "content": self.instructions}]
+    initialization_agent_module.run_initialization_pipeline(state)
+    refinement_agent_module.run_refinement_pipeline(state)
+    ensemble_agent_module.run_ensemble_pipeline(state)
+    submission_agent_module.run_submission_pipeline(state)
+    save_state(state)
 
-        history = temp_history + Manager_history
-
-        try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME, messages=history, temperature=0.02
-            )
-
-            agent_response = response.choices[0].message.content
-
-            token_cost = response.usage.total_tokens
-
-            return agent_response, token_cost
-
-        except Exception as e:
-            return (
-                f"There was a problem {e} with the execution of the subagent",
-                0,
-            )
-
-    def _work_with_search(self, Manager_history):
-        """Answer with native OpenAI web search (Responses API).
-
-        Mirrors the Gemini stack's google_search analyst. Returns the same
-        (text, token_cost) contract as work(). Fails with a clear message if the
-        configured endpoint/model does not expose the built-in web_search tool
-        (e.g. an OpenAI-compatible proxy rather than real OpenAI).
-        """
-        try:
-            response = client.responses.create(
-                model=MODEL_NAME,
-                instructions=self.instructions,
-                tools=[{"type": "web_search"}],
-                input=Manager_history,
-            )
-
-            agent_response = response.output_text
-
-            token_cost = response.usage.total_tokens
-
-            return agent_response, token_cost
-
-        except Exception as e:
-            return (
-                f"There was a problem {e} with the web-search subagent "
-                "(native web_search needs a real OpenAI endpoint/key/model)",
-                0,
-            )
+    return state
 
 
 if __name__ == "__main__":
-    print("🚀 Starting the SAIA Engine - Multi-Agent Factory...")
-
-    # 1. Nace el Gerente
-    Manager = ManagerAgent()
-
-    # 2. Definimos el problema base y se lo pasamos al gerente
-    trial_task = "We have the Titanic dataset. We want to build a machine learning pipeline to predict who survived."
-    Manager.history.append({"role": "user", "content": trial_task})
-
-    # 3. Redactamos las reglas secretas en inglés para cada fase
-    init_prompt = (
-        "You are the Initialization Agent. Your task is to read the user's problem "
-        "and outline a clear, short 3-step plan to analyze the dataset."
-    )
-
-    refine_prompt = (
-        "You are the Refinement Agent. Based strictly on the Initialization Agent's plan, "
-        "suggest 3 concrete data cleaning steps (e.g., handling missing values, encoding features)."
-    )
-
-    ensemble_prompt = (
-        "You are the Ensemble Agent. Based on the cleaned data strategy from the previous steps, "
-        "suggest 2 specific Machine Learning models that are well-suited for this classification task and briefly explain why."
-    )
-
-    submit_prompt = (
-        "You are the Submission Agent. Your job is to output the final result. "
-        "Write a 1-paragraph executive summary of the entire pipeline designed by your peers, "
-        "and provide a professional sign-off."
-    )
-
-    # 4. Instanciamos a los 4 empleados
-    agent_init = SubAgent("Initialization Expert", init_prompt)
-    agent_refine = SubAgent("Refinement Expert", refine_prompt)
-    agent_ensemble = SubAgent("Ensemble Expert", ensemble_prompt)
-    agent_submit = SubAgent("Submission Expert", submit_prompt)
-
-    # 5. El Gerente delega el trabajo en cadena (Pipeline Secuencial)
-    print("\n--- PHASE 1: Initialization ---")
-    out_1 = Manager.delegate_task(agent_init)
-    print(out_1)
-
-    print("\n--- PHASE 2: Refinement ---")
-    out_2 = Manager.delegate_task(agent_refine)
-    print(out_2)
-
-    print("\n--- PHASE 3: Ensemble ---")
-    out_3 = Manager.delegate_task(agent_ensemble)
-    print(out_3)
-
-    print("\n--- PHASE 4: Submission ---")
-    out_4 = Manager.delegate_task(agent_submit)
-    print(out_4)
-
-    # 6. Auditoría Final
-    print("=" * 60)
-    print(
-        f"💰 Final session balance: {Manager.total_tokens_spent} tokens spent."
-    )
+    final_state = run_pipeline()
+    print("\n=== Pipeline finished ===")
+    print(f"Best score: {final_state.get('best_score_1')}")
+    submission_result = final_state.get("submission_code_exec_result", {})
+    print(f"Submission return code: {submission_result.get('returncode')}")
+    print(f"Total tokens spent: {final_state.get('total_tokens_spent', 0)}")

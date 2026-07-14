@@ -1,493 +1,268 @@
-"""Refinement agent for Machine Learning Engineering."""
+"""Refinement agent for MLE-STAR (OpenAI-compatible runner)."""
 
-import functools
 import json
-import os
+import re
 
-from google.adk import agents
-from google.adk.agents import callback_context as callback_context_module
-from google.adk.models import llm_request as llm_request_module
-from google.adk.models import llm_response as llm_response_module
-from google.genai import types
-
-from machine_learning_engineering.shared_libraries import (
-    check_leakage_util,
-    common_util,
-    config,
-    debug_util,
-)
+from machine_learning_engineering.runner import run_agent
+from machine_learning_engineering.shared_libraries import code_util, common_util, debug_util
 from machine_learning_engineering.sub_agents.refinement import prompt
 
 
-def update_inner_loop_states(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Updates inner loop states."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    callback_context.state[f"inner_iter_{task_id}"] += 1
-    return None
+def _get_current_solution(state, task_id, step):
+    """Return the current refined solution for the given step."""
+    return state.get(f"train_code_{step}_{task_id}", "")
 
 
-def update_outer_loop_states(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Updates outer loop states."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    workspace_dir = callback_context.state.get("workspace_dir", "")
-    task_name = callback_context.state.get("task_name", "")
-    lower = callback_context.state.get("lower", True)
-    inner_loop_round = callback_context.state.get("inner_loop_round", 2)
-    run_cwd = os.path.join(workspace_dir, task_name, task_id)
-    prev_solution = callback_context.state.get(
-        f"train_code_{step}_{task_id}", ""
-    )
-    prev_exec_result = callback_context.state.get(
-        f"train_code_exec_result_{step}_{task_id}", {}
-    )
-    improvements = []
-    for inner_iter in range(inner_loop_round):
-        exec_result = callback_context.state.get(
-            f"train_code_improve_exec_result_{inner_iter}_{step}_{task_id}", {}
-        )
-        if lower:
-            improvement = prev_exec_result["score"] - exec_result["score"]
-        else:
-            improvement = exec_result["score"] - prev_exec_result["score"]
-        improvements.append(improvement)
-    best_improvement = max(improvements)
-    best_idx = improvements.index(best_improvement)
-    output_filepath = os.path.join(run_cwd, f"train{step + 1}.py")
-    if best_improvement <= 0.0:
-        callback_context.state[f"train_code_{step + 1}_{task_id}"] = (
-            prev_solution
-        )
-        callback_context.state[
-            f"train_code_exec_result_{step + 1}_{task_id}"
-        ] = prev_exec_result
-        with open(output_filepath, "w", encoding="utf-8") as f:
-            f.write(prev_solution)
-    else:
-        best_solution = callback_context.state.get(
-            f"train_code_improve_{best_idx}_{step}_{task_id}", ""
-        )
-        best_exec_result = callback_context.state.get(
-            f"train_code_improve_exec_result_{best_idx}_{step}_{task_id}", {}
-        )
-        callback_context.state[f"train_code_{step + 1}_{task_id}"] = (
-            best_solution
-        )
-        callback_context.state[
-            f"train_code_exec_result_{step + 1}_{task_id}"
-        ] = best_exec_result
-        with open(output_filepath, "w", encoding="utf-8") as f:
-            f.write(best_solution)
-    ablation_results = callback_context.state.get(
-        f"ablation_summary_{step}_{task_id}", ""
-    )
-    code_block = callback_context.state.get(
-        f"refine_code_block_{step}_{task_id}", ""
-    )
-    callback_context.state[f"prev_ablations_{task_id}"].append(ablation_results)
-    callback_context.state[f"prev_code_blocks_{task_id}"].append(code_block)
-    callback_context.state[f"refine_step_{task_id}"] += 1
-    return None
+def _set_current_solution(state, task_id, step, code):
+    """Store the current refined solution for the given step."""
+    state[f"train_code_{step}_{task_id}"] = code
 
 
-def init_inner_loop_states(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Initializes inner loop states."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    callback_context.state[f"inner_iter_{task_id}"] = 0
-    return None
+_DEFAULT_PLAN = "Simplify the model training block and use a more robust validation setup."
+_DEFAULT_CODE_BLOCK = ""
 
 
-def init_outer_loop_states(
-    callback_context: callback_context_module.CallbackContext,
-) -> types.Content | None:
-    """Initializes outer loop states."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    callback_context.state[f"refine_step_{task_id}"] = 0
-    callback_context.state[f"prev_ablations_{task_id}"] = []
-    callback_context.state[f"prev_code_blocks_{task_id}"] = []
-    return None
-
-
-def get_ablation_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the ablation agent instruction."""
-    task_id = context.agent_name.split("_")[-1]
-    prev_ablations = context.state.get(f"prev_ablations_{task_id}", [])
-    step = context.state.get(f"refine_step_{task_id}", 0)
-    code = context.state.get(f"train_code_{step}_{task_id}", "")
-    prev_ablations_str = ""
-    for i, ablation_result in enumerate(prev_ablations):
-        prev_ablations_str += f"## Previous ablation study result {i + 1}\n"
-        prev_ablations_str += f"{ablation_result}\n\n"
-    if prev_ablations_str:
-        instruction = prompt.ABLATION_SEQ_INSTR.format(
-            code=code,
-            prev_ablations=prev_ablations_str,
-        )
-    else:
-        instruction = prompt.ABLATION_INSTR.format(
-            code=code,
-        )
-    return instruction
-
-
-def get_ablation_summary_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the ablation summary agent instruction."""
-    task_id = context.agent_name.split("_")[-1]
-    step = context.state.get(f"refine_step_{task_id}", 0)
-    code = context.state.get(f"ablation_code_{step}_{task_id}", "")
-    result_dict = context.state.get(
-        f"ablation_code_exec_result_{step}_{task_id}", {}
-    )
-    return prompt.SUMMARIZE_ABLATION_INSTR.format(
-        code=code,
-        result=result_dict["ablation_result"],
-    )
-
-
-def get_init_plan_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the initial plan agent instruction."""
-    task_id = context.agent_name.split("_")[-1]
-    step = context.state.get(f"refine_step_{task_id}", 0)
-    code = context.state.get(f"train_code_{step}_{task_id}", "")
-    ablation_results = context.state.get(
-        f"ablation_summary_{step}_{task_id}", ""
-    )
-    prev_code_blocks = context.state.get(f"prev_code_blocks_{task_id}", [])
-    if not prev_code_blocks:
-        instruction = prompt.EXTRACT_BLOCK_AND_PLAN_INSTR.format(
-            code=code,
-            ablation_results=ablation_results,
-        )
-    else:
-        instruction = prompt.EXTRACT_BLOCK_AND_PLAN_SEQ_INSTR.format(
-            code=code,
-            ablation_results=ablation_results,
-            prev_code_blocks=prev_code_blocks,
-        )
-    return instruction
-
-
-def get_plan_refinement_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets plan refinement instruction."""
-    lower = context.state.get("lower", True)
-    task_id = context.agent_name.split("_")[-1]
-    step = context.state.get(f"refine_step_{task_id}", 0)
-    code_block = context.state.get(f"refine_code_block_{step}_{task_id}", "")
-    prev_plans = context.state.get(f"refine_plans_{step}_{task_id}", [])
-    prev_exec_result = context.state.get(
-        f"train_code_exec_result_{step}_{task_id}", {}
-    )
-    score_plan_time_list = []
-    for inner_iter, curr_plan in enumerate(prev_plans):
-        exec_result = context.state.get(
-            f"train_code_improve_exec_result_{inner_iter}_{step}_{task_id}", {}
-        )
-        if lower:
-            improvement = prev_exec_result["score"] - exec_result["score"]
-        else:
-            improvement = exec_result["score"] - prev_exec_result["score"]
-        score_plan_time_list.append(
-            (improvement, curr_plan, exec_result["execution_time"])
-        )
-    num_top_plans = context.state.get("num_top_plans", 3)
-    score_plan_time_list.sort(key=lambda x: x[0], reverse=True)
-    prev_plan_summary = ""
-    selected_score_plan_time_list = score_plan_time_list[:num_top_plans]
-    for score, curr_plan, execution_time in selected_score_plan_time_list:
-        prev_plan_summary += f"## Plan: {curr_plan}\n"
-        prev_plan_summary += (
-            f"## Execution time after implement: {execution_time}s\n"
-        )
-        prev_plan_summary += f"## Score: {score:.5f}\n\n"
-    return prompt.PLAN_REFINEMENT_INSTR.format(
-        code_block=code_block,
-        prev_plan_summary=prev_plan_summary,
-    )
-
-
-def get_plan_implement_agent_instruction(
-    context: callback_context_module.ReadonlyContext,
-) -> str:
-    """Gets the plan implement agent instruction."""
-    task_id = context.agent_name.split("_")[-1]
-    step = context.state.get(f"refine_step_{task_id}", 0)
-    code_block = context.state.get(f"refine_code_block_{step}_{task_id}", "")
-    plan = context.state.get(f"refine_plans_{step}_{task_id}", [""])[-1]
-    return prompt.IMPLEMENT_PLAN_INSTR.format(
-        code_block=code_block,
-        plan=plan,
-    )
-
-
-def check_ablation_finish(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-) -> llm_response_module.LlmResponse | None:
-    """Checks if the ablation study is finished."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    callback_context.state[f"ablation_skip_data_leakage_check_{task_id}"] = True
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    result_dict = callback_context.state.get(
-        f"ablation_code_exec_result_{step}_{task_id}", {}
-    )
-    if result_dict.get("returncode", 1) == 0:
-        return llm_response_module.LlmResponse()
-    callback_context.state[f"ablation_skip_data_leakage_check_{task_id}"] = (
-        False
-    )
-    return None
-
-
-def check_init_plan_finish(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-) -> llm_response_module.LlmResponse | None:
-    """Checks if the initial plan is finished."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    code = callback_context.state.get(f"train_code_{step}_{task_id}", "")
-    code_block = callback_context.state.get(
-        f"refine_code_block_{step}_{task_id}", ""
-    )
-    status = code and code_block and (code_block in code)
-    if status:
-        return llm_response_module.LlmResponse()
-    return None
-
-
-def check_plan_implement_finish(
-    callback_context: callback_context_module.CallbackContext,
-    llm_request: llm_request_module.LlmRequest,
-) -> llm_response_module.LlmResponse | None:
-    """Checks if the plan implement is finished."""
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    inner_iter = callback_context.state.get(f"inner_iter_{task_id}", 0)
-    suffix = f"{inner_iter}_{step}_{task_id}"
-    result_dict = callback_context.state.get(
-        f"train_code_improve_exec_result_{suffix}", {}
-    )
-    callback_context.state[
-        f"plan_implement_skip_data_leakage_check_{suffix}"
-    ] = True
-    if result_dict:
-        return llm_response_module.LlmResponse()
-    callback_context.state[
-        f"plan_implement_skip_data_leakage_check_{suffix}"
-    ] = False
-    return None
-
-
-def get_ablation_summary(
-    callback_context: callback_context_module.CallbackContext,
-    llm_response: llm_response_module.LlmResponse,
-) -> llm_response_module.LlmResponse | None:
-    """Gets the ablation summary from the response."""
-    response_text = common_util.get_text_from_response(llm_response)
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    callback_context.state[f"ablation_summary_{step}_{task_id}"] = response_text
-    return None
-
-
-def get_plan_and_code_block(
-    callback_context: callback_context_module.CallbackContext,
-    llm_response: llm_response_module.LlmResponse,
-) -> llm_response_module.LlmResponse | None:
-    """Gets the plan and code block from the response."""
-    response_text = common_util.get_text_from_response(llm_response)
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    start_idx = response_text.find("[")
-    end_idx = response_text.rfind("]") + 1
+def _extract_json_block(text: str):
+    """Extract the first JSON object from a text string."""
+    # Try to find a JSON object delimited by braces.
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return {}
     try:
-        result = json.loads(response_text[start_idx:end_idx])[0]
-        plan = result["plan"]
-        code_block = (
-            result["code_block"].replace("```python", "").replace("```", "")
-        )
+        return json.loads(match.group(0))
     except Exception:
-        plan = ""
-        code_block = ""
-    callback_context.state[f"refine_plans_{step}_{task_id}"] = [plan]
-    callback_context.state[f"refine_code_block_{step}_{task_id}"] = code_block
-    return None
+        return {}
 
 
-def get_refined_plan(
-    callback_context: callback_context_module.CallbackContext,
-    llm_response: llm_response_module.LlmResponse,
-) -> llm_response_module.LlmResponse | None:
-    """Gets the refined plan from the response."""
-    response_text = common_util.get_text_from_response(llm_response)
-    task_id = callback_context.agent_name.split("_")[-1]
-    step = callback_context.state.get(f"refine_step_{task_id}", 0)
-    callback_context.state[f"refine_plans_{step}_{task_id}"].append(
-        response_text
+def get_ablation_agent_instruction(state, agent_name: str) -> str:
+    """Build the ablation study prompt."""
+    task_id = agent_name.split("_")[-1]
+    code = _get_current_solution(state, task_id, 0)
+    return prompt.ABLATION_INSTR.format(
+        task_description=state.get("task_description", ""),
+        code=code,
     )
-    return None
 
 
-use_data_leakage_checker = config.CONFIG.use_data_leakage_checker
-refinement_parallel_sub_agents = []
-for k in range(config.CONFIG.num_solutions):
-    ablation_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=f"ablation_agent_{k + 1}",
-        description="Perform ablation studies to improve the solution.",
-        instruction=get_ablation_agent_instruction,
-        before_model_callback=check_ablation_finish,
-        after_model_callback=functools.partial(
-            debug_util.get_code_from_response,
-            do_eval=not use_data_leakage_checker,
-        ),
-        generate_content_config=types.GenerateContentConfig(
-            temperature=1.0,
-        ),
-        include_contents="none",
+def get_ablation_summary_agent_instruction(state, agent_name: str) -> str:
+    """Build the ablation summary prompt."""
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    ablation_result = state.get(f"ablation_code_exec_result_{step}_{task_id}", {})
+    ablation_output = ablation_result.get("ablation_result", "")
+    return prompt.ABLATION_SUMMARY_INSTR.format(
+        task_description=state.get("task_description", ""),
+        ablation_output=ablation_output,
     )
-    ablation_sequential_sub_agents = [ablation_agent]
-    if use_data_leakage_checker:
-        data_leakage_checker_agent = (
-            check_leakage_util.get_data_leakage_checker_agent(
-                prefix="ablation",
-                suffix=f"{k + 1}",
+
+
+def get_init_plan_agent_instruction(state, agent_name: str) -> str:
+    """Build the initial refinement plan prompt."""
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    code = _get_current_solution(state, task_id, step)
+    ablation_summary = state.get(f"ablation_summary_{step}_{task_id}", "")
+    return prompt.INIT_PLAN_INSTR.format(
+        task_description=state.get("task_description", ""),
+        code=code,
+        ablation_summary=ablation_summary,
+    )
+
+
+def get_plan_refine_agent_instruction(state, agent_name: str) -> str:
+    """Build the alternative refinement plan prompt."""
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    code = _get_current_solution(state, task_id, step)
+    previous_plans = state.get(f"previous_plans_{step}_{task_id}", [])
+    return prompt.PLAN_REFINE_INSTR.format(
+        task_description=state.get("task_description", ""),
+        code=code,
+        previous_plans="\n".join(previous_plans),
+    )
+
+
+def get_plan_implement_agent_instruction(state, agent_name: str) -> str:
+    """Build the plan implementation prompt."""
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    inner_iter = state.get(f"inner_iter_{task_id}", 0)
+    code = _get_current_solution(state, task_id, step)
+    plan = state.get(f"refine_plan_{inner_iter}_{step}_{task_id}", "")
+    code_block = state.get(f"refine_code_block_{inner_iter}_{step}_{task_id}", "")
+    return prompt.PLAN_IMPLEMENT_INSTR.format(
+        task_description=state.get("task_description", ""),
+        code=code,
+        plan=plan,
+        code_block=code_block,
+    )
+
+
+def _store_plan_from_response(state, agent_name, response) -> None:
+    """Parse a plan response and store plan/code_block."""
+    response_text = common_util.get_text_from_response(response)
+    parsed = _extract_json_block(response_text)
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    inner_iter = state.get(f"inner_iter_{task_id}", 0)
+    plan = parsed.get("plan", "") or _DEFAULT_PLAN
+    code_block = parsed.get("code_block", "") or _DEFAULT_CODE_BLOCK
+    state[f"refine_plan_{inner_iter}_{step}_{task_id}"] = plan
+    state[f"refine_code_block_{inner_iter}_{step}_{task_id}"] = code_block
+    previous_plans = state.get(f"previous_plans_{step}_{task_id}", [])
+    previous_plans.append(plan)
+    state[f"previous_plans_{step}_{task_id}"] = previous_plans
+
+
+def _store_ablation_summary(state, agent_name, response) -> None:
+    """Store the ablation summary in state."""
+    response_text = common_util.get_text_from_response(response)
+    task_id = agent_name.split("_")[-1]
+    step = state.get(f"refine_step_{task_id}", 0)
+    state[f"ablation_summary_{step}_{task_id}"] = response_text
+
+
+def _select_best_improvement(state, task_id, step, inner_iters) -> str:
+    """Select the best improvement from the inner loop."""
+    lower = state.get("lower", True)
+    best_code = _get_current_solution(state, task_id, step)
+    best_score = state.get(
+        f"train_code_exec_result_0_{task_id}", {}
+    ).get("score", 1e9 if lower else 0)
+
+    for inner_iter in inner_iters:
+        result = state.get(
+            f"train_code_improve_exec_result_{inner_iter}_{step}_{task_id}", {}
+        )
+        score = result.get("score", 1e9 if lower else 0)
+        if (lower and score < best_score) or (not lower and score > best_score):
+            best_score = score
+            best_code = state.get(
+                f"train_code_improve_{inner_iter}_{step}_{task_id}", best_code
             )
+
+    _set_current_solution(state, task_id, step + 1, best_code)
+    # Track the best refined solution seen so far across all steps.
+    current_best_score = state.get("best_refined_score", 1e9 if lower else 0)
+    if (lower and best_score < current_best_score) or (
+        not lower and best_score > current_best_score
+    ):
+        state["best_refined_score"] = best_score
+        state["best_refined_code"] = best_code
+    return best_code
+
+
+def run_ablation_and_debug_loop(state, task_id) -> None:
+    """Generate and execute an ablation study script."""
+    debug_util.run_and_debug(
+        state,
+        f"ablation_{task_id}",
+        get_ablation_agent_instruction,
+        max_retry=state.get("max_retry", 1),
+        max_debug=state.get("max_debug_round", 1),
+    )
+
+
+def run_ablation_summary_agent(state, task_id) -> None:
+    """Summarize ablation study results."""
+    run_agent(
+        state,
+        f"ablation_summary_{task_id}",
+        get_ablation_summary_agent_instruction,
+        after_model=_store_ablation_summary,
+        temperature=0.0,
+    )
+
+
+def run_init_plan_agent(state, task_id) -> None:
+    """Generate the initial refinement plan."""
+    run_agent(
+        state,
+        f"init_plan_agent_{task_id}",
+        get_init_plan_agent_instruction,
+        after_model=_store_plan_from_response,
+        temperature=1.0,
+    )
+
+
+def run_init_plan_implement_agent(state, task_id) -> None:
+    """Apply the initial refinement plan."""
+    state[f"inner_iter_{task_id}"] = 0
+    debug_util.run_and_debug(
+        state,
+        f"plan_implement_{task_id}",
+        get_plan_implement_agent_instruction,
+        max_retry=state.get("max_retry", 1),
+        max_debug=state.get("max_debug_round", 1),
+    )
+
+
+def run_plan_refine_agent(state, task_id, inner_iter: int) -> None:
+    """Generate an alternative refinement plan."""
+    state[f"inner_iter_{task_id}"] = inner_iter
+    run_agent(
+        state,
+        f"plan_refine_{inner_iter}_{task_id}",
+        get_plan_refine_agent_instruction,
+        after_model=_store_plan_from_response,
+        temperature=1.0,
+    )
+
+
+def run_plan_implement_agent(state, task_id, inner_iter: int) -> None:
+    """Apply an alternative refinement plan."""
+    state[f"inner_iter_{task_id}"] = inner_iter
+    debug_util.run_and_debug(
+        state,
+        f"plan_implement_{task_id}",
+        get_plan_implement_agent_instruction,
+        max_retry=state.get("max_retry", 1),
+        max_debug=state.get("max_debug_round", 1),
+    )
+
+
+def run_refinement_pipeline(state) -> None:
+    """Run the full refinement pipeline for each solution."""
+    num_solutions = state.get("num_solutions", 1)
+    outer_loop_round = state.get("outer_loop_round", 0)
+    inner_loop_round = state.get("inner_loop_round", 0)
+
+    for task_id in range(1, num_solutions + 1):
+        # Seed the refinement step 0 with the initialization output.
+        init_code = state.get(f"train_code_0_{task_id}", "")
+        _set_current_solution(state, task_id, 0, init_code)
+        init_score = state.get(f"train_code_exec_result_0_{task_id}", {}).get(
+            "score"
         )
-        ablation_sequential_sub_agents.append(data_leakage_checker_agent)
-        additional_agent_description = (
-            " and check if there are data leakage issues"
+        lower = state.get("lower", True)
+        state["best_refined_score"] = (
+            init_score if init_score is not None else (1e9 if lower else 0)
         )
-    else:
-        additional_agent_description = ""
-    ablation_sequential_agent = agents.SequentialAgent(
-        name=f"ablation_sequential_agent_{k + 1}",
-        description=f"Perform ablation studies{additional_agent_description}.",
-        sub_agents=ablation_sequential_sub_agents,
-    )
-    debug_inner_loop_agent = debug_util.get_debug_inner_loop_agent(
-        prefix="ablation",
-        suffix=f"{k + 1}",
-    )
-    ablation_and_debug_loop_agent = agents.LoopAgent(
-        name=f"ablation_and_debug_loop_agent_{k + 1}",
-        description="Perform ablation studies and debug the code until it succeeds.",
-        sub_agents=[
-            ablation_sequential_agent,
-            debug_inner_loop_agent,
-        ],
-        max_iterations=config.CONFIG.max_rollback_round,
-    )
-    ablation_summary_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=f"ablation_summary_agent_{k + 1}",
-        description="Summarize the ablation study results.",
-        instruction=get_ablation_summary_agent_instruction,
-        after_model_callback=get_ablation_summary,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=0.0,
-        ),
-        include_contents="none",
-    )
-    init_plan_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=f"init_plan_agent_{k + 1}",
-        description="Generate an initial plan and a code block.",
-        instruction=get_init_plan_agent_instruction,
-        before_model_callback=check_init_plan_finish,
-        after_model_callback=get_plan_and_code_block,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=1.0,
-        ),
-        include_contents="none",
-    )
-    init_plan_loop_agent = agents.LoopAgent(
-        name=f"init_plan_loop_agent_{k + 1}",
-        description=(
-            "Generate an initial plan and a code block until the code block is valid."
-        ),
-        sub_agents=[init_plan_agent],
-        before_agent_callback=init_inner_loop_states,
-        max_iterations=config.CONFIG.max_retry,
-    )
-    init_plan_implement_agent = debug_util.get_run_and_debug_agent(
-        prefix="plan_implement_initial",
-        suffix=f"{k + 1}",
-        agent_description="Implement the initial plan to generate a solution.",
-        instruction_func=get_plan_implement_agent_instruction,
-        before_model_callback=check_plan_implement_finish,
-    )
-    plan_refine_agent = agents.Agent(
-        model=config.CONFIG.agent_model,
-        name=f"plan_refine_agent_{k + 1}",
-        description="Refine the plan.",
-        instruction=get_plan_refinement_instruction,
-        after_model_callback=get_refined_plan,
-        generate_content_config=types.GenerateContentConfig(
-            temperature=1.0,
-        ),
-        include_contents="none",
-    )
-    plan_implement_agent = debug_util.get_run_and_debug_agent(
-        prefix="plan_implement",
-        suffix=f"{k + 1}",
-        agent_description="Implement the plan to generate a solution.",
-        instruction_func=get_plan_implement_agent_instruction,
-        before_model_callback=check_plan_implement_finish,
-    )
-    plan_refine_and_implement_agent = agents.SequentialAgent(
-        name=f"plan_refine_and_implement_agent_{k + 1}",
-        description="Refine the plan and then implement it.",
-        sub_agents=[
-            plan_refine_agent,
-            plan_implement_agent,
-        ],
-        after_agent_callback=update_inner_loop_states,
-    )
-    refine_inner_loop_agent = agents.LoopAgent(
-        name=f"refine_inner_loop_agent_{k + 1}",
-        description="Refine the given solution.",
-        sub_agents=[plan_refine_and_implement_agent],
-        before_agent_callback=update_inner_loop_states,
-        max_iterations=config.CONFIG.inner_loop_round,
-    )
-    ablation_and_refine_agent = agents.SequentialAgent(
-        name=f"ablation_and_refine_agent_{k + 1}",
-        description="Perform ablation study and refine the code.",
-        sub_agents=[
-            ablation_and_debug_loop_agent,
-            ablation_summary_agent,
-            init_plan_loop_agent,
-            init_plan_implement_agent,
-            refine_inner_loop_agent,
-        ],
-        after_agent_callback=update_outer_loop_states,
-    )
-    ablation_and_refine_loop_agent = agents.LoopAgent(
-        name=f"ablation_and_refine_loop_agent_{k + 1}",
-        description="Perform ablation study and refine the code for multiple rounds.",
-        sub_agents=[ablation_and_refine_agent],
-        before_agent_callback=init_outer_loop_states,
-        max_iterations=config.CONFIG.outer_loop_round,
-    )
-    refinement_parallel_sub_agents.append(ablation_and_refine_loop_agent)
-refinement_agent = agents.ParallelAgent(
-    name="refinement_agent",
-    description="Refine each solution by performing ablation studies.",
-    sub_agents=refinement_parallel_sub_agents,
-    before_agent_callback=None,
-)
+        state["best_refined_code"] = init_code
+
+        for step in range(outer_loop_round):
+            state[f"refine_step_{task_id}"] = step
+
+            # Ablation study and summary
+            run_ablation_and_debug_loop(state, task_id)
+            run_ablation_summary_agent(state, task_id)
+
+            # Initial plan and implementation
+            run_init_plan_agent(state, task_id)
+            run_init_plan_implement_agent(state, task_id)
+
+            inner_iters = [0]
+            # Alternative plans in the inner loop
+            for inner_iter in range(1, inner_loop_round + 1):
+                run_plan_refine_agent(state, task_id, inner_iter)
+                run_plan_implement_agent(state, task_id, inner_iter)
+                inner_iters.append(inner_iter)
+
+            # Select the best improvement and promote it to the next step
+            _select_best_improvement(state, task_id, step, inner_iters)
+
+        # Store the final refined code for downstream agents
+        state[f"train_code_0_{task_id}"] = state.get(
+            "best_refined_code",
+            _get_current_solution(state, task_id, outer_loop_round),
+        )

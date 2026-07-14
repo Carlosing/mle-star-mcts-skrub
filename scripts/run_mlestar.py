@@ -1,35 +1,34 @@
-"""Revive the original MLE-STAR agent graph and run it under hard caps.
+"""Run the MLE-STAR baseline under hard caps and emit a uniform result.json.
 
-MLE-STAR (the upstream Google agent, ``machine_learning_engineering/sub_agents/
-{initialization,refinement,ensemble,submission}``) is dead code in this fork: the
-four sub-agents are built at import but never wired into a root and never driven.
-This script re-composes the root ``SequentialAgent`` and drives it, so we can
-measure its ACTUAL token + call cost — the "mystery" the MCTS extension is
-contrasted against (the extension's LLM cost is a fixed ``2 + N_PROPOSES``; MLE-
-STAR's is unbounded: ~26 calls best case, 1000+ when the debug cascade fires).
+MLE-STAR is the comparison arm the MCTS extension is contrasted against. Its
+LLM cost is the "mystery": the extension's is a fixed ``2 + N_PROPOSES`` calls,
+while MLE-STAR's is unbounded — ~26 calls best case, far more once the debug
+cascade fires. This script measures that cost.
 
-Because that cost is unpredictable and the school/Gemini budget is scarce, this
-runner imposes HARD CAPS with zero edits to the sub-agent source:
+The baseline itself is the OpenAI-compatible pipeline in
+``machine_learning_engineering/{runner,agent}.py`` + ``sub_agents/`` (init ->
+refine -> ensemble -> submission), driven by ``agent.run_pipeline``. It does NOT
+use the ADK stack — that belongs to the extension's own agents.
+
+Because the token bill is unpredictable and the school/Gemini budget is scarce,
+this runner imposes HARD CAPS by wrapping ``runner.llm_call``, the single
+chokepoint every sub-agent funnels through:
 
 - **clamped knobs** (``num_solutions=1``, ``max_debug_round=1`` …) set on
-  ``config.CONFIG`` *before* the sub-agents import (they read config at import).
-- **a global call counter** that raises ``_CallBudgetExceeded`` once ``max_calls``
-  model calls have fired — attached as a ``before_model_callback`` on every
-  ``LlmAgent`` via a tree-walk.
-- **a wall-clock deadline** (same callback) and a **per-call output-token bound**.
-- **token capture** (``run_logging.extract_usage``) so MLE-STAR's tokens land in
-  the SAME uniform ``result.json`` the extension and AutoGluon emit.
-- **provider routing**: on a non-Gemini model (``PROVIDER=school``) each agent's
-  bare ``model=`` string is swapped for a ``LiteLlm`` (mirroring
-  ``adk_agent._resolve_model``) and the Gemini-only ``google_search`` tool is
-  stripped.
+  ``config.CONFIG``, which ``run_pipeline`` seeds onto the state the sub-agents
+  actually read.
+- **a call counter** raising ``_CallBudgetExceeded`` past ``max_calls``.
+- **a wall-clock deadline** and a **per-call output-token bound**.
+- **token capture** (``run_logging.extract_usage``, which already speaks the
+  OpenAI ``usage`` shape) so MLE-STAR's tokens land in the SAME ``result.json``
+  the extension and AutoGluon emit.
 
 **Honest caveats (state these in the writeup):** MLE-STAR writes + executes
 generated Python (subprocess, non-deterministic); a run can burn its whole token
 budget in the debug cascade and still produce no valid submission; the score it
-prints ("Final Validation Performance") is its OWN CV and is NOT comparable —
-only a re-score of its ``final/submission.csv`` on our shared holdout is. Treat
-the result as ONE clamped data point, not a swept curve.
+prints is its OWN CV and is NOT comparable — only a re-score of its
+``final/submission.csv`` on our shared holdout is. Treat the result as ONE
+clamped data point, not a swept curve.
 
 Run (best-effort; needs a live provider + budget):
     PROVIDER=school uv run python scripts/run_mlestar.py --task california-housing-prices \
@@ -43,7 +42,7 @@ from datetime import datetime
 
 
 class _CallBudgetExceeded(Exception):
-    """Raised by the cap callback to abort a run that hit its LLM-call budget."""
+    """Raised by the cap wrapper to abort a run that hit its LLM-call budget."""
 
 
 # clamp knobs conservatively so the debug cascade can't explode the token bill.
@@ -60,11 +59,10 @@ _CLAMP = {
 
 
 def _clamp_config(task: str, data_dir: str, overrides: dict | None = None):
-    """Set clamped knobs + task on ``config.CONFIG`` BEFORE the sub-agents import.
+    """Set clamped knobs + task on ``config.CONFIG`` before the pipeline runs.
 
-    The sub-agents read ``config.CONFIG`` at import (e.g. ``LoopAgent``'s
-    ``max_iterations=config.CONFIG.outer_loop_round``), so clamping must happen
-    first or it has no effect on the built graph.
+    ``agent.run_pipeline`` seeds every config field onto the AgentState the
+    sub-agents read, so setting them here is what actually bounds the run.
     """
     from machine_learning_engineering.shared_libraries import config
 
@@ -75,86 +73,36 @@ def _clamp_config(task: str, data_dir: str, overrides: dict | None = None):
     return config.CONFIG
 
 
-def _as_callback_list(existing):
-    """Normalize an ADK callback field (None | callable | list) to a list."""
-    if existing is None:
-        return []
-    if isinstance(existing, list):
-        return list(existing)
-    return [existing]
+def _effective_model(model_name: str) -> str:
+    """Strip the LiteLlm ``openai/`` prefix for the raw OpenAI-compatible client.
 
+    ``SCHOOL_ROOT_AGENT_MODEL`` carries the prefix because the *extension's* ADK
+    path routes through LiteLlm, which needs it. MLE-STAR talks to the endpoint
+    directly, where ``openai/qwen3.5-397b-a17b`` is not a valid model id.
 
-def _instrument_tree(agent, *, cap_before, token_after, resolved_model,
-                     is_gemini):
-    """Recursively attach caps/token capture (and route the model) on every agent.
-
-    Prepends ``cap_before`` to each ``LlmAgent``'s ``before_model_callback`` (so
-    the budget check runs first) and appends ``token_after`` to
-    ``after_model_callback``. On a non-Gemini provider, swaps the bare model
-    string for the resolved ``LiteLlm`` and strips ``google_search`` (Gemini-only).
+    Example:
+        _effective_model("openai/qwen3.5-397b-a17b")  # -> "qwen3.5-397b-a17b"
+        _effective_model("gemini-2.5-flash")          # -> "gemini-2.5-flash"
     """
-    if hasattr(agent, "model"):
-        agent.before_model_callback = [cap_before] + _as_callback_list(
-            getattr(agent, "before_model_callback", None)
-        )
-        agent.after_model_callback = _as_callback_list(
-            getattr(agent, "after_model_callback", None)
-        ) + [token_after]
-        if not is_gemini and isinstance(getattr(agent, "model", None), str):
-            agent.model = resolved_model
-            tools = getattr(agent, "tools", None)
-            if tools:
-                agent.tools = [
-                    t for t in tools
-                    if "google_search" not in type(t).__name__.lower()
-                    and getattr(t, "__name__", "") != "google_search"
-                ]
-    for child in getattr(agent, "sub_agents", None) or []:
-        _instrument_tree(
-            child,
-            cap_before=cap_before,
-            token_after=token_after,
-            resolved_model=resolved_model,
-            is_gemini=is_gemini,
-        )
+    return model_name.removeprefix("openai/")
 
 
-def build_capped_root(max_calls: int, deadline: float, max_output_tokens: int,
-                      token_sink: dict, counter: dict):
-    """Compose the MLE-STAR root SequentialAgent with caps + token capture.
+def install_caps(counter: dict, token_sink: dict, max_output_tokens: int):
+    """Wrap ``runner.llm_call`` with the call/time caps and token capture.
 
-    Import the four sub-agents AFTER the config clamp (call ``_clamp_config``
-    first), wire them into the upstream order, and instrument the whole tree.
+    Patching the module attribute is enough even though the sub-agents bind
+    ``run_agent`` by direct-name import: ``run_agent`` looks ``llm_call`` up in
+    runner's globals at call time. Returns the original for restoration.
     """
-    from google.adk import agents
-
-    from machine_learning_engineering.adk_agent import _resolve_model
+    from machine_learning_engineering import runner
     from machine_learning_engineering.run_logging import add_usage, extract_usage
-    from machine_learning_engineering.shared_libraries import config
-    from machine_learning_engineering.sub_agents.initialization.agent import (
-        initialization_agent,
-    )
-    from machine_learning_engineering.sub_agents.refinement.agent import (
-        refinement_agent,
-    )
-    from machine_learning_engineering.sub_agents.ensemble.agent import (
-        ensemble_agent,
-    )
-    from machine_learning_engineering.sub_agents.submission.agent import (
-        submission_agent,
-    )
 
-    resolved_model, is_gemini = _resolve_model(config.CONFIG.agent_model)
+    original = runner.llm_call
+    default_model = _effective_model(counter["model"])
 
-    # limits live on the shared `counter` dict so they're introspectable and a
-    # single composed root can be re-exercised (ADK forbids re-parenting the
-    # sub-agent singletons, so the root can only be built once per process).
-    counter.setdefault("calls", 0)
-    counter["max_calls"] = max_calls
-    counter["deadline"] = deadline
-    counter["max_output_tokens"] = max_output_tokens
-
-    def cap_before(callback_context, llm_request):
+    # Mirror llm_call's signature exactly — a caller passing `model=` by keyword
+    # must not break on the wrapper.
+    def capped(messages, temperature=0.0, model=None, max_tokens=None):
         if time.perf_counter() >= counter["deadline"]:
             raise _CallBudgetExceeded("wall-clock deadline reached")
         counter["calls"] += 1
@@ -162,77 +110,32 @@ def build_capped_root(max_calls: int, deadline: float, max_output_tokens: int,
             raise _CallBudgetExceeded(
                 f"exceeded max_calls={counter['max_calls']}"
             )
-        try:  # best-effort per-call output cap
-            llm_request.config.max_output_tokens = counter["max_output_tokens"]
-        except Exception:
-            pass
-        return None
-
-    def token_after(callback_context, llm_response):
-        add_usage(
-            token_sink,
-            getattr(callback_context, "agent_name", "?"),
-            extract_usage(llm_response),
+        response = original(
+            messages,
+            temperature=temperature,
+            model=model or default_model,
+            max_tokens=max_tokens or max_output_tokens,
         )
-        return None
+        add_usage(token_sink, runner.CURRENT_AGENT, extract_usage(response))
+        return response
 
-    root = agents.SequentialAgent(
-        name="mlestar_root",
-        description="Original MLE-STAR: init -> refine -> ensemble -> submission.",
-        sub_agents=[
-            initialization_agent,
-            refinement_agent,
-            ensemble_agent,
-            submission_agent,
-        ],
-    )
-    _instrument_tree(
-        root,
-        cap_before=cap_before,
-        token_after=token_after,
-        resolved_model=resolved_model,
-        is_gemini=is_gemini,
-    )
-    return root
+    runner.llm_call = capped
+    return original
 
 
-def _run(root, task: str):
-    """Drive the graph once with InMemoryRunner; return the final session state."""
-    import asyncio
+def restore_caps(original) -> None:
+    """Undo :func:`install_caps` so a second run in-process starts clean."""
+    from machine_learning_engineering import runner
 
-    from google.adk.runners import InMemoryRunner
-    from google.genai import types
-
-    async def _go():
-        runner = InMemoryRunner(agent=root, app_name="mlestar")
-        session = await runner.session_service.create_session(
-            app_name=runner.app_name, user_id="driver"
-        )
-        content = types.Content(
-            parts=[types.Part(text=f"Solve the task: {task}")], role="user"
-        )
-        async for _ in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=content,
-        ):
-            pass
-        return await runner.session_service.get_session(
-            app_name=runner.app_name,
-            user_id=session.user_id,
-            session_id=session.id,
-        )
-
-    return asyncio.run(_go())
+    runner.llm_call = original
 
 
 def _score_submission(task, out_workspace, seed):
     """Best-effort: re-score MLE-STAR's final/submission.csv on the SHARED holdout.
 
-    Stages a temp task dir where test.csv is our holdout WITH target retained is
-    NOT how MLE-STAR is wired (it reads the standard task dir), so this is a
-    best-effort alignment of ``final/submission.csv`` predictions to the shared
-    holdout target by row order. Returns ``{scorer, score}`` or ``None``.
+    MLE-STAR reads the standard task dir, so this aligns its predictions to the
+    shared holdout target by row order — the only number comparable across the
+    three arms. Returns ``{scorer, score}`` or ``None``.
     """
     import glob
 
@@ -266,15 +169,22 @@ def _score_submission(task, out_workspace, seed):
 
 
 def run_mlestar(task, out_dir, max_calls=60, time_budget_s=3600.0,
-                max_output_tokens=8192, seed=42, data_dir=None):
+                max_output_tokens=8192, seed=42, data_dir=None,
+                web_search=None):
     """Run capped MLE-STAR and emit a uniform result.json-style dict."""
     data_dir = data_dir or "./machine_learning_engineering/tasks/"
-    _clamp_config(task, data_dir)
+    overrides = {} if web_search is None else {"use_web_search": web_search}
+    _clamp_config(task, data_dir, overrides)
+    from machine_learning_engineering import agent
     from machine_learning_engineering.shared_libraries import config
 
     token_sink: dict = {}
-    counter = {"calls": 0}
-    deadline = time.perf_counter() + time_budget_s
+    counter = {
+        "calls": 0,
+        "max_calls": max_calls,
+        "deadline": time.perf_counter() + time_budget_s,
+        "model": config.CONFIG.agent_model,
+    }
     workspace = config.CONFIG.workspace_dir
 
     base = {
@@ -284,19 +194,22 @@ def run_mlestar(task, out_dir, max_calls=60, time_budget_s=3600.0,
         "max_calls": max_calls,
         "clamp": _CLAMP,
         "model": config.CONFIG.agent_model,
+        "web_search": config.CONFIG.use_web_search,
         "relational": True,  # MLE-STAR can use aux tables if it writes the join
     }
     wall_start = time.perf_counter()
     aborted = None
+    original = install_caps(counter, token_sink, max_output_tokens)
     try:
-        root = build_capped_root(
-            max_calls, deadline, max_output_tokens, token_sink, counter
+        agent.run_pipeline(
+            task_name=task, data_dir=data_dir, workspace_dir=workspace
         )
-        _run(root, task)
     except _CallBudgetExceeded as exc:
         aborted = str(exc)
     except Exception as exc:  # any generated-code / provider failure
         aborted = f"{type(exc).__name__}: {exc}"
+    finally:
+        restore_caps(original)
     wall_clock_s = round(time.perf_counter() - wall_start, 1)
 
     tokens = {"prompt": 0, "completion": 0, "total": 0}
@@ -326,6 +239,8 @@ def _main() -> None:
     parser.add_argument("--max-output-tokens", type=int, default=8192,
                         help="per-call output-token bound")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--web-search", action="store_true", default=None,
+                        help="enable DuckDuckGo model retrieval (paper-faithful)")
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
@@ -340,6 +255,7 @@ def _main() -> None:
         time_budget_s=args.time_budget_s,
         max_output_tokens=args.max_output_tokens,
         seed=args.seed,
+        web_search=args.web_search,
     )
     import json
 
