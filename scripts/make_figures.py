@@ -269,7 +269,9 @@ def fig_autogluon_progress(records: list[dict], out_dir: str) -> str | None:
 
     tasks = sorted(by_task)
     n = len(tasks)
-    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    fig, axes = plt.subplots(
+        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+    )
     for ax, task in zip(axes[0], tasks):
         pts = by_task[task]
         xs = [p[0] for p in pts]
@@ -358,7 +360,9 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
 
     tasks = sorted(by_task)
     n = len(tasks)
-    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    fig, axes = plt.subplots(
+        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+    )
     color = _METHOD_COLOR.get("extension", "#2b8cbe")
     for ax, task in zip(axes[0], tasks):
         pts = by_task[task]
@@ -369,7 +373,9 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
         ax.set_ylabel(scorer_of.get(task, "holdout score"), fontsize=8)
         ax.set_xlabel("n_proposes", fontsize=8)
         ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    fig.suptitle("Proposal scaling — quality vs Option-3 call count", fontsize=11)
+    fig.suptitle(
+        "Proposal scaling — quality vs Option-3 call count", fontsize=11
+    )
     fig.tight_layout()
     path = os.path.join(out_dir, "proposal_scaling.png")
     fig.savefig(path, dpi=150)
@@ -447,7 +453,9 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
 
     tasks = sorted(by_task)
     n = len(tasks)
-    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    fig, axes = plt.subplots(
+        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+    )
     for ax, task in zip(axes[0], tasks):
         pts = by_task[task]
         xs = [p[0] for p in pts]
@@ -456,9 +464,12 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
         ax.set_title(task, fontsize=9)
         ax.set_xlabel("n_proposes", fontsize=8)
         ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    axes[0][0].set_ylabel("cumulative tokens\n(exact at ends, interpolated between)",
-                           fontsize=8)
-    fig.suptitle("Token cost vs Option-3 call count (real live runs)", fontsize=11)
+    axes[0][0].set_ylabel(
+        "cumulative tokens\n(exact at ends, interpolated between)", fontsize=8
+    )
+    fig.suptitle(
+        "Token cost vs Option-3 call count (real live runs)", fontsize=11
+    )
     fig.tight_layout()
     path = os.path.join(out_dir, "token_cost.png")
     fig.savefig(path, dpi=150)
@@ -508,7 +519,9 @@ def fig_budget_scaling(records: list[dict], out_dir: str) -> str | None:
 
     tasks = sorted(by_task)
     n = len(tasks)
-    fig, axes = plt.subplots(1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False)
+    fig, axes = plt.subplots(
+        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+    )
     color = _METHOD_COLOR.get("extension", "#2b8cbe")
     for ax, task in zip(axes[0], tasks):
         pts = by_task[task]
@@ -518,8 +531,10 @@ def fig_budget_scaling(records: list[dict], out_dir: str) -> str | None:
         ax.set_title(task, fontsize=9)
         ax.set_ylabel(scorer_of.get(task, "holdout score"), fontsize=8)
         ax.set_xlabel("rollout budget", fontsize=8)
-    fig.suptitle("Budget scaling — quality vs rollout budget (fixed n_proposes)",
-                 fontsize=11)
+    fig.suptitle(
+        "Budget scaling — quality vs rollout budget (fixed n_proposes)",
+        fontsize=11,
+    )
     fig.tight_layout()
     path = os.path.join(out_dir, "budget_scaling.png")
     fig.savefig(path, dpi=150)
