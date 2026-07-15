@@ -8,16 +8,19 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
 
 1. **quality-at-cost** — per task, each method's shared-holdout score against the
    tokens it spent (the extension clusters at a small constant; AutoGluon at 0;
-   MLE-STAR far right). Bar-of-quality + token annotation, one panel per task.
+   MLE-STAR far right). Bar-of-quality + token annotation, one panel per task,
+   laid out as a `_QC_NCOLS`-wide grid (5x2 for the 10 comparison tasks) rather
+   than a single horizontal strip. All three methods draw automatically from
+   whatever `result.json` files are present — an MLE-STAR run appears the moment
+   `make bench-mlestar` produces one (see `fig_quality_at_cost`).
 2. **AutoGluon exploration progress** — a companion efficiency curve reconstructed
    from a SINGLE `best_quality` AutoGluon run: its own leaderboard already carries
    `fit_order` + `fit_time_marginal` (per-model training cost) + `score_val`
    (AutoGluon's internal validation score), so a running-best-score-vs-cumulative-
-   fit-time trace needs no budget sweep, unlike the extension's curve below. Axis
-   units and score source both differ (seconds vs rollouts; internal validation
-   vs shared external holdout) — read side by side as two methods' own
-   efficiency stories, not one merged curve. MLE-STAR is not included yet (no
-   comparable per-step trace has been captured for it).
+   fit-time trace needs no budget sweep. Axis units and score source both differ
+   (seconds vs rollouts; internal validation vs shared external holdout) — read
+   side by side as one method's own efficiency story, not a merged curve.
+   MLE-STAR is not included (no comparable per-step trace has been captured).
 3. **proposal scaling** — the extension's holdout score vs Option-3 call count
    (`n_proposes`), one subplot per task, minimal by design (just task/n_proposes/
    score — see `fig_proposal_scaling`). ONLY `scripts/replay_from_run.py`
@@ -27,18 +30,13 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    a controlled one.
 4. **token cost** — the real-LLM-token cost side of that same n_proposes axis
    (see `fig_token_cost`), the inverse filter: ONLY live runs (`reused_spec=
-   False`), since a replay costs zero new tokens by construction. Endpoints
-   (`n=0` and the run's own max n_proposes) are exact from logged per-agent
-   totals; any point between is an even-split estimate (no per-call proposer
-   token log exists, only an aggregate across all propose() calls in the run).
-5. **budget scaling** — the extension's holdout score vs rollout budget at
-   FIXED n_proposes (see `fig_budget_scaling`), replacing the old
-   live-run-based time-scaling figure. Reads `scripts/replay_from_run.py
-   --budget-sweep` artifacts (`results/sweep_<task>_np<n>_<ts>/budget_<B>/
-   result.json`) — same plan + proposals held fixed across the whole sweep,
-   only budget varies, so this isolates the budget axis as cleanly as
-   `fig_proposal_scaling` isolates n_proposes.
-6. **mechanism table** — a static qualitative comparison (mechanism / debug cost
+   False`), since a replay costs zero new tokens by construction. Every task is
+   drawn on ONE shared axes (a labelled line each), so the whole comparison set's
+   token cost reads at a glance. Endpoints (`n=0` and the run's own max
+   n_proposes) are exact from logged per-agent totals; any point between is an
+   even-split estimate (no per-call proposer token log exists, only an aggregate
+   across all propose() calls in the run).
+5. **mechanism table** — a static qualitative comparison (mechanism / debug cost
    / token cost / leakage handling / adaptivity), written as markdown.
 
 Run:
@@ -112,7 +110,6 @@ def load_results(roots: list[str]) -> list[dict]:
                     "llm_calls": int(d.get("llm_calls", 0)),
                     "wall_clock_s": float(d.get("wall_clock_s") or 0.0),
                     "time_budget_s": d.get("time_budget_s"),
-                    "budget": d.get("budget"),
                     "relational": bool(d.get("relational", False)),
                     "leaderboard": d.get("leaderboard"),
                     "reused_spec": bool(d.get("reused_spec", False)),
@@ -128,6 +125,22 @@ _METHOD_COLOR = {
     "autogluon": "#31a354",
     "mlestar": "#e6550d",
 }
+
+# quality-at-cost grid width. 10 comparison tasks -> 5 columns x 2 rows.
+# Flip this to 2 for a portrait 2x5 layout.
+_QC_NCOLS = 5
+
+
+def _grid(n: int, ncols: int) -> tuple[int, int]:
+    """(nrows, ncols) grid that fits n panels, ncols-wide (last row may be short).
+
+    Example:
+        _grid(10, 5)  # -> (2, 5)
+        _grid(7, 5)   # -> (2, 5)  (three cells left empty)
+    """
+    ncols = max(1, min(ncols, n))
+    nrows = -(-n // ncols)  # ceil
+    return nrows, ncols
 
 
 def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
@@ -154,10 +167,15 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
 
     tasks = sorted(by_task)
     n = len(tasks)
+    nrows, ncols = _grid(n, _QC_NCOLS)
     fig, axes = plt.subplots(
-        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+        nrows,
+        ncols,
+        figsize=(3.4 * ncols, 3.9 * nrows),
+        squeeze=False,
     )
-    for ax, task in zip(axes[0], tasks):
+    flat_axes = [ax for row in axes for ax in row]
+    for ax, task in zip(flat_axes, tasks):
         by_method = defaultdict(list)
         for r in by_task[task]:
             by_method[r["method"]].append(r)
@@ -180,25 +198,41 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
         bars = ax.bar(
             methods, means, color=colors, yerr=[err_lo, err_hi], capsize=3
         )
-        for bar, mean, tok, n_run in zip(bars, means, tok_means, n_runs):
+        for bar, mean, tok, n_run, hi in zip(
+            bars, means, tok_means, n_runs, err_hi
+        ):
             tok_str = f"{tok:,.0f} tok" if tok else "0 tok"
             n_str = f" (n={n_run})" if n_run > 1 else ""
+            # anchor above the error-bar cap on positive bars, below it on
+            # negative ones, so the label never sits on top of the bar itself
+            top = bar.get_height() >= 0
             ax.annotate(
                 f"{mean:.3f}{n_str}\n{tok_str}",
                 (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                textcoords="offset points",
+                xytext=(0, 4 if top else -4),
                 ha="center",
-                va="bottom",
+                va="bottom" if top else "top",
                 fontsize=7,
             )
+        # headroom so the two-line annotations clear the axes frame (the
+        # collision the old tight ylim caused). ~32% above, ~12% below.
+        lo, hi = ax.get_ylim()
+        span = (hi - lo) or 1.0
+        ax.set_ylim(lo - 0.12 * span, hi + 0.32 * span)
         ax.set_title(task, fontsize=9)
         ax.set_ylabel(scorer_label or "holdout score", fontsize=8)
         ax.tick_params(axis="x", labelsize=8, rotation=20)
+
+    for ax in flat_axes[n:]:  # hide the empty cells in the last row
+        ax.set_visible(False)
+
     fig.suptitle(
         "Quality at cost — shared-holdout score vs token spend\n"
         "(bars = mean over repeated runs; error bars = min-max range)",
-        fontsize=10,
+        fontsize=11,
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.96), pad=1.6, h_pad=2.4)
     path = os.path.join(out_dir, "quality_at_cost.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -213,8 +247,8 @@ def _autogluon_progress_curve(
     AutoGluon's own leaderboard already carries everything needed: `fit_order`
     (the sequence models were tried in), `fit_time_marginal` (each model's own
     training cost), and `score_val` (AutoGluon's internal validation score) —
-    no extra instrumentation or budget sweep required, unlike the extension's
-    time-scaling curve above. Two caveats this trace does NOT resolve: (1)
+    no extra instrumentation or budget sweep required. Two caveats this trace
+    does NOT resolve: (1)
     `score_val` is AutoGluon's own internal validation split, not the shared
     external holdout; (2) this approximates "if this same run had stopped
     early," not "if a smaller time_limit had been given from the start" — a
@@ -238,12 +272,11 @@ def _autogluon_progress_curve(
 def fig_autogluon_progress(records: list[dict], out_dir: str) -> str | None:
     """AutoGluon's own efficiency curve: running-best internal score vs cumulative fit time.
 
-    Companion to `fig_budget_scaling`, reconstructed from a SINGLE `best_quality`
-    run per task (see `_autogluon_progress_curve`) rather than a budget sweep.
-    Read alongside `fig_budget_scaling`/`fig_proposal_scaling`, not merged into
-    them — the y-axis score source (internal validation, not the shared
-    external holdout) differs. MLE-STAR is intentionally excluded until a
-    comparable per-step trace exists for it.
+    Reconstructed from a SINGLE `best_quality` run per task (see
+    `_autogluon_progress_curve`) rather than a budget sweep. Read alongside
+    `fig_proposal_scaling`, not merged into it — the y-axis score source
+    (internal validation, not the shared external holdout) differs. MLE-STAR is
+    intentionally excluded until a comparable per-step trace exists for it.
 
     One subplot per task, own x- AND y-axis each: tasks converge over very
     different cumulative-time ranges (seconds vs tens of minutes), and a
@@ -313,8 +346,7 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
     Deliberately minimal per-point: just task, n_proposes (`_n_proposes`), and
     score — no token/wall-clock panel, since the LLM-call axis IS n_proposes
     here, not a separate thing to also show (see `fig_token_cost` for the
-    token side of this same axis, and `fig_budget_scaling` for the rollout-
-    budget axis instead).
+    token side of this same axis).
 
     ONLY `scripts/replay_from_run.py` replays count (`reused_spec=True`) — a
     live run only ever produces ONE point, at whatever n_proposes it happened
@@ -417,7 +449,7 @@ def _cumulative_tokens_by_n_proposes(r: dict) -> list[tuple[int, int]]:
 
 
 def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
-    """Real LLM token cost vs Option-3 proposal count, one subplot per task —
+    """Real LLM token cost vs Option-3 proposal count — EVERY task on one axes,
     the cost-side companion to `fig_proposal_scaling`'s quality-side curve.
 
     ONLY live runs count (`reused_spec=False`) — the opposite filter from
@@ -428,12 +460,13 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
     `_cumulative_tokens_by_n_proposes` for exactly what's exact vs
     approximated within one run).
 
-    One task, one live run's curve — unlike `fig_proposal_scaling`, points
-    aren't averaged across multiple runs of the same task, since each live
-    run's own agent-authored plan is the thing generating this specific cost
-    trace; averaging costs across differently-authored plans would blur the
-    "where does the token budget actually go" story this figure exists to
-    tell.
+    One line per task on a single shared axes (labelled, in the legend) — the
+    y-unit is tokens for every task, so they ARE directly comparable, and one
+    plot shows the whole set's near-flat, low-constant cost at a glance (the
+    headline: token cost barely moves with n_proposes). One live run per task
+    (its own agent-authored plan generates this specific trace); points aren't
+    averaged across runs, which would blur the "where does the token budget
+    actually go" story.
     """
     import matplotlib
 
@@ -452,91 +485,26 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
         return None
 
     tasks = sorted(by_task)
-    n = len(tasks)
-    fig, axes = plt.subplots(
-        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
-    )
-    for ax, task in zip(axes[0], tasks):
+    cmap = plt.get_cmap("tab10")
+    fig, ax = plt.subplots(figsize=(8.0, 5.0))
+    for i, task in enumerate(tasks):
         pts = by_task[task]
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        ax.plot(xs, ys, marker="o", color="#e6550d")
-        ax.set_title(task, fontsize=9)
-        ax.set_xlabel("n_proposes", fontsize=8)
-        ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    axes[0][0].set_ylabel(
-        "cumulative tokens\n(exact at ends, interpolated between)", fontsize=8
+        ax.plot(xs, ys, marker="o", color=cmap(i % 10), label=task)
+    ax.set_xlabel("n_proposes", fontsize=10)
+    ax.set_ylabel(
+        "cumulative tokens (exact at ends, interpolated between)", fontsize=10
     )
-    fig.suptitle(
-        "Token cost vs Option-3 call count (real live runs)", fontsize=11
+    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.margins(x=0.05, y=0.08)
+    ax.legend(fontsize=8, title="task", ncol=2, loc="upper left")
+    ax.set_title(
+        "Token cost vs Option-3 call count (real live runs, all tasks)",
+        fontsize=12,
     )
     fig.tight_layout()
     path = os.path.join(out_dir, "token_cost.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
-def fig_budget_scaling(records: list[dict], out_dir: str) -> str | None:
-    """Extension holdout score vs rollout budget at FIXED n_proposes, one
-    subplot per task — replaces the old live-run-based `fig_time_scaling`.
-
-    ONLY `scripts/replay_from_run.py --budget-sweep` replays count
-    (`reused_spec=True`), same reasoning as `fig_proposal_scaling`: a live run
-    only ever ran at one budget, so it can't isolate the budget axis the way a
-    sweep — same plan, same proposals, only budget varies — deliberately can.
-    Points at the same (task, budget) are averaged. Tasks with fewer than two
-    distinct budgets are skipped (nothing to draw a curve through).
-
-    One subplot per task, own y-axis each — same scale/sign reasoning as
-    `fig_proposal_scaling` (negative RMSE vs 0-1 accuracy/roc_auc).
-    """
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    by_task_b = defaultdict(list)
-    scorer_of = {}
-    for r in records:
-        if r["method"] != "extension" or not r["reused_spec"]:
-            continue
-        budget = r.get("budget")
-        if budget is None:
-            continue
-        by_task_b[(r["task"], budget)].append(r["score"])
-        scorer_of[r["task"]] = r["scorer"]
-
-    by_task = defaultdict(list)
-    for (task, budget), scores in by_task_b.items():
-        by_task[task].append((budget, sum(scores) / len(scores)))
-    by_task = {
-        task: sorted(pts) for task, pts in by_task.items() if len(pts) >= 2
-    }
-
-    if not by_task:
-        return None
-
-    tasks = sorted(by_task)
-    n = len(tasks)
-    fig, axes = plt.subplots(
-        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
-    )
-    color = _METHOD_COLOR.get("extension", "#2b8cbe")
-    for ax, task in zip(axes[0], tasks):
-        pts = by_task[task]
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        ax.plot(xs, ys, marker="o", color=color)
-        ax.set_title(task, fontsize=9)
-        ax.set_ylabel(scorer_of.get(task, "holdout score"), fontsize=8)
-        ax.set_xlabel("rollout budget", fontsize=8)
-    fig.suptitle(
-        "Budget scaling — quality vs rollout budget (fixed n_proposes)",
-        fontsize=11,
-    )
-    fig.tight_layout()
-    path = os.path.join(out_dir, "budget_scaling.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
@@ -651,9 +619,6 @@ def _main() -> None:
     tc = fig_token_cost(records, args.out)
     if tc:
         made.append(tc)
-    bs = fig_budget_scaling(records, args.out)
-    if bs:
-        made.append(bs)
     print("wrote:")
     for p in made:
         print(f"  {p}")

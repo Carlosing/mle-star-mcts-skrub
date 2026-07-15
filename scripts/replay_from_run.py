@@ -33,12 +33,6 @@ Run:
         --source runs/credit-fraud_20260712-1806 --n-proposes 0
     uv run python scripts/replay_from_run.py \\
         --source runs/credit-fraud_20260712-1806 --n-proposes 1
-
-    # budget-scaling sweep at fixed n_proposes (isolates the budget axis
-    # instead — same plan/proposals held fixed, only rollout budget varies):
-    uv run python scripts/replay_from_run.py \\
-        --source runs/credit-fraud_20260712-1806 --n-proposes 1 \\
-        --budget-sweep 20 40 60 80
 """
 
 import argparse
@@ -104,7 +98,6 @@ def replay_from_run(
     source_dir: str,
     n_proposes: int,
     seed: int | None = None,
-    budget: int | None = None,
 ) -> dict:
     """Replay `source_dir`'s exact plan + first `n_proposes` real proposals.
 
@@ -113,11 +106,9 @@ def replay_from_run(
     all persistence). Raises `ValueError` if `n_proposes` exceeds how many
     proposals the source run actually logged (see module docstring).
 
-    ``budget=None`` (default) reuses the source run's own rollout budget, same
-    as every other field; pass an int to override it — the isolated-variable
-    this buys is the budget axis instead of (or alongside) `n_proposes`, same
-    plan/proposals held fixed either way. See `replay_budget_sweep` for
-    running several budgets at once.
+    Every field (budget, seed, ensemble size, time budget) is reused from the
+    source run; the ONLY thing that varies across replays is `n_proposes`, so
+    each one isolates the marginal value of an Option-3 call.
     """
     with open(os.path.join(source_dir, "result.json"), encoding="utf-8") as f:
         source = json.load(f)
@@ -138,7 +129,7 @@ def replay_from_run(
 
     return pipeline.run_pipeline(
         task_name=source["task"],
-        budget=budget if budget is not None else source["budget"],
+        budget=source["budget"],
         seed=seed if seed is not None else source.get("seed", 42),
         outer_steps=n_proposes + 1,
         propose=make_fixed_sequence_proposer(proposals[:n_proposes])
@@ -149,33 +140,6 @@ def replay_from_run(
         subsample_seeds=source.get("subsample_seeds"),
         time_budget_s=source.get("time_budget_s"),
     )
-
-
-def replay_budget_sweep(
-    source_dir: str,
-    budgets: list[int],
-    n_proposes: int,
-    seed: int | None = None,
-) -> dict[int, dict]:
-    """Replay `source_dir` at each of `budgets`, holding `n_proposes` (and the
-    plan/proposals/seed) fixed — isolates the budget axis alone, the same
-    spirit as `replay_from_run` isolating `n_proposes`.
-
-    `budgets` is sorted ascending before running (cheapest first, so a killed
-    sweep still leaves the fast/cheap points done). Returns
-    ``{budget: result_dict}``, one call to `replay_from_run` per budget — the
-    caller (`_main`) owns writing each into the sweep folder.
-
-    Example:
-        replay_budget_sweep("runs/credit-fraud_20260712-1806", [20, 40, 60, 80], 1)
-        # -> {20: {...}, 40: {...}, 60: {...}, 80: {...}}
-    """
-    return {
-        budget: replay_from_run(
-            source_dir, n_proposes, seed=seed, budget=budget
-        )
-        for budget in sorted(budgets)
-    }
 
 
 def _main() -> None:
@@ -201,33 +165,11 @@ def _main() -> None:
         "42 if not recorded)",
     )
     parser.add_argument(
-        "--budget",
-        type=int,
-        default=None,
-        help="override the source run's rollout budget for a single replay "
-        "(default: reuse the source run's own budget). Ignored when "
-        "--budget-sweep is given.",
-    )
-    parser.add_argument(
-        "--budget-sweep",
-        type=int,
-        nargs="+",
-        default=None,
-        help="run the replay at each of these budgets (sorted ascending, "
-        "cheapest first) instead of a single replay, holding n_proposes "
-        "fixed. Each budget's result.json lands under its own "
-        "budget_<B>/ subfolder of one shared sweep folder.",
-    )
-    parser.add_argument(
         "--out",
         default=None,
-        help="artifact dir (default for a single replay: "
-        "results/replay_<task>_np<n>_<ts>; default for --budget-sweep: "
-        "results/sweep_<task>_np<n>_<ts>/, with budget_<B>/result.json "
-        "under it — the same small git-shareable mirror "
-        "scripts/collect_results.py populates from runs/, result.json "
-        "only, written as each budget completes so a killed/backgrounded "
-        "sweep doesn't lose the budgets that already finished)",
+        help="artifact dir (default: results/replay_<task>_np<n>_<ts> — the "
+        "same small git-shareable mirror scripts/collect_results.py populates "
+        "from runs/, result.json only)",
     )
     args = parser.parse_args()
 
@@ -235,41 +177,12 @@ def _main() -> None:
     with open(os.path.join(source_dir, "result.json"), encoding="utf-8") as f:
         task = json.load(f)["task"]
 
-    if args.budget_sweep:
-        sweep_dir = args.out or os.path.join(
-            "results",
-            f"sweep_{task}_np{args.n_proposes}_{datetime.now():%Y%m%d-%H%M}",
-        )
-        print(
-            f"\nBudget sweep | task: {task}  source: {source_dir}  "
-            f"n_proposes: {args.n_proposes}  budgets: {sorted(args.budget_sweep)}"
-        )
-        for budget in sorted(args.budget_sweep):
-            result = replay_from_run(
-                source_dir, args.n_proposes, seed=args.seed, budget=budget
-            )
-            budget_dir = os.path.join(sweep_dir, f"budget_{budget}")
-            os.makedirs(budget_dir, exist_ok=True)
-            with open(
-                os.path.join(budget_dir, "result.json"), "w", encoding="utf-8"
-            ) as f:
-                json.dump(result, f, indent=2, ensure_ascii=False, default=str)
-            print(
-                f"  budget={budget}: best_search_score="
-                f"{result.get('best_search_score')}  |  "
-                f"report: {result.get('report')}"
-            )
-        print(f"artifacts: {sweep_dir}")
-        return
-
     out_dir = args.out or os.path.join(
         "results",
         f"replay_{task}_np{args.n_proposes}_{datetime.now():%Y%m%d-%H%M}",
     )
 
-    result = replay_from_run(
-        source_dir, args.n_proposes, seed=args.seed, budget=args.budget
-    )
+    result = replay_from_run(source_dir, args.n_proposes, seed=args.seed)
 
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as f:

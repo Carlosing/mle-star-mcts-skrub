@@ -76,8 +76,45 @@ delta. (Full write-up: BUG_LEDGER #25–#28.)
 - State the bias **direction and cause**, and that its **magnitude is unmeasured**.
   It is honest to write "optimistic, unquantified, upper bound"; it is not honest
   to write "small" or "negligible" — nobody measured it.
-- **MLE-STAR has 0 runs.** It was never executed end-to-end. Do not put a number
-  in its column; the harness (caps + scorer) is tested but unused.
+- **MLE-STAR now has 13 runs** (`results/mle-star-*/`, added 2026-07-15) — but the
+  numbers are its **own internal validation score**, not the shared holdout. Read
+  [the three score bases](#the-three-arms-are-scored-on-three-different-bases)
+  before putting its bar next to the others'.
+
+### The three arms are scored on three different bases
+
+The `quality_at_cost.png` bars are drawn correctly, but the underlying numbers do
+not share one bench — and MLE-STAR's is the weakest kind:
+
+| Arm | Scored on | Caveat |
+|---|---|---|
+| Extension (archived) | `holdout_split(train, seed=42)` | **selected** on those same rows → optimistic (BUG_LEDGER #25) |
+| AutoGluon (archived) | `holdout_split(train, seed=42)` | clean (never saw them) |
+| MLE-STAR (13 runs) | **its own internal validation** (`submission_code_exec_result.score`) | **self-reported**, not any shared holdout |
+
+The MLE-STAR numbers came from a friend's runs made *before* the targeted
+`test.csv` existed (its `test.csv` had no target column then), so MLE-STAR could
+only score on a holdout it carved itself. `scripts/convert_mlestar_final_state.py`
+ingested each run's `final_state.json` and — by its own docstring — records
+"MLE-STAR's own internal score … *not* a re-score against the shared holdout." This
+is the same class of caveat already flagged for AutoGluon's progress curve
+(internal validation ≠ shared holdout), and it is *stronger* here because MLE-STAR
+picked its own split.
+
+So MLE-STAR's bar is **indicative, self-reported**, not measured on the shared
+bench. Caption it that way; do not present the MLE-STAR vs extension/AutoGluon gap
+as a like-for-like holdout comparison.
+
+Notes on the runs: 10 fall on comparison tasks; `videogame-sales` errored
+(`{"error": "no internal score found in final_state.json"}`) so it has no bar;
+`credit-fraud` scored roc_auc 0.500 (chance). `california-housing-prices`,
+`employee-salaries`, `midwest-survey` are outside `_TASK_ALLOWLIST` and don't plot.
+
+**A clean three-way would need** MLE-STAR re-run through `scripts/run_mlestar.py`
+(which *does* score its submission against the shared `test.csv`/`test_answer.csv`)
+and the extension + AutoGluon re-scored on the same `test.csv` — the extension via
+zero-quota replay, AutoGluon via a CPU re-run. That is a real re-run of the
+benchmark, not a relabel; absent it, disclose the three bases above.
 
 ### The cheap way out, if any time appears
 
@@ -163,7 +200,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 | `scripts/claude_agents.py`, `scripts/run_claude_pipeline.py` | offline Claude-authored plans + replay proposer → full runs at **zero API quota** (`make run-claude` / `make sweep-claude`) |
 | `scripts/replay_from_run.py` | re-runs the search from a stored run's captured plan (`spec_raw`), for A/Bs at zero agent cost |
 | `scripts/collect_results.py` | copies `result.json` artifacts from `runs/` into the small git-shareable `results/` mirror (leaves AutoGluon's multi-GB `ag_models/` behind) |
-| `scripts/make_figures.py` | renders `figures/`: `quality_at_cost.png`, `time_scaling.png`, `mechanism_table.md`, `comparison.csv`. All three methods emit the same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`, `wall_clock_s`), so it reads them uniformly |
+| `scripts/make_figures.py` | renders `figures/`: `quality_at_cost.png` (5×2 grid, all three methods), `token_cost.png` (all tasks on one axes), `proposal_scaling.png`, `autogluon_progress.png`, `mechanism_table.md`, `comparison.csv`. All three methods emit the same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`, `wall_clock_s`), so it reads them uniformly. (Budget-scaling and time-scaling figures were removed 2026-07-15.) |
 
 ---
 
@@ -354,10 +391,10 @@ Remaining notes:
    budget and `N_PROPOSES` are chosen by wall-clock time and LLM-call count, not by
    sweeping the search's own hyperparameters — and the one axis the harness was built to
    A/B (`retarget`) turned out to be a null comparison (see Option 1 above). What
-   survives: `run_pipeline(spec_raw=...)` spec reuse (used by the replay/Claude drivers),
-   the `--c`/`--no-retarget`/`--seed` CLI plumbing, and the time-scaling figure —
-   `scripts/make_figures.py` now reads it from extension `result.json` artifacts at
-   different budgets instead of a `sweep.csv`.
+   survives: `run_pipeline(spec_raw=...)` spec reuse (used by the replay/Claude drivers)
+   and the `--c`/`--seed` CLI plumbing. (The budget/time-scaling figure that briefly
+   replaced `sweep.csv` was itself removed 2026-07-15 — see the figure set in the
+   module map above.)
 
 5. **Imbalance-safe rollouts (done Jul 7).** The live credit-fraud scores (~0.585) were
    near-noise: a plain 500-row subsample of a 1.25%-positive table holds ~6 positives, so
@@ -421,7 +458,7 @@ features, and the LLM-call invariant was never touched.
 | **Jul 12** | **Always-on skrub backbones** (`8cc66f9`) — `clean`/`encode` are now always a bare `Cleaner()` + `TableVectorizer()` (skrub's own defaults = the robust root). The register-operator default menus were deleted; their knobs are now LLM-authored like any HP (`cleaner`/`vectorizer` spec keys). Scalar `choice` lists are reordered **default-first** so the root reproduces stock behaviour (trap: `skrub.choose_bool()` defaults to `True`) | The old code-owned fallback menus were arbitrary; the space is now entirely LLM-proposed, code-validated |
 | **Jul 12** | **TextEncoder backbone cache + JSON parse safety nets** (`3c00e95`) — the e5-small-v2 backbone is cached per `model_name` (1 load per run, not per rollout); `parse_spec_json` repairs Python literals (`None`/`True`) and balanced-but-broken JSON, still rejecting truncation | qwen emitted Python `None` and silently fell back to a bare plan; the fix recovered the rich plan (traffic-violations holdout 0.882 vs 0.837) |
 | **Jul 13** | **Retarget lock removed** (`42536c6`) — Option 1's stage pick is now a **proposer hint only**; expansion is never locked to it | Replay A/Bs showed the variance ledger elects `model` on essentially every pick (a null A/B axis), while the lock *starved* off-target injections until the bonus phase — on country-happiness the winning edit was exactly such a rescue (−753.87 → −716.95). `mcts.expand`'s `target_key` capability remains, just unused |
-| **Jul 13** | **Sweep harness removed** (`42536c6`, `ed932c4`) — `sweep.py`, `sweeps/`, `make sweep*`, `tests/test_sweep.py` | Budget and `N_PROPOSES` are chosen by wall-clock and LLM-call count, not by sweeping the search's own HPs — and the one axis it existed to A/B (`retarget`) was null. What survives: `run_pipeline(spec_raw=…)` spec reuse, the `--c`/`--seed` CLI plumbing, and the time-scaling figure (now read from `result.json` artifacts at different budgets) |
+| **Jul 13** | **Sweep harness removed** (`42536c6`, `ed932c4`) — `sweep.py`, `sweeps/`, `make sweep*`, `tests/test_sweep.py` | Budget and `N_PROPOSES` are chosen by wall-clock and LLM-call count, not by sweeping the search's own HPs — and the one axis it existed to A/B (`retarget`) was null. What survives: `run_pipeline(spec_raw=…)` spec reuse and the `--c`/`--seed` CLI plumbing (the budget/time-scaling figure it briefly fed was removed 2026-07-15) |
 | **Jul 13** | **Caruana ensemble** (`4490d2e`) — greedy weighted selection with replacement + early stop over a **pool** of the top `max(2*top_k, 10)` distinct configs, replacing the unweighted top-k mean. Plus `_ImputeNumeric` (post-aggregation NaNs were silently failing models) | The pool reaches *past* the incumbent's near-duplicate cousins for real model-family diversity; the early stop collapses a duplicate pool to one member, so it is never worse than the incumbent. `ensemble_score_mean` returns the old combiner on the same fits — a free A/B every run |
 | **Jul 14** | **Shared on-disk train/holdout split** (`517f954`) — the split is drawn by `stage_tasks.py` *before any method sees the data*; `load_task` reads only `train.csv` | **The integrity fix.** Previously the search CV'd over rows that later became its own eval set, so every extension-vs-AutoGluon delta was overstated. See BUG_LEDGER #25–#28 |
 | **Jul 14** | **OOF ensemble selection** (`dbc0f77`) — Caruana selects on 3-fold out-of-fold predictions over *all* of train, then refits and scores the untouched holdout; `selection` stamped on every artifact | Selecting on the reported rows made `ensemble_score` a greedy maximum over the published metric — the exact flaw the MLE-STAR report criticises MLE-STAR for. Corollary: the ensemble is **no longer guaranteed** to beat the best pool member; that guarantee *was* the bias |
@@ -433,17 +470,18 @@ features, and the LLM-call invariant was never touched.
 1. **Write up the results with the bias disclosed.** Follow
    [How to report it](#how-to-report-it) to the letter: quote the incumbent
    `holdout` score, never the Caruana-era `ensemble_score`; state the bias as
-   optimistic / unquantified / an upper bound on the delta; leave MLE-STAR's
-   column empty.
+   optimistic / unquantified / an upper bound on the delta; caption MLE-STAR's
+   bars as self-reported internal scores
+   ([three score bases](#the-three-arms-are-scored-on-three-different-bases)).
 2. **The headline comparisons.** (a) **relational lift** — assemble vs flat on
    credit-fraud / country-happiness, where AutoGluon is *structurally* blind to
    `aux_*.csv`. Note this one is **not** undermined by the bias: it is an
-   architectural capability gap, not a score delta. (b) **time-scaling at constant
-   LLM cost** — several budgets per task; also robust, since it is a within-method
-   trend, and both ends carry the same bias. (c) **flexibility lift** — fixed space
-   vs Option 3, likewise within-method. *The bias hurts the head-to-head
-   quality-vs-AutoGluon number most, and the structural claims least — lead with
-   the structural claims.*
+   architectural capability gap, not a score delta. (b) **token cost at fixed
+   quality** — `token_cost.png`, all tasks on one axes; robust, measured, and the
+   design's headline claim (constant vs MLE-STAR's unbounded). (c) **flexibility
+   lift** — fixed space vs Option 3 (`proposal_scaling.png`), within-method. *The
+   bias hurts the head-to-head quality-vs-AutoGluon number most, and the structural
+   claims least — lead with the structural claims.*
 3. **Writeup + slides:** the MLE-STAR comparison table (mechanism / debug cost /
    token cost / leakage handling / adaptivity) + the figures. The token-cost axis
    (constant vs unbounded) is measured and unaffected by the split bug.

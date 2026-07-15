@@ -297,17 +297,24 @@ make bench-mlestar TASK=toxicity MAX_CALLS=60 TIME_BUDGET=3600 PROVIDER=school
 **Render the comparison** from every `result.json` produced:
 
 ```bash
-make figures RUNS=runs   # quality-at-cost + mechanism table + time-scaling
+make figures RUNS=runs   # quality-at-cost + token cost + mechanism table
 ```
 
-The time-scaling curve is drawn per task from any *extension* `result.json`
-artifacts under `RUNS` whose budget differs (e.g. several
-`make run-live BUDGET=...` runs), skipped when no task has two budget points.
+This writes `figures/` (project root):
 
-This writes `figures/` (project root): `quality_at_cost.png`, `time_scaling.png`,
-`mechanism_table.md`, and a flat `comparison.csv`. All three methods emit the
-same `result.json` schema (`method`, `holdout`, `tokens`, `llm_calls`,
-`wall_clock_s`), so the figure script reads them uniformly.
+- **`quality_at_cost.png`** — one panel per task in a 5×2 grid, each method's
+  shared-holdout score with its token spend annotated. All three methods appear
+  automatically from whatever `result.json` files are present.
+- **`token_cost.png`** — every task on one shared axes, cumulative real-LLM tokens
+  vs Option-3 call count (the "cost stays a small near-constant" story).
+- **`proposal_scaling.png`** — extension quality vs Option-3 call count, per task,
+  from `scripts/replay_from_run.py` replays.
+- **`autogluon_progress.png`** — AutoGluon's own running-best internal score vs
+  cumulative fit time.
+- **`mechanism_table.md`** + a flat **`comparison.csv`**.
+
+All three methods emit the same `result.json` schema (`method`, `holdout`,
+`tokens`, `llm_calls`, `wall_clock_s`), so the figure script reads them uniformly.
 
 > **The headline story:** the extension's token cost is a small **constant**
 > (2 LLM calls, `+1` per `N_PROPOSES`) no matter how large `BUDGET`/`TIME_BUDGET`
