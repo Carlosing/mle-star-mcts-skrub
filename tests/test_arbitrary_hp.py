@@ -188,7 +188,7 @@ def test_json_list_options_become_tuples_for_sklearn_tuple_params():
 def test_log_scale_with_zero_low_does_not_kill_resolve():
     """An LLM commonly pairs log=true with a 0.0 lower bound (learning_rate).
     skrub's choose_float rejects log at low<=0; that raise used to propagate
-    out of resolve_spec and silently drop a whole Option-3 injection. The
+    out of resolve_spec and silently drop a whole Extended Feature 3 injection. The
     curated path now falls back to linear, and a per-param guard drops any other
     malformed range without dropping the operator or the plan."""
     spec = spec_resolver.resolve_spec(

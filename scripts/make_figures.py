@@ -13,22 +13,14 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    than a single horizontal strip. All three methods draw automatically from
    whatever `result.json` files are present — an MLE-STAR run appears the moment
    `make bench-mlestar` produces one (see `fig_quality_at_cost`).
-2. **AutoGluon exploration progress** — a companion efficiency curve reconstructed
-   from a SINGLE `best_quality` AutoGluon run: its own leaderboard already carries
-   `fit_order` + `fit_time_marginal` (per-model training cost) + `score_val`
-   (AutoGluon's internal validation score), so a running-best-score-vs-cumulative-
-   fit-time trace needs no budget sweep. Axis units and score source both differ
-   (seconds vs rollouts; internal validation vs shared external holdout) — read
-   side by side as one method's own efficiency story, not a merged curve.
-   MLE-STAR is not included (no comparable per-step trace has been captured).
-3. **proposal scaling** — the extension's holdout score vs Option-3 call count
+2. **proposal scaling** — the extension's holdout score vs Extended Feature 3 call count
    (`n_proposes`), one subplot per task, minimal by design (just task/n_proposes/
    score — see `fig_proposal_scaling`). ONLY `scripts/replay_from_run.py`
    replays count (`reused_spec=True`) — a live run only ever produces one
    point, at whatever n_proposes it happened to run at, so mixing it with the
    deliberately isolated replay curve would compare a different measurement to
    a controlled one.
-4. **token cost** — the real-LLM-token cost side of that same n_proposes axis
+3. **token cost** — the real-LLM-token cost side of that same n_proposes axis
    (see `fig_token_cost`), the inverse filter: ONLY live runs (`reused_spec=
    False`), since a replay costs zero new tokens by construction. Every task is
    drawn on ONE shared axes (a labelled line each), so the whole comparison set's
@@ -36,7 +28,7 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    n_proposes) are exact from logged per-agent totals; any point between is an
    even-split estimate (no per-call proposer token log exists, only an aggregate
    across all propose() calls in the run).
-5. **mechanism table** — a static qualitative comparison (mechanism / debug cost
+4. **mechanism table** — a static qualitative comparison (mechanism / debug cost
    / token cost / leakage handling / adaptivity), written as markdown.
 
 Run:
@@ -239,95 +231,8 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
     return path
 
 
-def _autogluon_progress_curve(
-    leaderboard: list[dict],
-) -> list[tuple[float, float]]:
-    """Reconstruct a running-best-score-vs-cumulative-fit-time trace.
-
-    AutoGluon's own leaderboard already carries everything needed: `fit_order`
-    (the sequence models were tried in), `fit_time_marginal` (each model's own
-    training cost), and `score_val` (AutoGluon's internal validation score) —
-    no extra instrumentation or budget sweep required. Two caveats this trace
-    does NOT resolve: (1)
-    `score_val` is AutoGluon's own internal validation split, not the shared
-    external holdout; (2) this approximates "if this same run had stopped
-    early," not "if a smaller time_limit had been given from the start" — a
-    genuinely smaller budget can make categorically different model-selection
-    choices rather than just truncate this timeline.
-    """
-    rows = sorted(leaderboard, key=lambda r: r.get("fit_order", 0))
-    cum = 0.0
-    best = float("-inf")
-    points: list[tuple[float, float]] = []
-    for row in rows:
-        score_val = row.get("score_val")
-        if score_val is None:
-            continue
-        cum += float(row.get("fit_time_marginal") or 0.0)
-        best = max(best, float(score_val))
-        points.append((cum, best))
-    return points
-
-
-def fig_autogluon_progress(records: list[dict], out_dir: str) -> str | None:
-    """AutoGluon's own efficiency curve: running-best internal score vs cumulative fit time.
-
-    Reconstructed from a SINGLE `best_quality` run per task (see
-    `_autogluon_progress_curve`) rather than a budget sweep. Read alongside
-    `fig_proposal_scaling`, not merged into it — the y-axis score source
-    (internal validation, not the shared external holdout) differs. MLE-STAR is
-    intentionally excluded until a comparable per-step trace exists for it.
-
-    One subplot per task, own x- AND y-axis each: tasks converge over very
-    different cumulative-time ranges (seconds vs tens of minutes), and a
-    shared axis would compress whichever task converges fastest into an
-    invisible sliver at the left edge — same reasoning as
-    `fig_proposal_scaling`'s per-task layout.
-    """
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    by_task = {}
-    for r in records:
-        if r["method"] != "autogluon" or not r.get("leaderboard"):
-            continue
-        pts = _autogluon_progress_curve(r["leaderboard"])
-        if pts:
-            by_task[r["task"]] = pts
-
-    if not by_task:
-        return None
-
-    tasks = sorted(by_task)
-    n = len(tasks)
-    fig, axes = plt.subplots(
-        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
-    )
-    for ax, task in zip(axes[0], tasks):
-        pts = by_task[task]
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        ax.plot(xs, ys, marker=".", markersize=4, linestyle="--")
-        ax.set_title(task, fontsize=9)
-        ax.set_xlabel("cumulative fit time (s)", fontsize=8)
-    axes[0][0].set_ylabel(
-        "AutoGluon internal validation score\n(NOT the shared external holdout)",
-        fontsize=8,
-    )
-    fig.suptitle(
-        "AutoGluon exploration progress (best_quality, single run)", fontsize=11
-    )
-    fig.tight_layout()
-    path = os.path.join(out_dir, "autogluon_progress.png")
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    return path
-
-
 def _n_proposes(r: dict) -> int:
-    """Recover Option 3's call count from a record, live run or replay alike.
+    """Recover Extended Feature 3's call count from a record, live run or replay alike.
 
     Not stored directly (see docs/PROJECT_STATE.md's owed item: `llm_calls`
     miscounts offline replay proposers as real calls) — but that's exactly
@@ -341,7 +246,7 @@ def _n_proposes(r: dict) -> int:
 
 
 def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
-    """Extension holdout score vs Option-3 proposal count, one subplot per task.
+    """Extension holdout score vs Extended Feature 3 proposal count, one subplot per task.
 
     Deliberately minimal per-point: just task, n_proposes (`_n_proposes`), and
     score — no token/wall-clock panel, since the LLM-call axis IS n_proposes
@@ -406,7 +311,7 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
         ax.set_xlabel("n_proposes", fontsize=8)
         ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
     fig.suptitle(
-        "Proposal scaling — quality vs Option-3 call count", fontsize=11
+        "Proposal scaling — quality vs Extended Feature 3 call count", fontsize=11
     )
     fig.tight_layout()
     path = os.path.join(out_dir, "proposal_scaling.png")
@@ -449,7 +354,7 @@ def _cumulative_tokens_by_n_proposes(r: dict) -> list[tuple[int, int]]:
 
 
 def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
-    """Real LLM token cost vs Option-3 proposal count — EVERY task on one axes,
+    """Real LLM token cost vs Extended Feature 3 proposal count — EVERY task on one axes,
     the cost-side companion to `fig_proposal_scaling`'s quality-side curve.
 
     ONLY live runs count (`reused_spec=False`) — the opposite filter from
@@ -500,7 +405,7 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
     ax.margins(x=0.05, y=0.08)
     ax.legend(fontsize=8, title="task", ncol=2, loc="upper left")
     ax.set_title(
-        "Token cost vs Option-3 call count (real live runs, all tasks)",
+        "Token cost vs Extended Feature 3 call count (real live runs, all tasks)",
         fontsize=12,
     )
     fig.tight_layout()
@@ -537,7 +442,7 @@ _MECHANISM_ROWS = [
     ),
     (
         "Adaptivity",
-        "Space authored once; search adapts within it (Option 1/3)",
+        "Space authored once; search adapts within it (Extended Feature 1/3)",
         "Fixed AutoML pipeline",
         "Fully adaptive per step (at unbounded token cost)",
     ),
@@ -610,9 +515,6 @@ def _main() -> None:
     q = fig_quality_at_cost(records, args.out)
     if q:
         made.append(q)
-    ag = fig_autogluon_progress(records, args.out)
-    if ag:
-        made.append(ag)
     ps = fig_proposal_scaling(records, args.out)
     if ps:
         made.append(ps)

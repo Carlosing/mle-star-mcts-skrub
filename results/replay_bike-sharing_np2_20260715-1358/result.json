@@ -1,0 +1,466 @@
+{
+  "method": "extension",
+  "task": "bike-sharing",
+  "task_description": "# Task\n\nPredict the rentals.\n\n# Metric\n\nroot_mean_squared_error\n\n# Dataset\n\nRegression task (13903 training rows, 7 feature columns). train.csv has the features and the 'rentals' column; test.csv has the features only.\n\nHourly bike rentals. 'casual'/'registered' were dropped: they sum exactly to the target. A date column plus cyclical weather numerics — a natural fit for a DatetimeEncoder scoped group.\n",
+  "target": "rentals",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "model": "gemini-2.5-flash",
+  "budget": 60,
+  "time_budget_s": null,
+  "search_scorer": "r2",
+  "search_reward_scale": "1/(2 - r2)",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "False",
+    "scope_date_expansion": "DatetimeEncoder",
+    "vectorizer__datetime__DatetimeEncoder__add_weekday": "True",
+    "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+    "vectorizer__datetime": "DatetimeEncoder(add_weekday=choose_from([True, False], name='vectorizer__...__add_weekday'),\n                resolution=choose_from(['hour', 'day', 'month'], name='vectorizer__...r__resolution'))",
+    "vectorizer__high_cardinality": "GapEncoder(random_state=42)",
+    "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+    "scale": "None",
+    "feature_eng": "None",
+    "model": "XGBRegressor",
+    "scope_date_expansion__DatetimeEncoder__add_weekday": "True",
+    "model__XGBRegressor__colsample_bytree": 0.8333333333333333,
+    "scope_date_expansion__DatetimeEncoder__add_total_seconds": "False"
+  },
+  "best_search_score": 0.9101599845027959,
+  "report": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -63.32146377563477
+  },
+  "holdout": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -35.261775970458984
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "scope_date_expansion__DatetimeEncoder__add_total_seconds": [
+      "False",
+      "True"
+    ],
+    "scope_date_expansion__DatetimeEncoder__add_weekday": [
+      "True",
+      "False"
+    ],
+    "scope_date_expansion__DatetimeEncoder__resolution": [
+      "hour",
+      "day",
+      "month"
+    ],
+    "scope_date_expansion": [
+      "skip",
+      "DatetimeEncoder",
+      "DatetimeEncoder_2"
+    ],
+    "scope_cyclical_hour__DatetimeEncoder__add_total_seconds": [
+      "False",
+      "True"
+    ],
+    "scope_cyclical_hour__DatetimeEncoder__add_weekday": [
+      "True",
+      "False"
+    ],
+    "scope_cyclical_hour__DatetimeEncoder__resolution": [
+      "hour"
+    ],
+    "scope_cyclical_hour": [
+      "skip",
+      "DatetimeEncoder"
+    ],
+    "vectorizer__datetime__DatetimeEncoder__add_weekday": [
+      "True",
+      "False"
+    ],
+    "vectorizer__datetime__DatetimeEncoder__resolution": [
+      "hour",
+      "day",
+      "month"
+    ],
+    "vectorizer__datetime__DatetimeEncoder__add_day_of_year": [
+      "False",
+      "True"
+    ],
+    "vectorizer__datetime__DatetimeEncoder__add_total_seconds": [
+      "False",
+      "True"
+    ],
+    "vectorizer__datetime": [
+      "DatetimeEncoder(add_weekday=choose_from([True, False], name='vectorizer__...__add_weekday'),\n                resolution=choose_from(['hour', 'day', 'month'], name='vectorizer__...r__resolution'))",
+      "DatetimeEncoder()",
+      "DatetimeEncoder(add_day_of_year=choose_from([False, True], name='vectorizer__...d_day_of_year'),\n                add_total_seconds=choose_from([False, True], name='vectorizer__...total_seconds'))"
+    ],
+    "vectorizer__high_cardinality": [
+      "GapEncoder(random_state=42)",
+      "MinHashEncoder()"
+    ],
+    "vectorizer__low_cardinality": [
+      "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+      "OrdinalEncoder()"
+    ],
+    "vectorizer__numeric__PowerTransformer__method": [
+      "yeo-johnson",
+      "box-cox"
+    ],
+    "vectorizer__numeric__PowerTransformer__standardize": [
+      "True",
+      "False"
+    ],
+    "vectorizer__numeric": [
+      "StandardScaler()",
+      "PowerTransformer(method=choose_from(['yeo-johnson', 'box-cox'], name='vectorizer__...ormer__method'),\n                 standardize=choose_from([True, False], name='vectorizer__...__standardize'))"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()",
+      "RobustScaler()",
+      "MaxAbsScaler()",
+      "MinMaxScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "feature_eng__PCA__n_components": [
+      "2",
+      "3",
+      "4",
+      "5",
+      "0.9",
+      "0.95"
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False,\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+      "PCA(n_components=choose_from([2, 3, 4, 5, 0.9, 0.95], name='feature_eng_..._n_components'),\n    random_state=42)"
+    ],
+    "model__HistGradientBoostingRegressor__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingRegressor__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingRegressor__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__LGBMRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMRegressor__max_depth": [
+      3,
+      7,
+      10,
+      12,
+      16
+    ],
+    "model__LGBMRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMRegressor__num_leaves": [
+      15,
+      52,
+      71,
+      90,
+      127
+    ],
+    "model__LGBMRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBRegressor__max_depth": [
+      2,
+      5,
+      7,
+      9,
+      12
+    ],
+    "model__XGBRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__RandomForestRegressor__max_depth": [
+      3,
+      12,
+      16,
+      21,
+      30
+    ],
+    "model__RandomForestRegressor__max_features": [
+      "sqrt",
+      "log2",
+      "1.0"
+    ],
+    "model__RandomForestRegressor__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__Ridge__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__KNeighborsRegressor__n_neighbors": [
+      3,
+      19,
+      26,
+      34,
+      50
+    ],
+    "model__KNeighborsRegressor__weights": [
+      "uniform",
+      "distance"
+    ],
+    "model__ExtraTreesRegressor__max_depth": [
+      3,
+      12,
+      16,
+      21,
+      30
+    ],
+    "model__ExtraTreesRegressor__max_features": [
+      "1.0",
+      "sqrt",
+      "log2"
+    ],
+    "model__ExtraTreesRegressor__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__ExtraTreesRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__GradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__GradientBoostingRegressor__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__GradientBoostingRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__GradientBoostingRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__ElasticNet__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__ElasticNet__l1_ratio": [
+      0.1,
+      0.3666666666666667,
+      0.5,
+      0.6333333333333333,
+      0.9
+    ],
+    "model": [
+      "HistGradientBoostingRegressor",
+      "LGBMRegressor",
+      "XGBRegressor",
+      "RandomForestRegressor",
+      "Ridge",
+      "KNeighborsRegressor",
+      "ExtraTreesRegressor",
+      "GradientBoostingRegressor",
+      "ElasticNet"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "scope_cyclical_hour__DatetimeEncoder__add_total_seconds",
+    "scope_cyclical_hour__DatetimeEncoder__add_weekday",
+    "scope_cyclical_hour__DatetimeEncoder__resolution",
+    "scope_cyclical_hour",
+    "vectorizer__datetime__DatetimeEncoder__add_day_of_year",
+    "vectorizer__datetime__DatetimeEncoder__add_total_seconds",
+    "vectorizer__datetime:DatetimeEncoder(add_day_of_year=choose_from([False, True], name='vectorizer__...d_day_of_year'),\n                add_total_seconds=choose_from([False, True], name='vectorizer__...total_seconds'))",
+    "scale:MaxAbsScaler()",
+    "scale:MinMaxScaler()",
+    "vectorizer__numeric__PowerTransformer__method",
+    "vectorizer__numeric__PowerTransformer__standardize",
+    "vectorizer__numeric",
+    "feature_eng__PCA__n_components",
+    "model__ExtraTreesRegressor__max_depth",
+    "model__ExtraTreesRegressor__max_features",
+    "model__ExtraTreesRegressor__min_samples_leaf",
+    "model__ExtraTreesRegressor__n_estimators",
+    "model__GradientBoostingRegressor__learning_rate",
+    "model__GradientBoostingRegressor__max_depth",
+    "model__GradientBoostingRegressor__n_estimators",
+    "model__GradientBoostingRegressor__subsample",
+    "model__ElasticNet__alpha",
+    "model__ElasticNet__l1_ratio",
+    "feature_eng:PCA(n_components=choose_from([2, 3, 4, 5, 0.9, 0.95], name='feature_eng_..._n_components'),\n    random_state=42)",
+    "model:ExtraTreesRegressor",
+    "model:GradientBoostingRegressor",
+    "model:ElasticNet"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "cleaner__Cleaner__drop_if_constant",
+    "feature_eng",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "model",
+    "model__LGBMRegressor__colsample_bytree",
+    "model__LGBMRegressor__learning_rate",
+    "model__LGBMRegressor__max_depth",
+    "model__LGBMRegressor__n_estimators",
+    "model__LGBMRegressor__num_leaves",
+    "model__LGBMRegressor__reg_lambda",
+    "model__XGBRegressor__colsample_bytree",
+    "model__XGBRegressor__learning_rate",
+    "model__XGBRegressor__max_depth",
+    "model__XGBRegressor__n_estimators",
+    "model__XGBRegressor__reg_lambda",
+    "model__XGBRegressor__subsample",
+    "scale",
+    "scope_cyclical_hour",
+    "scope_cyclical_hour__DatetimeEncoder__add_total_seconds",
+    "scope_cyclical_hour__DatetimeEncoder__add_weekday",
+    "scope_cyclical_hour__DatetimeEncoder__resolution",
+    "scope_date_expansion",
+    "scope_date_expansion__DatetimeEncoder__add_total_seconds",
+    "scope_date_expansion__DatetimeEncoder__add_weekday",
+    "scope_date_expansion__DatetimeEncoder__resolution",
+    "vectorizer__datetime",
+    "vectorizer__datetime__DatetimeEncoder__add_day_of_year",
+    "vectorizer__datetime__DatetimeEncoder__add_total_seconds",
+    "vectorizer__datetime__DatetimeEncoder__add_weekday",
+    "vectorizer__datetime__DatetimeEncoder__resolution",
+    "vectorizer__high_cardinality",
+    "vectorizer__low_cardinality",
+    "vectorizer__numeric"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": null,
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": true,
+  "llm_calls": 2,
+  "wall_clock_s": 180.2,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "data_summary": "Dataset: 13903 rows x 8 columns. Target column: 'rentals'.\nInferred task type: regression.\n\nColumns:\n  - date: dtype=object, missing=0.0%, cardinality=13903, examples='2011-01-01 00:00:00', '2011-01-01 01:00:00', '2011-01-01 02:00:00', '2011-01-01 04:00:00', '2011-01-01 06:00:00'\n  - holiday: dtype=int64, missing=0.0%, cardinality=2, min=0 max=1 mean=0.0287\n  - weathersit: dtype=int64, missing=0.0%, cardinality=4, min=1 max=4 mean=1.426\n  - temp: dtype=float64, missing=0.0%, cardinality=50, min=0.02 max=1 mean=0.4974\n  - atemp: dtype=float64, missing=0.0%, cardinality=65, min=0 max=1 mean=0.4762\n  - hum: dtype=float64, missing=0.0%, cardinality=89, min=0 max=1 mean=0.627\n  - windspeed: dtype=float64, missing=0.0%, cardinality=30, min=0 max=0.8507 mean=0.1898\n  - rentals (TARGET): dtype=int64, missing=0.0%, cardinality=843, min=1 max=976 mean=190.6\n\nFirst 5 rows:\n               date  holiday  weathersit  temp  atemp  hum  windspeed  rentals\n2011-01-01 00:00:00        0           1  0.24 0.2879 0.81        0.0       16\n2011-01-01 01:00:00        0           1  0.22 0.2727 0.80        0.0       40\n2011-01-01 02:00:00        0           1  0.22 0.2727 0.80        0.0       32\n2011-01-01 04:00:00        0           1  0.24 0.2879 0.75        0.0        1\n2011-01-01 06:00:00        0           1  0.22 0.2727 0.80        0.0        2",
+  "analysis": "",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\"params\": {\"drop_if_constant\": {\"choice\": [false, true]}}},\n  \"vectorizer\": {\n    \"slots\": {\n      \"datetime\": [\n        {\"name\": \"skrub.DatetimeEncoder\", \"params\": {\"resolution\": {\"choice\": [\"hour\", \"day\", \"month\"]}, \"add_weekday\": {\"choice\": [true, false]}}},\n        \"skrub.DatetimeEncoder\"\n      ],\n      \"high_cardinality\": [\"skrub.GapEncoder\", \"skrub.MinHashEncoder\"],\n      \"low_cardinality\": [\"sklearn.preprocessing.OneHotEncoder\", \"sklearn.preprocessing.OrdinalEncoder\"],\n      \"numeric\": [\"sklearn.preprocessing.StandardScaler\", \"skip\"]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"date_expansion\",\n      \"cols\": [\"date\"],\n      \"options\": [\n        {\"name\": \"skrub.DatetimeEncoder\", \"params\": {\"resolution\": {\"choice\": [\"hour\", \"day\", \"month\"]}, \"add_weekday\": {\"choice\": [true, false]}, \"add_total_seconds\": {\"choice\": [false, true]}}},\n        \"skrub.DatetimeEncoder\"\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": true\n    }\n  ],\n  \"stages\": [\n    {\"name\": \"scale\", \"options\": [\"skip\", \"sklearn.preprocessing.StandardScaler\", \"sklearn.preprocessing.RobustScaler\"]},\n    {\"name\": \"feature_eng\", \"options\": [\"skip\", {\"name\": \"sklearn.preprocessing.PolynomialFeatures\", \"params\": {\"degree\": {\"int\": [2, 3]}, \"interaction_only\": {\"choice\": [true, false]}}}]}\n  ],\n  \"model\": [\n    {\"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\", \"prior\": 0.85, \"params\": {\"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true}, \"max_iter\": {\"int\": [100, 600]}, \"max_depth\": {\"int\": [2, 16]}, \"l2_regularization\": {\"float\": [0.0, 1.0]}}},\n    {\"name\": \"lightgbm.LGBMRegressor\", \"prior\": 0.75, \"params\": {\"n_estimators\": {\"int\": [100, 500]}, \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true}, \"num_leaves\": {\"int\": [15, 127]}, \"max_depth\": {\"int\": [3, 16]}, \"colsample_bytree\": {\"float\": [0.5, 1.0]}, \"reg_lambda\": {\"float\": [0.0, 5.0]}}},\n    {\"name\": \"xgboost.XGBRegressor\", \"prior\": 0.7, \"params\": {\"n_estimators\": {\"int\": [100, 500]}, \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true}, \"max_depth\": {\"int\": [2, 12]}, \"subsample\": {\"float\": [0.5, 1.0]}, \"colsample_bytree\": {\"float\": [0.5, 1.0]}, \"reg_lambda\": {\"float\": [0.0, 5.0]}}},\n    {\"name\": \"sklearn.ensemble.RandomForestRegressor\", \"prior\": 0.5, \"params\": {\"n_estimators\": {\"int\": [100, 500]}, \"max_depth\": {\"int\": [3, 30]}, \"min_samples_leaf\": {\"int\": [1, 10]}, \"max_features\": {\"choice\": [\"sqrt\", \"log2\", 1.0]}}},\n    {\"name\": \"sklearn.linear_model.Ridge\", \"prior\": 0.3, \"params\": {\"alpha\": {\"float\": [0.001, 1000.0], \"log\": true}}},\n    {\"name\": \"sklearn.neighbors.KNeighborsRegressor\", \"prior\": 0.2, \"params\": {\"n_neighbors\": {\"int\": [3, 50]}, \"weights\": {\"choice\": [\"uniform\", \"distance\"]}}}\n  ]\n}"
+}

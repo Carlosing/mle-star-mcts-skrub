@@ -6,7 +6,7 @@ This is the glue that finally connects the agent layer to the search layer:
       -> resolve_spec -> build_staged_plan -> get_action_space + make_rollout_fn
       -> run_search_loop -> Caruana ensemble -> report
 
-The only live-LLM cost is the two agent turns (+1 per Option-3 propose); the
+The only live-LLM cost is the two agent turns (+1 per Extended Feature 3 propose); the
 MCTS rollouts are pure skrub (no quota). Spec parsing/resolution is wrapped so a
 malformed or truncated LLM response falls back to a minimal default rather than
 crashing the run.
@@ -249,7 +249,7 @@ def _safe_resolve(
     """resolve_spec with a fallback; returns (spec, raw_plan, used_fallback).
 
     `raw_plan` is the parsed plan dict that was actually resolved (the LLM's,
-    or the fallback) — the search loop hands it to the Option-3 proposer as
+    or the fallback) — the search loop hands it to the Extended Feature 3 proposer as
     the plan to extend.
     """
     try:
@@ -340,13 +340,13 @@ def run_pipeline(
     fake model + with_search=False to run fully offline). The search itself runs
     through ``search_loop.run_search_loop`` with model-gated HP search and a score
     cache; ``outer_steps > 1`` runs the budget as fixed-size slices on one
-    persisted tree, re-targeting a stage between slices (Option 1) and, with a
+    persisted tree, re-targeting a stage between slices (Extended Feature 1) and, with a
     ``propose`` callable, injecting new options for it before each subsequent
-    slice (Option 3 — the CLI's ``--n-proposes N`` is sugar for this). If
+    slice (Extended Feature 3 — the CLI's ``--n-proposes N`` is sugar for this). If
     ``out_dir`` is set, the run is persisted there.
 
     ``c``/``retarget`` are forwarded to ``run_search_loop`` (UCT exploration
-    constant; whether Option 1 re-picks the target stage between slices).
+    constant; whether Extended Feature 1 re-picks the target stage between slices).
     ``spec_raw`` skips the analyst/plan-author agents entirely and resolves the
     given raw plan instead — the offline Claude driver and stored-run replays
     reuse a captured plan this way, so those runs cost zero agent calls.
@@ -406,7 +406,7 @@ def run_pipeline(
     )
 
     def _resolve_plan(plan_json: dict) -> dict:
-        # the Option-3 rebuild path: same validation envelope as the original
+        # the Extended Feature 3 rebuild path: same validation envelope as the original
         return resolve_spec(
             plan_json,
             task_type=task_type,
@@ -592,7 +592,7 @@ def _result_markdown(r: dict) -> str:
             )
         if r.get("proposal_injection_error"):
             lines.append(
-                f"- **proposal injection error** (Option 3 proposed an extension "
+                f"- **proposal injection error** (Extended Feature 3 proposed an extension "
                 f"that could not be resolved/built, so it was skipped): "
                 f"{r['proposal_injection_error']}"
             )
@@ -645,14 +645,14 @@ def _result_markdown(r: dict) -> str:
                 f"  - ensemble weights: {['%.2f' % w for w in ens['weights']]}"
             )
     if r.get("target_key"):
-        lines.append(f"- targeted stage (Option 1): {r['target_key']}")
+        lines.append(f"- targeted stage (Extended Feature 1): {r['target_key']}")
     if r.get("refined_dims"):
         lines.append(
             f"- focused-refinement bonus phase edited: {r['refined_dims']}"
         )
     if r.get("injected_options"):
         lines.append(
-            f"- injected options not in the original plan (Option 3): "
+            f"- injected options not in the original plan (Extended Feature 3): "
             f"{r['injected_options']}"
         )
     if r.get("scoring_errors"):
@@ -827,12 +827,12 @@ def _main() -> None:
         type=int,
         default=1,
         help="search phases; >1 enables the tree-mined focus-stage pick "
-        "(Option 1, a proposer hint — never an expansion lock)",
+        "(Extended Feature 1, a proposer hint — never an expansion lock)",
     )
     parser.add_argument(
         "--refine",
         action="store_true",
-        help="enable LLM whole-plan extending injection (Option 3); needs --outer-steps>1",
+        help="enable LLM whole-plan extending injection (Extended Feature 3); needs --outer-steps>1",
     )
     parser.add_argument(
         "--n-proposes",
@@ -868,7 +868,7 @@ def _main() -> None:
     parser.add_argument(
         "--no-retarget",
         action="store_true",
-        help="keep the first Option-1 focus-stage pick (the proposer's "
+        help="keep the first Extended Feature 1 focus-stage pick (the proposer's "
         "target_stage hint) for the whole run",
     )
     parser.add_argument(

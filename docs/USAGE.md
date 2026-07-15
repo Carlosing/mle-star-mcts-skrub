@@ -69,7 +69,7 @@ Run a probe before a live run if you're unsure the endpoint is up.
 ```bash
 make run-live TASK=california-housing-prices BUDGET=40
 make run-live TASK=credit-fraud BUDGET=40 TOP_K=3
-make run-live TASK=employee-salaries BUDGET=60 N_PROPOSES=1   # with Option 3
+make run-live TASK=employee-salaries BUDGET=60 N_PROPOSES=1   # with Extended Feature 3
 ```
 
 This runs the whole pipeline against a real LLM API and writes a results folder.
@@ -87,6 +87,21 @@ Same search engine, but the plans come from pre-written files instead of a live
 LLM — so it costs **no quota** and is fully deterministic. Great for testing the
 search itself without spending API calls.
 
+### Replaying a past run — zero API quota
+
+Any completed live run can be re-run from its captured plan and logged
+proposals — no LLM calls at all:
+
+```bash
+uv run python scripts/replay_from_run.py --source runs/<task>_<ts> --n-proposes 2
+```
+
+Budget, seed, ensemble size and the plan are all reused from the source run;
+only `--n-proposes` varies (how many of the source's *real* logged proposals to
+replay — this is what produces the `proposal_scaling.png` curves). Replays run
+on the current code, so a replay of a pre-fix run is also how a **clean
+fixed-split score** is obtained for it (see `EXPERIMENTAL_RESULTS.md`).
+
 ---
 
 ## Options and their defaults
@@ -99,13 +114,13 @@ Pass these as `NAME=value` after the `make` command, e.g.
 | `TASK` | (config default) | Which dataset to run. See [Tasks](#available-tasks). |
 | `BUDGET` | `20` | How many pipeline configs the search tries per phase. Higher = more thorough, slower. A further `budget/4` refinement rollouts run automatically. |
 | `TOP_K` | `1` | Ensemble the best `K` configs at the end (`1` = just report the single best). |
-| `N_PROPOSES` | (off) | Ask the LLM to add new options mid-search this many times (**Option 3**). `0` or unset = off. |
-| `OUTER_STEPS` | `1` | Split the budget into this many search phases. `>1` enables the between-phase focus-stage pick (a hint passed to the Option-3 proposer). |
-| `REFINE` | (off) | `REFINE=1` turns on Option 3 (needs `OUTER_STEPS>1`). `N_PROPOSES` is the simpler way to do this. |
+| `N_PROPOSES` | (off) | Ask the LLM to add new options mid-search this many times (**Extended Feature 3**). `0` or unset = off. |
+| `OUTER_STEPS` | `1` | Split the budget into this many search phases. `>1` enables the between-phase focus-stage pick (a hint passed to the Extended Feature 3 proposer). |
+| `REFINE` | (off) | `REFINE=1` turns on Extended Feature 3 (needs `OUTER_STEPS>1`). `N_PROPOSES` is the simpler way to do this. |
 | `PROVIDER` | `google` | Which LLM provider: `google` (Gemini) or `school` (GWDG). See below. |
 | `NJOBS` | `6` | How many CPU cores to use per pipeline evaluation. `6` suits an Apple M-series; lower it on a smaller machine. |
 | `TIME_BUDGET` | (off) | Wall-clock budget in **seconds** for the whole search (e.g. `3600` = 1 hour). When set, `BUDGET` becomes an upper bound and time is the real cap. The LLM cost stays the same 2 calls — you buy quality with *time*, not tokens. Used for the benchmark protocol. |
-| `CLAUDE_PROPOSES` | `2` | Option-3 proposer calls for `make run-claude` (offline). |
+| `CLAUDE_PROPOSES` | `2` | Extended Feature 3 proposer calls for `make run-claude` (offline). |
 | `CLAUDE_TOP_K` | `3` | Top-K ensemble for `make run-claude`. |
 
 **Rules of thumb:**
@@ -194,7 +209,7 @@ now also records that call's `tokens`.
 | `tokens` `{prompt, completion, total}` | **Real token cost** of the whole run. |
 | `tokens_by_agent` | Per-agent token breakdown (`data_analyst`, `plan_author`, `proposer`), each `{prompt, completion, total, calls}`. |
 | `time_budget_s` / `wall_clock_s` | The wall-clock budget (if set) and the measured run time. |
-| `action_space`, `injected_options`, `spec_raw`, `analysis`, `data_summary` | The searched space, any Option-3 additions, the raw plan, and the agent I/O. |
+| `action_space`, `injected_options`, `spec_raw`, `analysis`, `data_summary` | The searched space, any Extended Feature 3 additions, the raw plan, and the agent I/O. |
 
 The extension's LLM cost is a **fixed constant** — `tokens` does not grow with
 `BUDGET`, `TOP_K`, or `TIME_BUDGET`, only with `N_PROPOSES`. That is the whole
@@ -306,11 +321,9 @@ This writes `figures/` (project root):
   shared-holdout score with its token spend annotated. All three methods appear
   automatically from whatever `result.json` files are present.
 - **`token_cost.png`** — every task on one shared axes, cumulative real-LLM tokens
-  vs Option-3 call count (the "cost stays a small near-constant" story).
-- **`proposal_scaling.png`** — extension quality vs Option-3 call count, per task,
+  vs Extended Feature 3 call count (the "cost stays a small near-constant" story).
+- **`proposal_scaling.png`** — extension quality vs Extended Feature 3 call count, per task,
   from `scripts/replay_from_run.py` replays.
-- **`autogluon_progress.png`** — AutoGluon's own running-best internal score vs
-  cumulative fit time.
 - **`mechanism_table.md`** + a flat **`comparison.csv`**.
 
 All three methods emit the same `result.json` schema (`method`, `holdout`,
@@ -345,5 +358,6 @@ All three methods emit the same `result.json` schema (`method`, `holdout`,
 `midwest-survey`, `movielens`, `open-payments`, `toxicity`,
 `traffic-violations`, `videogame-sales`.
 
-The small, fast ones (`california-housing-prices`, `country-happiness`,
-`toxicity`) are good for a first run.
+The small, fast ones (`california-housing-prices`, `country-happiness`) are
+good for a first run. Beware `toxicity`: it is small in *rows* (1.1k) but slow
+in *wall-clock* — the text-embedding encoder dominates its rollouts.

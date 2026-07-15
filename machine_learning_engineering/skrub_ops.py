@@ -1356,11 +1356,11 @@ def run_ablation(
 
 
 def pick_target_node(ablation_results: dict[str, dict]) -> str:
-    """Deterministic stage targeting (Option 1): highest score variance wins.
+    """Deterministic stage targeting (Extended Feature 1): highest score variance wins.
 
     `ablation_results` maps node_name -> {option: score}. The stage whose
     options differ most is where the search sees the most unresolved variance;
-    `search_loop.run_search_loop` forwards the pick to the Option-3 proposer
+    `search_loop.run_search_loop` forwards the pick to the Extended Feature 3 proposer
     as its `target_stage` hint. It is a hint only — expansion is never locked
     to it (the ledger elects `model` on essentially every pick, and locking
     starved off-target injected options until the bonus phase). Targeting

@@ -1,303 +1,183 @@
-# Machine Learning Engineering with Multiple Agents (MLE-STAR)
+# MLE-STAR × skrub × MCTS
 
-> **⚠️ Fork note — read this first.** This README is the *upstream* MLE-STAR
-> template and describes the original Google agent, **not** what this repo
-> does. This fork adapts MLE-STAR into an **MCTS search over skrub DataOps
-> pipelines**: LLM agents author a JSON plan of operators + hyperparameter
-> ranges; a pure-code MCTS engine searches that space. Start at
-> [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) (status + roadmap),
-> [docs/USAGE.md](docs/USAGE.md) (how to run), and `CLAUDE.md` (architecture
-> and conventions). The upstream code paths described below (`agent.py`,
-> `sub_agents/`, `eval/`) are **off the MCTS path — but not dead**: they are the
-> original MLE-STAR agent, kept alive as the **benchmark baseline** this fork
-> compares itself against (`make bench-mlestar`). Don't build extension features
-> there.
+> An adaptation of **MLE-STAR** into an **MCTS search over [skrub](https://skrub-data.org)
+> DataOps pipelines**. LLM agents read a dataset and author a *rich JSON plan* — a
+> per-stage menu of operators plus hyperparameter ranges. A pure-code MCTS engine then
+> searches that space (structure **and** hyperparameters) over a fixed evaluation budget.
+> **The LLM proposes the space; it never runs the search.**
 
-## Overview
+This repository is a fork of Google's [MLE-STAR](https://github.com/google/adk-samples)
+agent. The original agent (which writes and iteratively debugs Python code) is still
+present, but *revived as a benchmark baseline* — the project itself is the MCTS extension
+described below. The upstream agent's design is off the critical path; this README
+documents **our** system.
 
-The Machine Learning Engineering Agent is an approach to building Machine Learning Engineering (MLE) agents that can train state-of-the-art machine learning models on various tasks (including classification and regression tasks), through a novel approach of leveraging web search and targeted code block refinement. Using the example of predicting California housing prices, we show how MLE-STAR can create a regression model based on factors like population, income, etc. that outperforms traditional approaches to training ML models. The experimental results show that MLE-STAR achieves medals in 63.6% of the Kaggle competitions on the MLE-bench-Lite, significantly outperforming the best alternative. The implementation is based on the Google Cloud AI Research paper "MLE-STAR: Machine Learning Engineering Agent via Search and Targeted Refinement" (https://www.arxiv.org/abs/2506.15692).
-
-#### Performance of MLE agents on [MLE-Bench-Lite](https://github.com/openai/mle-bench/tree/main) datasets.
-
-| MLE Agents | Base LLM | Any Medals| Gold Medals | Silver Medals | Bronze Medals |
-| --- | --- | --- | --- | --- | --- |
-| [ **MLE-STAR** ](https://www.arxiv.org/pdf/2506.15692) | **Gemini-2.5-Pro** | **63.6%** | **36.4%** | **21.2%** | 6.1% |
-| [ **MLE-STAR** ](https://www.arxiv.org/pdf/2506.15692) | **Gemini-2.5-Flash** | 43.9% | 30.3% | 4.5% | **9.1%** |
----
-
-<br>
-
-## Agent Details
-
-The key features of the Machine Learning Agent include:
-
-| Feature | Description |
-| --- | --- |
-| **Interaction Type** | Conversational |
-| **Complexity**  | Advanced |
-| **Agent Type**  | Multi Agent |
-| **Components**  | Tools: Code execution, Retrieval |
-| **Vertical**  | All |
-
-### Agent architecture
-
-This diagram shows the detailed architecture of the agents and tools used
-to implement this workflow.
-<img src="machine-learning-engineering-architecture.svg" alt="Machine-Learning-Engineering" width="800"/>
-
-### Key Features
-
-1. **Initial Solution Generation:** Uses a search engine to retrieve state-of-the-art models and their example codes, then merges the best-performing candidates into a consolidated initial solution.
-
-2. **Code Block Refinement:** Iteratively improves the solution by identifying and targeting specific code blocks (ML pipeline components) that have the most significant impact on performance, determined through ablation studies. An inner loop refines the targeted block with various strategies.
-
-3. **Ensemble Strategies:** Introduces a novel ensembling method where the Agent proposes and refines ensemble strategies to combine multiple solutions, aiming for superior performance than individual best solutions.
-
-4. **Robustness Modules:** Includes a debugging agent for error correction, a data leakage checker to prevent improper data access during preprocessing, and a data usage checker to ensure all provided data sources are utilized.
-
-## Setup and Installation
-
-### Prerequisites
-
-- Python 3.12+
-- uv for dependency management and packaging
-  - See the official [uv website](https://docs.astral.sh/uv/) for installation.
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-- Git
-  - Git can be downloaded from [https://git-scm.com/](https://git-scm.com/). Then follow the [installation guide](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
-- Google Cloud Account
-  - You need a Google Cloud account
-- A project on Google Cloud Platform
-- Google Cloud CLI
-  - For installation, please follow the instruction on the official
-  [Google Cloud website](https://cloud.google.com/sdk/docs/install).
-
-## Google Agents CLI (recommended)
-
-Use the [Google Agents CLI](https://github.com/google/agents-cli) to scaffold a production-ready project and choose your deployment target ([Agent Runtime](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/runtime) or [Cloud Run](https://cloud.google.com/run)), with CI/CD and other production features.
-
-**Install the CLI** (one-time):
-
-```bash
-uvx google-agents-cli setup
-```
-
-**Create the project from this sample** (replace `my-mle-agent` with your project name):
-
-```bash
-agents-cli create my-mle-agent -a adk@machine-learning-engineering
-```
-
-The Google Agents CLI will prompt you to select deployment options and set up your Google Cloud project.
-
-From your newly created project directory (e.g. `my-mle-agent`), run:
-
-```bash
-cd my-mle-agent
-uv sync --dev
-uv run adk run machine_learning_engineering
-```
-
-For the web UI:
-
-```bash
-uv run adk web
-```
-
-Then select `machine_learning_engineering` from the dropdown menu.
+- **New here?** Read this file, then [`docs/USAGE.md`](docs/USAGE.md) to run it.
+- **Grading / structure?** See [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md),
+  [`EXPERIMENTS.md`](EXPERIMENTS.md), [`EXPERIMENTAL_RESULTS.md`](EXPERIMENTAL_RESULTS.md).
+- **Design deep-dive / status:** [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) is the
+  canonical roadmap; [`CLAUDE.md`](CLAUDE.md) is the invariant-level design contract.
 
 ---
 
-Alternative: Local development (run from this sample repo)
-
-### Agent Setup
-
-1. Clone the repository:
-  ```bash
-   git clone https://github.com/google/adk-samples.git
-   cd adk-samples/python/agents/machine-learning-engineering
-  ```
-   For the rest of this tutorial **ensure you remain in the `python/agents/machine-learning-engineering` directory**.
-2. Install the dependencies:
-  ```bash
-   uv sync
-  ```
-
-1. Configure settings:
-  Set up Google Cloud credentials. You may set the following environment variables in your shell, or in a `.env` file instead.
-   Authenticate your GCloud account.
-
-### Running the Agent Locally
-
-**Prepare your task**
-
-You should prepare the inputs for your task in the following way:
-
-1. Create a folder under `tasks` with the name of your task.
-2. In that folder, create a file containing the description of the task.
-3. Place the data files in this folder.
-
-**Using `adk`**
-
-ADK provides convenient ways to bring up agents locally and interact with them.
-You may talk to the agent using the CLI:
-
-```bash
-adk run machine_learning_engineering
-```
-
-Or on a web interface:
-
-```bash
-adk web
-```
-
-The command `adk web` will start a web server on your machine and print the URL.
-
-### Development
-
-```bash
-uv sync --dev
-uv run pytest tests
-uv run pytest eval
-```
-
-### Deployment
-
-You will need to have specified a GCS bucket in the environment variable `GOOGLE_CLOUD_BUCKET` as detailed in the [Configuration](#configuration) section.
-
-If the bucket does not exist, ADK will create one for you. This is the easiest option. If the bucket does exist, then you must provide permissions to the service account as described in [this](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/troubleshooting/deploy#permission_errors) Troubleshooting article.
-
-The Machine Learning Engineering Agent can be deployed to Agent Runtime using the following
-commands:
-
-```bash
-uv sync --group deployment
-uv run deployment/deploy.py --create
-```
-
-When the deployment finishes, it will print a line like this:
+## The idea in one picture
 
 ```
-Created remote agent: projects/<PROJECT_NUMBER>/locations/<PROJECT_LOCATION>/reasoningEngines/<AGENT_ENGINE_ID>
+  AGENT LAYER (LLM via ADK)                 LOGIC LAYER (pure Python, no LLM client)
+  data_analyst ─► plan_author ──JSON──►     spec_resolver ─► skrub_ops ─► search_loop ─► mcts
+  (reads a data   (rich plan:               (names + HP     (build plan,  (persist tree, (UCT
+   digest, web     operators +               ranges ->       action space,  ablation,      search)
+   search)         HP ranges)                seeded          rollouts)      Extended Feature 1/3)
+                                             estimators)
+        └──────────────── pipeline.py (driver) wires the whole thing ──────────────┘
 ```
 
-If you forget the AGENT_ENGINE_ID, you can list the existing agents using:
+**The load-bearing invariant:** *code owns structure and math; the LLM owns knowledge and
+language.* The LLM is called **O(1) times per task** (two agent calls: `data_analyst` +
+`plan_author`, plus at most one call between search slices for mid-search injection). It is
+**never** called inside the inner search loop. The only cost that scales with search size is
+CV rollouts — pure Python.
 
-```bash
-uv run deployment/deploy.py --list
-```
-
-The output will be like:
-
-```
-All remote agents:
-
-123456789 ("machine_learning_engineering")
-- Create time: 2025-07-11 09:46:07+00:00
-- Update time: 2025-05-10 09:46:09+00:00
-```
-
-You may interact with the deployed agent using the `test_deployment.py` script
-
-```bash
-$ export USER_ID=<any string>
-$ uv run deployment/test_deployment.py --resource_id=${AGENT_ENGINE_ID} --user_id=${USER_ID}
-Found agent with resource ID: ...
-Created session for user ID: ...
-Type 'quit' to exit.
-Input: Hello. What can you do for me?
-Response: Hello! I'm a Machine Learning Engineer Assistant. I can help you achieve competition-level quality in solving machine learning tasks.
-
-To get started, please provide the task description of the competition.
-```
-
-To delete the deployed agent, you may run the following command:
-
-```bash
-uv run deployment/deploy.py --delete --resource_id=${AGENT_ENGINE_ID}
-```
-
-
-
-### Example Interaction
-
-You may open the URL, select "machine_learning_engineering" in the top-left drop-down menu, and
-a chatbot interface will appear on the right. The conversation is initially
-blank. Here are some example requests you may ask the Machine Learning Agent to identity itself:
-
-> **[user]:** who are you?
-
-> **[mle_frontdoor_agent]:** I am a machine learning engineer agent.
-
-> **[user]:** what can you do?
-
-> **[mle_frontdoor_agent]:** I am a machine learning engineer. My primary role is to engineer solutions for machine learning tasks, such as the California Housing Task. I can also describe the task if you'd like. I work by executing a sequence of sub-agents to solve the machine learning engineering task.
-
-> **[user]:** describe the task that you have
-
-> **[mle_frontdoor_agent]:** The task I have is the California Housing Task. This task involves predicting the median house value in California districts, given various features about those districts. It's a regression problem where the goal is to build a model that can accurately estimate house prices based on factors like population, median income, and housing age within a district.
-
-> **[user]:** execute the task
-
-> **[mle_frontdoor_agent]:** *intermediate output snipped*.
->
->
-> \# Save the submission file to CSV without the index print(f"Submission file saved successfully to {submission_file_path}")
-
-## Appendix
-
-### Required Config Parameters
-
-This document describes the required configuration parameters in the `DefaultConfig` dataclass.
+This is the whole point of the design: **you buy quality with compute/time at a fixed,
+known token cost**, instead of with an unbounded cascade of code-and-debug LLM calls.
 
 ---
 
-#### `data_dir`
+## How it works, end to end (`pipeline.run_pipeline`)
 
-- **Description:** Specifies the directory path where the machine learning tasks and their data are stored.
-- **Type:** `str`
-- **Default:** `"./machine_learning_engineering/tasks/"`
+0. **The train/holdout split already exists on disk.** `scripts/stage_tasks.py` wrote
+   `train.csv` / `test.csv` / `test_answer.csv` per task *before any method runs* (80/20
+   seeded, stratified for classification). `load_task` reads **only** `train.csv`; the
+   holdout is handed to the *scorers* alone. The search physically cannot see the holdout.
+1. **`load_task`** → dataframe + target + task type + metric (from `task_description.txt`),
+   plus any relational `aux_*.csv` tables.
+2. **`make_data_summary`** → a compact EDA digest — the *only* view of the data the LLM gets.
+3. **Agents** (`data_analyst` → `plan_author`) → a rich JSON plan: a per-stage menu of
+   operators (by dotted import path) with hyperparameter ranges. `data_analyst` may use web
+   search (Gemini only).
+4. **`resolve_spec`** → turns the JSON (names + HP ranges) into seeded estimators and
+   `choose_*` nodes. Operators pass through an **import allow-list** (roots `sklearn`,
+   `skrub`, `lightgbm`, `xgboost`); nothing is `eval`'d, hallucinated paths are dropped.
+5. **`build_staged_plan` / `get_action_space` / `get_choice_gating`** → assembles the skrub
+   DataOps pipeline, derives the MCTS search space, and exposes the model→HP conditional gate.
+6. **`run_search_loop`** → persisted-tree **MCTS** over `budget` CV rollouts (with a score
+   cache and model-gated HPs). Three optional **Extended Features** amplify the base search
+   (older commit messages call 1 and 3 "Option 1/3"):
+   - **Extended Feature 1 — ablation targeting.** Between search slices, a tree-mined ablation
+     picks a focus stage (a *proposer hint*, never an expansion lock).
+   - **Extended Feature 2 — prior warm-start.** Plan options may carry a `"prior": 0.0–1.0`
+     rating; `prior_fn` seeds fresh children's Q/N with it (the AlphaZero "policy prior + UCT"
+     pattern, at zero extra LLM calls).
+   - **Extended Feature 3 — mid-search plan injection.** With a proposer, one LLM call between
+     slices returns a *whole extended plan* (merged strictly additively, re-resolved, rebuilt —
+     injected operators arrive already tuned).
+   - Plus a **focused-refinement bonus phase** — after the budget, `ceil(total/4)` extra
+     rollouts explore *all* single-edit neighbours of the incumbent (structure and HPs), no LLM.
+7. **Ensemble** (`--top-k > 1`) → a **Caruana** greedy weighted read-off over the persisted
+   score cache (no new search). Members are **selected** on 3-fold out-of-fold predictions
+   over all of train, then **refit on all of train and scored on the untouched holdout** —
+   selection rows and reported rows are never the same rows.
+8. **Report** → score the incumbent on the competition metric (via CV, `report`) *and* on
+   the shared on-disk holdout (`holdout` — the cross-method-comparable number). Write
+   `runs/<task>_<ts>/{result.json, summary.md, ensemble.pkl}`.
 
 ---
 
-#### `task_name`
+## Main code components
 
-- **Description:** The name of the specific task to be loaded and processed.
-- **Type:** `str`
-- **Default:** `"california-housing-prices"`
+Everything on the MCTS path lives in `machine_learning_engineering/`.
 
----
+| Module | Role |
+|---|---|
+| [`mcts.py`](machine_learning_engineering/mcts.py) | The MCTS engine: UCT select/expand/backprop, a **persistent tree**, a **score cache**, model-gated expansion, `canonicalize`, `prior_fn` hook, incumbent-local descent. **No skrub, no LLM, no I/O.** |
+| [`skrub_ops.py`](machine_learning_engineering/skrub_ops.py) | **All skrub access.** `build_staged_plan` (assemble + scoped encodings + always-on `Cleaner`/`TableVectorizer` backbones), `get_action_space`, `get_choice_gating`, `apply_state`, seeded rollouts (profile-aware subsampling, per-rollout 60 s wall-clock cap, parallel CV folds), `run_ablation`. |
+| [`spec_resolver.py`](machine_learning_engineering/spec_resolver.py) | LLM JSON → seeded estimators + `choose_*` nodes. The **import allow-list** is the safety envelope; HP ranges are free-form unless curated in `REGISTRY` (then clipped). |
+| [`search_loop.py`](machine_learning_engineering/search_loop.py) | The outer loop: fixed-budget MCTS slices, tree-mined ablation (Extended Feature 1), whole-plan injection (Extended Feature 3, `make_llm_proposer`), and the focused-refinement bonus phase. |
+| [`ensemble.py`](machine_learning_engineering/ensemble.py) | **Caruana ensemble read-off** over the score cache. `holdout_split`, OOF selection, `EnsemblePredictor` (the picklable fitted result → `ensemble.pkl`). |
+| [`data_summary.py`](machine_learning_engineering/data_summary.py) | `make_data_summary` — the EDA digest the LLM sees. |
+| [`adk_agent.py`](machine_learning_engineering/adk_agent.py) | The ADK graph `data_analyst → plan_author`; provider switched by `ROOT_AGENT_MODEL` (native Gemini vs OpenAI-compatible via `LiteLlm`). |
+| [`metrics.py`](machine_learning_engineering/metrics.py) | The two scorers — a bounded search reward vs the competition report metric. |
+| [`pipeline.py`](machine_learning_engineering/pipeline.py) | End-to-end driver + CLI. |
 
-#### `task_type`
+**Benchmark / evaluation scripts** live in `scripts/` — see [`EXPERIMENTS.md`](EXPERIMENTS.md)
+for the full map (`stage_tasks.py`, `run_autogluon.py`, `run_mlestar.py`,
+`run_claude_pipeline.py`, `replay_from_run.py`, `collect_results.py`, `make_figures.py`).
 
-- **Description:** Defines the type of machine learning problem.
-- **Type:** `str`
-- **Default:** `"Tabular Regression"`
-
----
-
-#### `lower`
-
-- **Description:** A boolean flag, indicating whether a lower value of the metric is better.
-- **Type:** `bool`
-- **Default:** `True`
-
----
-
-#### `workspace_dir`
-
-- **Description:** The directory path used for saving intermediate outputs, results, logs, or any other artifacts generated during the task execution.
-- **Type:** `str`
-- **Default:** `"./machine_learning_engineering/workspace/"`
+The **revived MLE-STAR baseline** is `agent.py` + `sub_agents/` + `shared_libraries/` +
+`runner.py` + `eval/`, driven by `scripts/run_mlestar.py`. It is deliberately *off* the MCTS
+path — no extension feature belongs there — but it is no longer dead code: it is the arm we
+compare against.
 
 ---
 
-#### `agent_model`
+## Key features & design decisions
 
-- **Description:** Specifies the identifier for the LLM model to be used by the agent. It defaults to the value of the environment variable `ROOT_AGENT_MODEL` or `"gemini-2.5-flash"` if the variable is not set.
-- **Type:** `str`
-- **Default:** `os.environ.get("ROOT_AGENT_MODEL", "gemini-2.5-flash")`
+- **Structured JSON plan, not code-gen.** No `eval` of model output. The plan is
+  schema-validated, centrally seeded (determinism is what MCTS needs), and made of named
+  choices the search can reason about.
+- **Import-level allow-list** is the safety envelope — a hallucinated operator is *dropped*,
+  never executed. HP ranges are free-form (used as given) unless curated in `REGISTRY`.
+- **Two scorers, never conflated** — a bounded, higher-is-better reward for the *search*; the
+  competition metric only for the *final report*.
+- **The bench is drawn on disk, before any method runs** — not honoured by convention inside
+  each method, but enforced by *absence*: the holdout rows are simply not in any file the
+  search can read. The same rule one level down: the ensemble selects on out-of-fold rows and
+  reports on the holdout.
+- **Persist the tree; never restart.** The scorer is fixed, so a config's reward never changes
+  when the target moves — the tree is a running ablation we mine for free.
+- **LLM-call complexity is the cost model** — O(1) per task, ≤ O(outer steps) with Extended Feature 3;
+  never O(expansions) or O(rollouts).
+- **Relational tables are a first-class, searchable stage** — `AggJoiner` over `aux_*.csv`.
+  This is a *structural* capability the flat-table baselines lack.
+- **One ADK stack, env-switched provider** — `ROOT_AGENT_MODEL` selects native Gemini (with
+  `google_search`) or any OpenAI-compatible endpoint via `LiteLlm`. The logic layer imports no
+  LLM client.
 
+---
+
+## Quick start
+
+```bash
+make sync          # build the venv (needs internet, run once)
+make test          # offline test suite — mocked agents, real skrub CV (~5 min, 427 tests)
+
+# a real run against a live LLM API (needs a key in .env — see docs/USAGE.md)
+make run-live TASK=california-housing-prices BUDGET=40
+
+# or fully offline, zero API quota (plans come from pre-written files):
+make run-claude TASK=credit-fraud BUDGET=40 CLAUDE_TOP_K=3
+```
+
+Each run writes `runs/<task>_<ts>/` with `result.json`, `summary.md`, and `ensemble.pkl`.
+Full command reference, provider setup, and output-field documentation:
+[`docs/USAGE.md`](docs/USAGE.md).
+
+---
+
+## Results in one line
+
+On a 10-task benchmark against AutoGluon and the revived MLE-STAR, the extension is
+**competitive on quality at a small, fixed LLM-token cost** (2 calls/task, constant in the
+search budget), and holds a **structural advantage on relational data** that flat-table
+AutoML cannot match. **Important caveat:** the shipped extension numbers are *optimistically
+biased* (they predate the on-disk split fix) and the three arms are scored on three different
+bases — read [`EXPERIMENTAL_RESULTS.md`](EXPERIMENTAL_RESULTS.md) before quoting any number.
+
+---
+
+## Repository layout
+
+```
+machine_learning_engineering/   # the MCTS extension (the project) + revived MLE-STAR baseline
+scripts/                        # staging, benchmark drivers, figure pipeline (see EXPERIMENTS.md)
+tests/                          # offline test suite (make test) — agents mocked with FakeLlm
+data/                           # raw datasets (13)
+results/                        # git-shareable mirror of run artifacts (result.json per run)
+figures/                        # rendered comparison figures + comparison.csv
+docs/                           # USAGE, PROJECT_STATE, BUG_LEDGER, architecture, per-stage notes
+CLAUDE.md                       # the invariant-level design contract
+```
+
+> **Note:** the staged tasks (`machine_learning_engineering/tasks/` — the shared
+> train/holdout split, drawn once by `scripts/stage_tasks.py`) ship with the
+> repository, so no staging step is needed after cloning.

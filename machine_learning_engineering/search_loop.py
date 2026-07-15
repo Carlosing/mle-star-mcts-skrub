@@ -11,7 +11,7 @@ instead of restarting. Two refinements layer on top:
   ledger elects `model` on essentially every pick, so locking the other
   stages starved off-target injected options until the bonus phase. Re-picking
   happens between slices by default (`retarget=False` keeps the first pick).
-- **Option 3 (one LLM call between slices):** before each slice after the
+- **Extended Feature 3 (one LLM call between slices):** before each slice after the
   first, hand the `propose` callable the WHOLE current raw plan plus search
   evidence and expect back an *extended* plan (any/multiple stages, with HP
   ranges). Only additions survive: `_merge_raw_plans` unions the two plans by
@@ -311,18 +311,18 @@ def run_search_loop(
     `outer_steps == 1` is a plain (gated) single MCTS phase. With more steps
     the search runs as fixed-budget SLICES on the same persisted tree,
     interleaved with refinement: after every slice the tree is re-mined and a
-    focus stage is (re-)picked (Option 1; `retarget=False` keeps the first
+    focus stage is (re-)picked (Extended Feature 1; `retarget=False` keeps the first
     pick for the whole run) — forwarded to the proposer as its `target_stage`
     hint, never as an expansion lock — and, if `propose` is given, one
-    proposer call fires before each subsequent slice (Option 3) — so
+    proposer call fires before each subsequent slice (Extended Feature 3) — so
     `outer_steps=4, budget_per_step=15` means `search 15 → propose → 15 →
     propose → 15 → propose → 15`, at most `outer_steps - 1` LLM calls total.
     Returns the
     (possibly rebuilt) plan so the caller can score the incumbent on it. For
     relational tasks pass `aux_tables={name: df}` — auxiliary tables join
-    whole (never subsampled) and survive the Option-3 plan rebuild.
+    whole (never subsampled) and survive the Extended Feature 3 plan rebuild.
 
-    Option 3 needs three pieces: `propose(plan_json, context) -> dict | None`
+    Extended Feature 3 needs three pieces: `propose(plan_json, context) -> dict | None`
     (returns a whole raw plan that EXTENDS `plan_json`; any/multiple stages,
     with HP ranges), `raw_spec` (the current plan as raw JSON dict — the
     thing the proposer sees and extends) and `resolve` (callable raw dict ->
@@ -421,7 +421,7 @@ def run_search_loop(
     for step in range(max(1, outer_steps)):
         if deadline is not None and time.perf_counter() >= deadline:
             break
-        # Option 3: ask for a whole extended plan, merge additively, rebuild.
+        # Extended Feature 3: ask for a whole extended plan, merge additively, rebuild.
         if (
             step >= 1
             and propose is not None
@@ -496,7 +496,7 @@ def run_search_loop(
         if bscore > best_score:
             best_state, best_score = bstate, bscore
 
-        # Option 1: after each slice, (re-)pick the focus stage. This is a
+        # Extended Feature 1: after each slice, (re-)pick the focus stage. This is a
         # proposer hint only (`target_stage` in its context) — expansion stays
         # unlocked, since the variance ledger elects `model` on essentially
         # every pick and a lock starved off-target injections until the bonus
@@ -604,7 +604,7 @@ def make_llm_proposer(
 
     Native Gemini (`gemini-*`, with `google_search` grounding) or any
     OpenAI-compatible endpoint (school), selected exactly like the ADK agents —
-    so `PROVIDER=school` gets Option 3 too, no code change.
+    so `PROVIDER=school` gets Extended Feature 3 too, no code change.
 
     One `google.genai` call between search slices (the LLM never enters the
     inner search loop). The proposer sees the WHOLE current raw plan plus the
@@ -641,14 +641,14 @@ def make_llm_proposer(
     # Provider-agnostic, mirroring the analyst/plan_author agents: a `gemini-*`
     # id calls native Gemini (with the Gemini-only `google_search` grounding);
     # any other id (school / OpenAI-compatible) calls that endpoint via the
-    # OpenAI client, no web search. Option 3 follows PROVIDER with no code
+    # OpenAI client, no web search. Extended Feature 3 follows PROVIDER with no code
     # change. Clients imported lazily so the module stays importable offline.
     # lazy so the logic layer stays importable offline (run_logging pulls in
     # google.adk at import); only reached when a proposer is actually built.
     from machine_learning_engineering.run_logging import extract_usage
 
     # per-proposer token accounting, exposed as `propose.token_totals` so the
-    # pipeline can report Option-3's LLM cost without changing propose()'s
+    # pipeline can report Extended Feature 3's LLM cost without changing propose()'s
     # signature. `calls` counts real completions (both attempts of a retry).
     token_totals = {"prompt": 0, "completion": 0, "total": 0, "calls": 0}
 

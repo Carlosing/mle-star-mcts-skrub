@@ -334,7 +334,7 @@ def parse_spec_json(raw):
     Every candidate must be *plan-shaped*. A truncated response (the model hit
     its output-token cap mid-object) leaves valid JSON fragments scattered in
     the text, and a brace-scan will happily return one — `{"float": [0.7, 1.0]}`
-    silently became "the extended plan" and Option 3 no-op'd with no error.
+    silently became "the extended plan" and Extended Feature 3 no-op'd with no error.
     A fragment now raises instead, so the caller can retry or fail loudly.
 
     Strict `json.loads` is the happy path. Only when NO candidate parses
@@ -802,7 +802,7 @@ def _make(path, params, seed, context):
         except Exception:
             choice = None  # a malformed range (skrub choose_* rejected it)
             # drops just this param — never the operator, and never the whole
-            # resolve (which would silently kill an entire Option-3 injection)
+            # resolve (which would silently kill an entire Extended Feature 3 injection)
         if choice is not None:
             kwargs[pname] = choice
     for pname in _SPARSE_PARAMS:

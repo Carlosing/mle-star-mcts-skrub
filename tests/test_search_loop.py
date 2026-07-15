@@ -1,4 +1,4 @@
-"""Integration tests for the outer search loop (Option 1 + Option 3), offline.
+"""Integration tests for the outer search loop (Extended Feature 1 + Extended Feature 3), offline.
 
 Real skrub + MCTS on california-housing; the LLM proposer is a stage-aware fake,
 so no network. Covers tree persistence, ablation targeting, model-gated HP
@@ -366,7 +366,7 @@ def test_propose_needs_raw_spec_and_resolve():
         calls["n"] += 1
         return _EXTENSION
 
-    # without the raw plan + resolver, Option 3 is off: no proposer call
+    # without the raw plan + resolver, Extended Feature 3 is off: no proposer call
     run_search_loop(
         _spec(),
         _california(),

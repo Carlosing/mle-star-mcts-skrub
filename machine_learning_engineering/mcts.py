@@ -102,7 +102,7 @@ def expand(
     `gating` (model-gated HPs): a conditional key is only edited when its parent
     is at the activating outcome in this node, and new states are canonicalized
     so inactive HPs are dropped. `target_key`, if given, restricts expansion to
-    a single choice (Option 1 — lock all other stages) or, as a set/list of
+    a single choice (Extended Feature 1 — lock all other stages) or, as a set/list of
     names, to that group of choices.
     """
     children = []

@@ -1,13 +1,13 @@
 """Run the full pipeline on every task with Claude standing in for Gemini.
 
-Claude authored the per-task plans and Option-3 proposal menus offline (see
+Claude authored the per-task plans and Extended Feature 3 proposal menus offline (see
 ``scripts/claude_agents.py``), reading the same data digest + allowed-operator
 vocabulary the real ``data_analyst``/``plan_author`` agents receive. This driver
 wires them into the unchanged logic layer:
 
     load_task -> make_data_summary -> [Claude plan via spec_raw]
-      -> resolve_spec -> build_staged_plan -> MCTS (Option 1 + gated HP search)
-      -> Option 3 (Claude replay proposer) -> HP-refinement -> top-k ensemble
+      -> resolve_spec -> build_staged_plan -> MCTS (Extended Feature 1 + gated HP search)
+      -> Extended Feature 3 (Claude replay proposer) -> HP-refinement -> top-k ensemble
 
 **Zero Gemini calls** — the search, ablation, HP-refinement and ensemble are
 already pure code; the two LLM touchpoints are supplied by Claude via injection.
@@ -85,7 +85,7 @@ def main() -> None:
         "--n-proposes",
         type=int,
         default=2,
-        help="Option-3 proposer calls between slices (0 = off; Option 1 + HP-refine only)",
+        help="Extended Feature 3 proposer calls between slices (0 = off; Extended Feature 1 + HP-refine only)",
     )
     parser.add_argument(
         "--top-k", type=int, default=3, help="ensemble top-k (1 = off)"

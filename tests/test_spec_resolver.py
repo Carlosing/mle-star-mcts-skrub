@@ -448,7 +448,7 @@ def test_sparse_output_is_not_forced_onto_kwargs_constructors():
 def test_parse_json_rejects_a_fragment_from_a_truncated_response():
     """A response cut off at its output-token cap leaves valid JSON fragments in
     the text. A brace-scan returns one, and `{"float": [0.7, 1.0]}` silently
-    became "the extended plan" — Option 3 no-op'd with no error."""
+    became "the extended plan" — Extended Feature 3 no-op'd with no error."""
     truncated = (
         '```json\n{\n "model": ["sklearn.linear_model.Ridge"],\n "scoped_encodings": [\n'
         '  {"name": "t", "options": [\n'

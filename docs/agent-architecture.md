@@ -1,7 +1,15 @@
 # Agent architecture — one ADK stack, provider switched by env
 
-The project has **one** agent stack: the Google ADK graph in
-[`adk_agent.py`](../machine_learning_engineering/adk_agent.py)
+The repository serves a **three-way benchmark** (extension vs AutoGluon vs
+MLE-STAR), and two of the three arms are agentic. This doc covers both:
+
+| Arm | Agent stack | LLM cost model | Web search |
+|---|---|---|---|
+| **Extension** (the project) | ADK graph `data_analyst → plan_author` ([`adk_agent.py`](../machine_learning_engineering/adk_agent.py)) | **O(1)** calls/task (2, +1 per Extended Feature 3 proposal) | `google_search` (Gemini path only) |
+| **MLE-STAR** (revived baseline) | ported `ManagerAgent` + `sub_agents/` over [`runner.py`](../machine_learning_engineering/runner.py) | **unbounded** (code-and-debug cascade), hard-capped by the harness | DuckDuckGo (`shared_libraries/web_search_util.py`) |
+| AutoGluon | none (pure AutoML) | 0 | — |
+
+The extension has **one** agent stack: the Google ADK graph
 (`data_analyst → plan_author`). It drives **native Gemini** *or* an **OpenAI /
 OpenAI-compatible** endpoint, chosen purely by environment variables — no code
 change to switch providers. Underneath, the whole logic layer (MCTS + skrub)
@@ -26,7 +34,7 @@ imports no LLM client at all.
 **The logic layer never imports an LLM client.** `mcts.py` / `skrub_ops.py` /
 `spec_resolver.py` / `search_loop.py` stay import-clean and offline-testable;
 the only lazy provider imports are inside `search_loop.make_llm_proposer`
-(`google.genai` on a `gemini-*` model, `openai` otherwise — the Option-3
+(`google.genai` on a `gemini-*` model, `openai` otherwise — the Extended Feature 3
 proposer follows the same provider switch as the agents) and
 `adk_agent._resolve_model` (`LiteLlm`, only on the non-Gemini path).
 
@@ -75,14 +83,18 @@ with empty content → fallback spec. The LiteLlm path therefore sets
 the endpoint currently serves with `make probe-school` (`SMOKE=1` health-checks
 each model).
 
-## The second stack: MLE-STAR, revived as the benchmark baseline
+## The second stack: the MLE-STAR port, revived as the benchmark baseline
 
 The repo carries a **second** agent stack — the hand-rolled OpenAI `ManagerAgent`
 in `agent.py` plus `sub_agents/` and `shared_libraries/`. This is the *upstream
-MLE-STAR agent*: it writes and debugs Python, rather than authoring a search
-space. It was deprecated when OpenAI moved onto ADK (LiteLlm) — and then
-**revived as the thing we benchmark against** (`make bench-mlestar`,
-`scripts/run_mlestar.py`).
+MLE-STAR agent*, **ported off the ADK runtime onto plain OpenAI-compatible
+calls** early in the project (commits `fac8795`/`241beeb`: a `ManagerAgent` with
+a token budget and kill switch, a sub-agent execution protocol, the full
+initialization → refinement → ensemble → submission pipeline). It writes and
+debugs Python, rather than authoring a search space. It was deprecated when the
+extension moved onto ADK (LiteLlm) — and then **revived as the thing we
+benchmark against** (`make bench-mlestar`, `scripts/run_mlestar.py`; adopted
+into the benchmark branch in merge `7867f06`).
 
 It no longer runs on ADK. `runner.py` is a minimal OpenAI-compatible runner that
 replaces the ADK runtime, and its **`llm_call` is the single chokepoint** every
@@ -90,7 +102,20 @@ sub-agent reaches the provider through — which is what lets the harness wrap o
 function to impose the caps MLE-STAR needs (max LLM calls, per-call output-token
 bound, wall-clock deadline). Its token cost is otherwise unbounded: it is a
 code-and-debug loop, so a hard task can cascade indefinitely. That unboundedness
-*is* the comparison — see [PROJECT_STATE.md](PROJECT_STATE.md).
+*is* the comparison — see [PROJECT_STATE.md](PROJECT_STATE.md). Under the cap it
+can also fail to converge on a runnable script at all (videogame-sales did) —
+a failure mode the extension's validated-plan design cannot produce.
+
+### Web-search integration (the port's retrieval step)
+
+Upstream MLE-STAR's first phase retrieves candidate models from the web. The
+port restores this with **DuckDuckGo** search
+(`shared_libraries/web_search_util.py`, commit `e7c80a8`) wired into the
+initialization agent's model-retrieval step — the MLE-STAR analogue of the
+extension analyst's `google_search`, and the reason `ddgs` is a core
+dependency. So *both* agentic arms have a web-grounding step: Gemini-native
+`google_search` on the extension's analyst, DuckDuckGo scraping on the
+baseline's retriever.
 
 Two rules still hold:
 
@@ -101,10 +126,6 @@ Two rules still hold:
   machine_learning_engineering.mcts` still constructs nothing and needs no
   `.env`. An eager client would re-couple the pure MCTS/skrub layer to an LLM key
   and break the offline suite.
-
-`shared_libraries/web_search_util.py` (DuckDuckGo) backs the baseline's
-model-retrieval step — the MLE-STAR analogue of the analyst's `google_search`,
-and the reason `ddgs` is a core dependency.
 
 See also: [pipeline-stages.md](pipeline-stages.md) (the skrub search space the
 plan author targets) and [mcts-uct.md](mcts-uct.md) (the engine the plan is

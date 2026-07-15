@@ -1,6 +1,6 @@
 """Replay a completed run's exact plan + real proposals at reduced n_proposes.
 
-Isolates the marginal value of each Option-3 `propose()` call without
+Isolates the marginal value of each Extended Feature 3 `propose()` call without
 spending new LLM budget: reads a past run's `result.json` (`spec_raw`, the
 budget, task, ensemble size, ...) plus its `proposer_<k>_response.json`
 artifacts — the REAL parsed proposal dicts the live LLM returned during that
@@ -12,7 +12,7 @@ got to react to.
 
 Naming note: the INITIAL plan (`spec_raw`, authored once up front by
 `data_analyst` -> `plan_author`) is NOT a "proposal" — only
-`proposer_<k>_response.json` files (Option 3's mid-search extension calls)
+`proposer_<k>_response.json` files (Extended Feature 3's mid-search extension calls)
 count toward `n_proposes`. `plan_author_response.json` /
 `data_analyst_response.json` are ignored here on purpose.
 
@@ -108,7 +108,7 @@ def replay_from_run(
 
     Every field (budget, seed, ensemble size, time budget) is reused from the
     source run; the ONLY thing that varies across replays is `n_proposes`, so
-    each one isolates the marginal value of an Option-3 call.
+    each one isolates the marginal value of an Extended Feature 3 call.
     """
     with open(os.path.join(source_dir, "result.json"), encoding="utf-8") as f:
         source = json.load(f)

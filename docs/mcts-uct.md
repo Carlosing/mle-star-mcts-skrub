@@ -60,6 +60,42 @@ The loop in `mcts_search` repeats `budget` times:
 the running average of its entire subtree, so UCT naturally steers the budget
 toward promising *regions* of the config space, not just individual points.
 
+## How the engine is driven in code
+
+The engine (`mcts.py`) is deliberately inert — no skrub, no LLM, no I/O. The
+call chain that animates it:
+
+```
+pipeline.run_pipeline
+  └─ search_loop.run_search_loop(plan, budget, outer_steps, propose=…)
+       │  splits budget into outer_steps fixed-size slices, ONE persisted tree
+       ├─ slice k: mcts.mcts_search(root, tried_states, score_cache, gating, …)
+       │     ├─ select → expand → rollout → backpropagate   (× slice budget)
+       │     └─ rollout = skrub_ops.make_rollout_fn(plan)   (seeded subsampled CV)
+       ├─ between slices: tree_action_values → pick_target_node   (Extended Feature 1 —
+       │     a *hint* passed to the proposer, never an expansion lock)
+       │     and propose(plan_json, context) → _merge_raw_plans → re-resolve →
+       │     rebuild plan + action space                     (Extended Feature 3 — ≤1 LLM
+       │     call per slice boundary; injected operators arrive with HP ranges)
+       └─ after the budget: bonus phase — mcts_search(start_node=best_node)
+             over ceil(total/4) rollouts, ALL single-edit neighbors of the
+             incumbent (refinement_phase=, edited dims → refined_dims)
+```
+
+Key engine plumbing the outer loop relies on:
+
+- **`score_cache`** (`state_key → reward`) — rollouts are deterministic, so the
+  cache is exact and each distinct config is evaluated at most once, across
+  slices and the bonus phase alike.
+- **`gating`** (`skrub_ops.get_choice_gating`) — the model→HP conditional map;
+  `expand` only edits an HP whose parent model is selected, and
+  **`canonicalize`** drops inactive HPs so the cache/dedup don't split on them
+  (the CASH fix).
+- **`tried_states`** — the global closed set; see
+  [Loops and transpositions](#loops-and-transpositions).
+- **`best_state`/`best_score`** — the global incumbent, tracked independently
+  of tree position and returned at the end (never the most-visited child).
+
 ## Things specific to our implementation
 
 - **The tree persists across outer-loop steps.** Pass the returned `root` and
@@ -77,7 +113,7 @@ toward promising *regions* of the config space, not just individual points.
   `mcts_search` accepts `target_key` — a single choice name, or a *set* of
   them — so `expand` only edits those stages while UCT selection and backprop
   are untouched. (The outer loop no longer uses it: since 2026-07-13 the
-  Option-1 pick is only a proposer hint — the variance ledger elects `model`
+  Extended Feature 1 pick is only a proposer hint — the variance ledger elects `model`
   on essentially every pick, and locking expansion to it starved off-target
   injected options until the bonus phase.) The **focused-refinement bonus
   phase** instead
