@@ -1,0 +1,25 @@
+{
+  "method": "mlestar",
+  "task": "movielens",
+  "model": "deepseek-v4-flash",
+  "time_budget_s": 300,
+  "web_search": true,
+  "relational": true,
+  "status": "ok",
+  "abort_reason": null,
+  "wall_clock_s": 0.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 31444
+  },
+  "tokens_by_agent": {},
+  "holdout": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -0.9434
+  },
+  "reused_spec": false,
+  "budget": null,
+  "leaderboard": null
+}
