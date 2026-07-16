@@ -1,0 +1,776 @@
+{
+  "method": "extension",
+  "task": "movielens",
+  "task_description": "# Task\n\nPredict the rating.\n\nThis is a relational task: aggregate the auxiliary table(s) per main row before modelling (aux_movies.csv on main.movieId = movies.movieId).\n\n# Metric\n\nroot_mean_squared_error\n\n# Dataset\n\nClassification task (11999 training rows, 2 feature columns). train.csv has the features and the 'rating' column; test.csv has the features only.\n\nRelational: the main table is (userId, movieId, rating) — pure IDs, so the model must aggregate-join movie titles/genres to learn anything. Target is a 0.5-5.0 half-star scale (10 distinct values), which sits right on the regression / classification inference boundary.\n",
+  "target": "rating",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "model": "openai/qwen3.5-397b-a17b",
+  "budget": 100,
+  "time_budget_s": null,
+  "search_scorer": "r2",
+  "search_reward_scale": "1/(2 - r2)",
+  "best_state": {
+    "assemble": "genre_aggregates",
+    "cleaner__Cleaner__drop_if_constant": "True",
+    "cleaner__Cleaner__drop_if_unique": "False",
+    "scope_user_movie_ids": "skip",
+    "vectorizer__TableVectorizer__cardinality_threshold": 30,
+    "vectorizer__high_cardinality": "MinHashEncoder()",
+    "scale": "None",
+    "feature_eng": "None",
+    "model__LGBMRegressor__colsample_bytree": 0.75,
+    "model__LGBMRegressor__learning_rate": 0.01,
+    "model__LGBMRegressor__max_depth": 3,
+    "model__LGBMRegressor__min_child_samples": 28,
+    "model__LGBMRegressor__n_estimators": 450,
+    "model__LGBMRegressor__num_leaves": 71,
+    "model__LGBMRegressor__reg_alpha": 2.5,
+    "model__LGBMRegressor__reg_lambda": 2.5,
+    "model": "LGBMRegressor"
+  },
+  "best_search_score": 0.5124519689128219,
+  "report": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -1.0713989539004882
+  },
+  "holdout": {
+    "scorer": "neg_root_mean_squared_error",
+    "score": -1.0059928503637303
+  },
+  "action_space": {
+    "assemble": [
+      "skip",
+      "movie_meta_join",
+      "genre_aggregates",
+      "title_join",
+      "all_aggregates"
+    ],
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "cleaner__Cleaner__drop_if_unique": [
+      "False",
+      "True"
+    ],
+    "scope_user_movie_ids": [
+      "skip",
+      "MinHashEncoder",
+      "GapEncoder"
+    ],
+    "scope_user_id_embedding": [
+      "skip",
+      "MinHashEncoder",
+      "GapEncoder"
+    ],
+    "scope_movie_id_embedding": [
+      "skip",
+      "MinHashEncoder",
+      "GapEncoder"
+    ],
+    "vectorizer__TableVectorizer__cardinality_threshold": [
+      10,
+      23,
+      30,
+      37,
+      50
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder()",
+      "GapEncoder(random_state=42)",
+      "SimilarityEncoder()"
+    ],
+    "vectorizer__numeric": [
+      "StandardScaler()",
+      "RobustScaler()"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()",
+      "RobustScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "feature_eng__PCA__n_components": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "feature_eng__PCA__whiten": [
+      "False",
+      "True"
+    ],
+    "feature_eng__TruncatedSVD__algorithm": [
+      "randomized",
+      "arpack"
+    ],
+    "feature_eng__TruncatedSVD__n_components": [
+      10,
+      40,
+      55,
+      70,
+      100
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False,\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+      "PCA(n_components=choose_float(0.5, 1.0, name='feature_eng_..._n_components'),\n    random_state=42,\n    whiten=choose_from([False, True], name='feature_eng__PCA__whiten'))",
+      "TruncatedSVD(algorithm=choose_from(['randomized', 'arpack'], name='feature_eng_...VD__algorithm'),\n             n_components=choose_int(10, 100, name='feature_eng_..._n_components'),\n             random_state=42)"
+    ],
+    "model__LGBMRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMRegressor__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__LGBMRegressor__min_child_samples": [
+      5,
+      20,
+      28,
+      35,
+      50
+    ],
+    "model__LGBMRegressor__n_estimators": [
+      100,
+      333,
+      450,
+      567,
+      800
+    ],
+    "model__LGBMRegressor__num_leaves": [
+      15,
+      52,
+      71,
+      90,
+      127
+    ],
+    "model__LGBMRegressor__reg_alpha": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__LGBMRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBRegressor__max_depth": [
+      2,
+      5,
+      6,
+      7,
+      10
+    ],
+    "model__XGBRegressor__min_child_weight": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__XGBRegressor__n_estimators": [
+      100,
+      333,
+      450,
+      567,
+      800
+    ],
+    "model__XGBRegressor__reg_alpha": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingRegressor__max_depth": [
+      2,
+      5,
+      7,
+      9,
+      12
+    ],
+    "model__HistGradientBoostingRegressor__max_iter": [
+      100,
+      267,
+      350,
+      433,
+      600
+    ],
+    "model__HistGradientBoostingRegressor__min_samples_leaf": [
+      5,
+      20,
+      28,
+      35,
+      50
+    ],
+    "model__RandomForestRegressor__max_depth": [
+      3,
+      9,
+      12,
+      14,
+      20
+    ],
+    "model__RandomForestRegressor__max_features": [
+      "sqrt",
+      "log2",
+      "1.0"
+    ],
+    "model__RandomForestRegressor__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__Ridge__alpha": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__KNeighborsRegressor__algorithm": [
+      "auto",
+      "ball_tree",
+      "kd_tree"
+    ],
+    "model__KNeighborsRegressor__n_neighbors": [
+      3,
+      19,
+      26,
+      34,
+      50
+    ],
+    "model__KNeighborsRegressor__p": [
+      1,
+      2
+    ],
+    "model__KNeighborsRegressor__weights": [
+      "uniform",
+      "distance"
+    ],
+    "model__GradientBoostingRegressor__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__GradientBoostingRegressor__max_depth": [
+      2,
+      4,
+      5,
+      6,
+      8
+    ],
+    "model__GradientBoostingRegressor__min_samples_leaf": [
+      5,
+      13,
+      18,
+      22,
+      30
+    ],
+    "model__GradientBoostingRegressor__n_estimators": [
+      50,
+      133,
+      175,
+      217,
+      300
+    ],
+    "model__GradientBoostingRegressor__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__ExtraTreesRegressor__max_depth": [
+      3,
+      9,
+      12,
+      14,
+      20
+    ],
+    "model__ExtraTreesRegressor__max_features": [
+      "sqrt",
+      "log2",
+      "1.0"
+    ],
+    "model__ExtraTreesRegressor__min_samples_leaf": [
+      1,
+      7,
+      10,
+      14,
+      20
+    ],
+    "model__ExtraTreesRegressor__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model": [
+      "LGBMRegressor",
+      "XGBRegressor",
+      "HistGradientBoostingRegressor",
+      "RandomForestRegressor",
+      "Ridge",
+      "KNeighborsRegressor",
+      "GradientBoostingRegressor",
+      "ExtraTreesRegressor"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "scope_user_id_embedding",
+    "scope_movie_id_embedding",
+    "vectorizer__numeric",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__whiten",
+    "model__KNeighborsRegressor__algorithm",
+    "model__KNeighborsRegressor__n_neighbors",
+    "model__KNeighborsRegressor__p",
+    "model__KNeighborsRegressor__weights",
+    "model__GradientBoostingRegressor__learning_rate",
+    "model__GradientBoostingRegressor__max_depth",
+    "model__GradientBoostingRegressor__min_samples_leaf",
+    "model__GradientBoostingRegressor__n_estimators",
+    "model__GradientBoostingRegressor__subsample",
+    "vectorizer__high_cardinality:SimilarityEncoder()",
+    "feature_eng:PCA(n_components=choose_float(0.5, 1.0, name='feature_eng_..._n_components'),\n    random_state=42,\n    whiten=choose_from([False, True], name='feature_eng__PCA__whiten'))",
+    "model:KNeighborsRegressor",
+    "model:GradientBoostingRegressor",
+    "feature_eng__TruncatedSVD__algorithm",
+    "feature_eng__TruncatedSVD__n_components",
+    "model__ExtraTreesRegressor__max_depth",
+    "model__ExtraTreesRegressor__max_features",
+    "model__ExtraTreesRegressor__min_samples_leaf",
+    "model__ExtraTreesRegressor__n_estimators",
+    "assemble:title_join",
+    "feature_eng:TruncatedSVD(algorithm=choose_from(['randomized', 'arpack'], name='feature_eng_...VD__algorithm'),\n             n_components=choose_int(10, 100, name='feature_eng_..._n_components'),\n             random_state=42)",
+    "model:ExtraTreesRegressor"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "assemble",
+    "cleaner__Cleaner__drop_if_constant",
+    "cleaner__Cleaner__drop_if_unique",
+    "feature_eng",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__whiten",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "feature_eng__TruncatedSVD__algorithm",
+    "feature_eng__TruncatedSVD__n_components",
+    "model",
+    "model__HistGradientBoostingRegressor__l2_regularization",
+    "model__HistGradientBoostingRegressor__learning_rate",
+    "model__HistGradientBoostingRegressor__max_depth",
+    "model__HistGradientBoostingRegressor__max_iter",
+    "model__HistGradientBoostingRegressor__min_samples_leaf",
+    "model__LGBMRegressor__colsample_bytree",
+    "model__LGBMRegressor__learning_rate",
+    "model__LGBMRegressor__max_depth",
+    "model__LGBMRegressor__min_child_samples",
+    "model__LGBMRegressor__n_estimators",
+    "model__LGBMRegressor__num_leaves",
+    "model__LGBMRegressor__reg_alpha",
+    "model__LGBMRegressor__reg_lambda",
+    "scale",
+    "scope_movie_id_embedding",
+    "scope_user_id_embedding",
+    "scope_user_movie_ids",
+    "vectorizer__TableVectorizer__cardinality_threshold",
+    "vectorizer__high_cardinality",
+    "vectorizer__numeric"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "neg_root_mean_squared_error",
+    "k": 3,
+    "pool_size": 10,
+    "states": [
+      {
+        "assemble": "genre_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "genre_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "genre_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 15,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "RobustScaler()",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "movie_meta_join",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 1.6666666666666667,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "movie_meta_join",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 1.6666666666666667,
+        "scale": "StandardScaler()",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "skip",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "movie_meta_join",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "movie_meta_join",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      }
+    ],
+    "selected_states": [
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "genre_aggregates",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 15,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 2.5,
+        "scale": "RobustScaler()",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      },
+      {
+        "assemble": "movie_meta_join",
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMRegressor",
+        "model__LGBMRegressor__colsample_bytree": 0.75,
+        "model__LGBMRegressor__learning_rate": 0.01,
+        "model__LGBMRegressor__max_depth": 3,
+        "model__LGBMRegressor__min_child_samples": 28,
+        "model__LGBMRegressor__n_estimators": 450,
+        "model__LGBMRegressor__num_leaves": 71,
+        "model__LGBMRegressor__reg_alpha": 2.5,
+        "model__LGBMRegressor__reg_lambda": 1.6666666666666667,
+        "scale": "None",
+        "scope_user_movie_ids": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__high_cardinality": "MinHashEncoder()"
+      }
+    ],
+    "weights": [
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333
+    ],
+    "individual_scores": [
+      -1.0059928503637303,
+      -1.0059928503637303,
+      -1.005740491947433,
+      -1.0042409841019426,
+      -1.0042409841019426,
+      -1.0157217606228286,
+      -1.0157217606228286,
+      -1.0157833482969505,
+      -1.0157833482969505,
+      -1.0157833482969505
+    ],
+    "ensemble_score": -1.0035745350528729,
+    "ensemble_score_mean": -1.0058854639818162
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": false,
+  "llm_calls": 4,
+  "wall_clock_s": 1868.4,
+  "tokens": {
+    "prompt": 14591,
+    "completion": 18547,
+    "total": 33138
+  },
+  "tokens_by_agent": {
+    "data_analyst": {
+      "prompt": 743,
+      "completion": 1444,
+      "total": 2187,
+      "calls": 1
+    },
+    "plan_author": {
+      "prompt": 5404,
+      "completion": 1695,
+      "total": 7099,
+      "calls": 1
+    },
+    "proposer": {
+      "prompt": 8444,
+      "completion": 15408,
+      "total": 23852,
+      "calls": 2
+    }
+  },
+  "data_summary": "Dataset: 11999 rows x 3 columns. Target column: 'rating'.\nInferred task type: regression.\n\nColumns:\n  - userId: dtype=int64, missing=0.0%, cardinality=600, min=1 max=610 mean=325.1\n  - movieId: dtype=int64, missing=0.0%, cardinality=3979, min=1 max=1.936e+05 mean=1.939e+04\n  - rating (TARGET): dtype=float64, missing=0.0%, cardinality=10, min=0.5 max=5 mean=3.502\n\nFirst 5 rows:\n userId  movieId  rating\n    239    48394     0.5\n    517     2683     0.5\n    307     4749     0.5\n    298    68073     0.5\n     50   175485     0.5\n\nAuxiliary table 'movies': 3979 rows x 3 columns.\n  Columns:\n    - movieId: dtype=int64, cardinality=3979\n    - title: dtype=object, cardinality=3979\n    - genres: dtype=object, cardinality=654\n  Join-key candidates (main column <-> aux column, overlap):\n    - movieId <-> movieId (overlap=100%)",
+  "analysis": "\n\n# Dataset Analysis for Rating Prediction\n\n## Task Type & Target\n- **Task**: Regression (predicting movie ratings)\n- **Target**: `rating` (float64, range 0.5–5.0, 10 discrete values, mean=3.502)\n- **Note**: Although technically regression, the target has only 10 discrete levels—could alternatively be treated as ordinal classification. This affects metric choice (RMSE/MAE vs. weighted kappa).\n\n## Target Distribution\n- Not a classification task, but note the target is **discrete ordinal** (0.5 increments)\n- No missing values in target\n- Mean of 3.5 suggests roughly symmetric distribution around mid-range, but verify skew before modeling\n\n## Column Characteristics\n\n| Column | Type | Cardinality | Notes |\n|--------|------|-------------|-------|\n| `userId` | Categorical (int64 ID) | 600 | Low-cardinality user identifier |\n| `movieId` | Categorical (int64 ID) | 3,979 | Medium-cardinality item identifier |\n| `rating` | Target (float64) | 10 | Discrete ordinal scale |\n\n## Candidate Encoders & Preprocessing\n\n| Column | Recommended Encoders (search options) |\n|--------|---------------------------------------|\n| `userId` | TargetEncoder, EmbeddingEncoder, or simple LabelEncoding (low cardinality) |\n| `movieId` | TargetEncoder, MinHashEncoder, or EmbeddingEncoder (medium cardinality) |\n| `userId` + `movieId` interaction | Consider concatenating as a pair feature for collaborative filtering signal |\n\n**Cleaning Steps**:\n- No missing values to impute\n- Convert `userId` and `movieId` to string type before encoding (treat as categoricals, not numerics)\n- No scaling needed for ID columns post-encoding\n\n## Feature Engineering Options\n\n1. **User-level aggregations**: Mean rating per user, rating count per user, std dev of user ratings\n2. **Movie-level aggregations**: Mean rating per movie, rating count per movie (from main table)\n3. **Interaction features**: User × movie cross features if using factorization models\n\n## Specific Column Treatments\n\n- **`userId`**: Treat as categorical despite int64 dtype. Consider user embedding or target encoding with regularization to avoid leakage.\n- **`movieId`**: Same as userId. High-cardinality relative to row count (3979 movies / 11999 rows ≈ 3 ratings/movie average)—regularization critical.\n\n## Auxiliary Table Opportunities ('movies')\n\n**Join Key**: `movieId` ↔ `movieId` (100% overlap)\n\n| Aux Column | Type | Treatment Options |\n|------------|------|-------------------|\n| `title` | Free text (3979 unique) | GapEncoder, MinHashEncoder, or extract year from title (e.g., \"Toy Story (1995)\") |\n| `genres` | Multi-label categorical (654 unique) | MultiLabelBinarizer, or split by delimiter then OneHot/TargetEncode top-N genres |\n\n**Predictive Aggregations from 'movies'**:\n- Genre-based mean ratings (aggregate historical ratings by genre)\n- Title year extraction → decade features (older vs. newer movies may rate differently)\n- Genre count (number of genres per movie)\n\n## Candidate Model Families\n\n1. **Gradient Boosting** (XGBoost, LightGBM, CatBoost)\n   - Handles mixed encodings well\n   - CatBoost has native categorical support\n  \n2. **Factorization Machines / Neural Collaborative Filtering**\n   - Designed for user-item interaction tasks\n   - Embedding-based approaches for userId/movieId\n  \n3. **Linear Models with Regularization** (Ridge, ElasticNet)\n   - Baseline with target-encoded features\n   - Fast to train, good for comparison\n\n## Pipeline Search Space Summary\n\n| Stage | Options to Search |\n|-------|-------------------|\n| ID Encoding | TargetEncoder (with cv folds), EmbeddingEncoder, MinHashEncoder |\n| Aux Text (`title`) | GapEncoder vs. MinHashEncoder vs. extract year only |\n| Aux Genres (`genres`) | MultiLabelBinarizer + OneHot vs. TargetEncoder on genre string |\n| Aggregations | User stats, movie stats, genre stats (join back to main) |\n| Models | CatBoostRegressor, LightGBMRegressor, XGBRegressor, FactorizationMachine |\n| Validation | GroupKFold by userId (prevent user leakage across folds) |\n\n## Key Risks & Considerations\n\n- **Data Leakage**: Target encoding must use out-of-fold strategies; user/movie aggregates must be computed per-fold\n- **Sparsity**: ~3 ratings per movie average—regularization essential for movie-level features\n- **Cold Start**: New users/movies won't have embeddings; consider fallback features (genre averages, global mean)\n- **Validation Strategy**: Use GroupKFold on `userId` to ensure no user appears in both train and test folds",
+  "spec_raw": "\n\n{\n  \"assemble\": [\n    {\"name\": \"movie_meta_join\", \"table\": \"movies\", \"main_key\": \"movieId\", \"aux_key\": \"movieId\", \"operations\": [\"count\"], \"cols\": [\"movieId\"]},\n    {\"name\": \"genre_aggregates\", \"table\": \"movies\", \"main_key\": \"movieId\", \"aux_key\": \"movieId\", \"operations\": [\"mode\"], \"cols\": [\"genres\"]}\n  ],\n  \"cleaner\": {\"params\": {\"drop_if_constant\": {\"choice\": [false, true]}, \"drop_if_unique\": {\"choice\": [false, true]}}},\n  \"vectorizer\": {\n    \"slots\": {\n      \"high_cardinality\": [\"skrub.MinHashEncoder\", \"skrub.GapEncoder\", \"skrub.TargetEncoder\"],\n      \"low_cardinality\": [\"skrub.OneHotEncoder\", \"skrub.TargetEncoder\"],\n      \"datetime\": [\"skrub.DatetimeEncoder\"]\n    },\n    \"params\": {\n      \"cardinality_threshold\": {\"int\": [10, 50]}\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"user_movie_ids\",\n      \"cols\": [\"userId\", \"movieId\"],\n      \"options\": [\"skrub.MinHashEncoder\", \"skrub.TargetEncoder\", \"skrub.GapEncoder\"],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    },\n    {\n      \"name\": \"title_text\",\n      \"cols\": [\"title\"],\n      \"options\": [\"skrub.GapEncoder\", \"skrub.MinHashEncoder\", \"skrub.StringEncoder\"],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    },\n    {\n      \"name\": \"genres_multilabel\",\n      \"cols\": [\"genres\"],\n      \"options\": [\"skrub.GapEncoder\", \"skrub.MinHashEncoder\"],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    }\n  ],\n  \"stages\": [\n    {\"name\": \"scale\", \"options\": [\"skip\", \"sklearn.preprocessing.StandardScaler\", \"sklearn.preprocessing.RobustScaler\"]},\n    {\"name\": \"feature_eng\", \"options\": [\"skip\", {\"name\": \"sklearn.preprocessing.PolynomialFeatures\", \"params\": {\"degree\": {\"int\": [2, 3]}, \"interaction_only\": {\"choice\": [true, false]}}}]}\n  ],\n  \"model\": [\n    {\"name\": \"lightgbm.LGBMRegressor\", \"prior\": 0.85, \"params\": {\n      \"n_estimators\": {\"int\": [100, 800]},\n      \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n      \"num_leaves\": {\"int\": [15, 127]},\n      \"max_depth\": {\"int\": [3, 12]},\n      \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n      \"reg_lambda\": {\"float\": [0.0, 5.0]},\n      \"reg_alpha\": {\"float\": [0.0, 5.0]},\n      \"min_child_samples\": {\"int\": [5, 50]}\n    }},\n    {\"name\": \"xgboost.XGBRegressor\", \"prior\": 0.8, \"params\": {\n      \"n_estimators\": {\"int\": [100, 800]},\n      \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n      \"max_depth\": {\"int\": [2, 10]},\n      \"subsample\": {\"float\": [0.5, 1.0]},\n      \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n      \"reg_lambda\": {\"float\": [0.0, 5.0]},\n      \"reg_alpha\": {\"float\": [0.0, 5.0]},\n      \"min_child_weight\": {\"int\": [1, 10]}\n    }},\n    {\"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\", \"prior\": 0.7, \"params\": {\n      \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n      \"max_iter\": {\"int\": [100, 600]},\n      \"max_depth\": {\"int\": [2, 12]},\n      \"l2_regularization\": {\"float\": [0.0, 1.0]},\n      \"min_samples_leaf\": {\"int\": [5, 50]}\n    }},\n    {\"name\": \"sklearn.ensemble.RandomForestRegressor\", \"prior\": 0.5, \"params\": {\n      \"n_estimators\": {\"int\": [100, 500]},\n      \"max_depth\": {\"int\": [3, 20]},\n      \"min_samples_leaf\": {\"int\": [1, 20]},\n      \"max_features\": {\"choice\": [\"sqrt\", \"log2\", 1.0]}\n    }},\n    {\"name\": \"sklearn.linear_model.Ridge\", \"prior\": 0.3, \"params\": {\n      \"alpha\": {\"float\": [0.001, 1000.0], \"log\": true}\n    }}\n  ]\n}"
+}

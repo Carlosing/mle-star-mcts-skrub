@@ -1,0 +1,178 @@
+{
+  "task_name": "toxicity",
+  "data_dir": "/workspaces/mle-star-mcts-skrub/machine_learning_engineering/tasks",
+  "workspace_dir": "/workspaces/mle-star-mcts-skrub/machine_learning_engineering/workspace",
+  "total_tokens_spent": 15900,
+  "task_type": "Tabular Regression",
+  "lower": true,
+  "agent_model": "deepseek-v4-flash",
+  "task_description": "# Task\n\nPredict the is_toxic.\n\n# Metric\n\naccuracy\n\n# Dataset\n\nClassification task (800 training rows, 1 feature columns). train.csv has the features and the 'is_toxic' column; test.csv has the features only.\n\n1000 rows, ONE free-text feature column. A pure text-encoder benchmark: the entire action space that matters is the encoder stage (GapEncoder vs MinHash vs StringEncoder).\n",
+  "task_summary": "Task: Tabular Regression\n**Task Summary:**  \nBinary classification on a small tabular dataset (800 train, 1000 test) with a single free-text feature column. The goal is to predict `is_toxic`. Performance metric is accuracy. The key challenge is text encoding \u2014 the choice of encoder (e.g., GapEncoder, MinHash, StringEncoder) is the main factor affecting model performance.",
+  "start_time": 1783988819.3219655,
+  "seed": 42,
+  "exec_timeout": 300,
+  "num_solutions": 1,
+  "num_model_candidates": 1,
+  "max_retry": 1,
+  "max_debug_round": 1,
+  "max_rollback_round": 1,
+  "inner_loop_round": 1,
+  "outer_loop_round": 1,
+  "ensemble_loop_round": 1,
+  "num_top_plans": 1,
+  "use_data_leakage_checker": true,
+  "use_data_usage_checker": true,
+  "use_web_search": true,
+  "web_search_num_results": 5,
+  "web_search_results_1": [
+    {
+      "title": "Logistic Regression in Machine Learning - GeeksforGeeks",
+      "href": "https://www.geeksforgeeks.org/machine-learning/understanding-logistic-regression/",
+      "body": "Logistic Regression is a supervised machine learning algorithm used for classification problems. Unlike linear regression, which predicts continuous values it predicts the probability that an input belongs to a specific class."
+    },
+    {
+      "title": "Explainable AI with Python: SHAP and LIME for Model Transparency",
+      "href": "https://daehnhardt.com/blog/2026/07/10/explainable-ai-python-shap-lime-model-transparency/",
+      "body": "In this tutorial, I explore how to use SHAP and LIME in Python to make machine learning models transparent and interpretable. We will cover both global and local explanations, understand feature importance, and learn how to communicate model decisions effectively."
+    },
+    {
+      "title": "Logistic Regression Classifier Tutorial | Kaggle",
+      "href": "https://www.kaggle.com/code/prashant111/logistic-regression-classifier-tutorial",
+      "body": "Explore and run AI code with Kaggle Notebooks | Using data from Rain in Australia..."
+    },
+    {
+      "title": "Pose Model - Teachable Machines",
+      "href": "https://teachablemachine.withgoogle.com/train/pose",
+      "body": "Train a computer to recognize your own images, sounds, & poses. A fast, easy way to create machine learning models for your sites, apps, and more \u2013 no expertise or coding required."
+    },
+    {
+      "title": "Generalized Linear Models in R, Part 5: Graphs for Logistic Regression",
+      "href": "https://www.theanalysisfactor.com/generalized-linear-models-r-graphs/",
+      "body": "This isn\u2019t the only way to do it, but one that I find especially helpful for deciding which variables should be entered as predictors. model_numeracy <- glm(success ~ numeracy, binomial) summary(model_numeracy) Call: glm(formula = success ~ numeracy, family = binomial)."
+    }
+  ],
+  "web_search_query_1": "effective machine learning models for Tabular Regression Task: Tabular Regression\n**Task Summary:**  \nBinary classification on a small tabular dataset (800 train, 1000 test) with a single free-text feature column. The goal is to predict `is_toxic`. Performance metric is accuracy. The key challenge is text encoding \u2014 the choice of encoder (e.g., GapEncoder, MinHash, StringEncoder) is the main factor affecting model performance.",
+  "model_retriever_raw_response_1": "[\n  {\n    \"model_name\": \"LogisticRegression with GapEncoder\",\n    \"example_code\": \"from sklearn.linear_model import LogisticRegression\\nfrom sklearn.feature_extraction.text import TfidfVectorizer\\nfrom sklearn.model_selection import train_test_split\\nfrom sklearn.pipeline import Pipeline\\nimport pandas as pd\\n\\n# Assuming train DataFrame with columns 'text' and 'is_toxic'\\nX = train['text']\\ny = train['is_toxic']\\n\\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\\n\\npipeline = Pipeline([\\n    ('encoder', TfidfVectorizer(max_features=1000)),  # Simple text encoding\\n    ('classifier', LogisticRegression(max_iter=1000))\\n])\\n\\npipeline.fit(X_train, y_train)\\naccuracy = pipeline.score(X_val, y_val)\\nprint(f'Validation accuracy: {accuracy:.3f}')\\n\"\n  }\n]",
+  "init_1_model_1": {
+    "model_name": "LogisticRegression with GapEncoder",
+    "example_code": "from sklearn.linear_model import LogisticRegression\nfrom sklearn.feature_extraction.text import TfidfVectorizer\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nimport pandas as pd\n\n# Assuming train DataFrame with columns 'text' and 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),  # Simple text encoding\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline.fit(X_train, y_train)\naccuracy = pipeline.score(X_val, y_val)\nprint(f'Validation accuracy: {accuracy:.3f}')\n",
+    "model_description": "## Model name\nLogisticRegression with GapEncoder\n\n## Example Python code\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.feature_extraction.text import TfidfVectorizer\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nimport pandas as pd\n\n# Assuming train DataFrame with columns 'text' and 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),  # Simple text encoding\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline.fit(X_train, y_train)\naccuracy = pipeline.score(X_val, y_val)\nprint(f'Validation accuracy: {accuracy:.3f}')\n"
+  },
+  "init_1_model_finish": true,
+  "init_code_1_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with GapEncoder (using TfidfVectorizer as a simple text encoder)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "init_code_exec_result_1_1": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.769\n",
+    "stderr": "",
+    "execution_time": 1.5289585590362549,
+    "score": 0.769
+  },
+  "performance_results_1": [
+    [
+      0.769,
+      "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with GapEncoder (using TfidfVectorizer as a simple text encoder)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+      {
+        "returncode": 0,
+        "stdout": "Final Validation Performance: 0.769\n",
+        "stderr": "",
+        "execution_time": 1.5289585590362549,
+        "score": 0.769
+      },
+      1
+    ]
+  ],
+  "best_score_1": 0.769,
+  "base_solution_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with GapEncoder (using TfidfVectorizer as a simple text encoder)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "best_model_id_1": 1,
+  "best_idx_1": 0,
+  "merger_code_1_0": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with GapEncoder (using TfidfVectorizer as a simple text encoder)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "merger_code_exec_result_1_0": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.769\n",
+    "stderr": "",
+    "execution_time": 1.5289585590362549,
+    "score": 0.769
+  },
+  "train_code_0_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with MinHashEncoder (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "train_code_exec_result_0_1": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.713\n",
+    "stderr": "",
+    "execution_time": 8.493406057357788,
+    "score": 0.713
+  },
+  "best_initial_code": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with GapEncoder (using TfidfVectorizer as a simple text encoder)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "best_initial_score": 0.769,
+  "best_refined_score": 0.606,
+  "best_refined_code": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with MinHashEncoder (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "refine_step_1": 0,
+  "ablation_code_0_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import GapEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Original pipeline with GapEncoder (complex preprocessing)\npipeline_original = Pipeline([\n    ('encoder', GapEncoder(n_components=100)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline_original.fit(X_train, y_train)\ny_pred_original = pipeline_original.predict(X_val)\nscore_original = accuracy_score(y_val, y_pred_original)\n\n# Ablated variant: remove GapEncoder, use raw text directly with a simpler approach\n# Since we need a text encoder, we'll replace GapEncoder with a basic TfidfVectorizer (much simpler)\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\npipeline_ablated = Pipeline([\n    ('encoder', TfidfVectorizer(max_features=100)),  # simpler, direct bag-of-words\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline_ablated.fit(X_train, y_train)\ny_pred_ablated = pipeline_ablated.predict(X_val)\nscore_ablated = accuracy_score(y_val, y_pred_ablated)\n\n# Print results\nprint(f'Original: {score_original:.4f}')\nprint(f'Ablated: {score_ablated:.4f}')\n",
+  "ablation_code_exec_result_0_1": {
+    "returncode": 0,
+    "stdout": "Original: 0.7125\nAblated: 0.6562\n",
+    "stderr": "",
+    "execution_time": 7.5081627368927,
+    "ablation_result": "Original: 0.7125\nAblated: 0.6562\n"
+  },
+  "ablation_summary_0_1": "**Summary:**  \nThe ablation study shows a drop from 0.7125 (original) to 0.6562 (ablated), a loss of ~0.0563 in accuracy. This indicates that the removed or altered component(s) contributed significantly to model performance.  \n\n**Key impact:**  \nThe largest positive impact likely comes from the **text encoder** (e.g., GapEncoder, MinHash, or StringEncoder). Since the task is a pure text-encoder benchmark, ablating the encoder or replacing it with a weaker variant would cause the observed performance drop.  \n\n**Recommendation:**  \nImprove the **text encoder** first. Focus on tuning or selecting the best encoder (e.g., GapEncoder for high-cardinality categorical text) and optimizing its parameters (e.g., n_components, ngram range) to maximize accuracy.",
+  "refine_plan_0_0_1": "Replace GapEncoder with TfidfVectorizer, which typically yields better accuracy for free-text classification tasks, and tune its parameters (e.g., ngram_range=(1,2), max_features=1000) to optimize performance.",
+  "refine_code_block_0_0_1": "pipeline = Pipeline([\n    ('encoder', GapEncoder(n_components=100)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])",
+  "previous_plans_0_1": [
+    "Replace GapEncoder with TfidfVectorizer, which typically yields better accuracy for free-text classification tasks, and tune its parameters (e.g., ngram_range=(1,2), max_features=1000) to optimize performance.",
+    "Replace TfidfVectorizer with MinHashEncoder for better handling of text with typos and variations, and keep LogisticRegression as classifier."
+  ],
+  "inner_iter_1": 1,
+  "train_code_improve_0_0_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.feature_extraction.text import TfidfVectorizer\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with TfidfVectorizer (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', TfidfVectorizer(ngram_range=(1,2), max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "train_code_improve_exec_result_0_0_1": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.756\n",
+    "stderr": "",
+    "execution_time": 1.3267309665679932,
+    "score": 0.756
+  },
+  "refine_plan_1_0_1": "Replace TfidfVectorizer with MinHashEncoder for better handling of text with typos and variations, and keep LogisticRegression as classifier.",
+  "refine_code_block_1_0_1": "pipeline = Pipeline([\n    ('encoder', TfidfVectorizer(ngram_range=(1,2), max_features=1000)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])",
+  "train_code_improve_1_0_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with MinHashEncoder (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "train_code_improve_exec_result_1_0_1": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.606\n",
+    "stderr": "",
+    "execution_time": 2.579230785369873,
+    "score": 0.606
+  },
+  "train_code_1_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build the pipeline with MinHashEncoder (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline\npipeline.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = pipeline.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "ensemble_plan_0": "Train both the MinHashEncoder pipeline (Solution 1) and a GapEncoder-based pipeline (using similar LogisticRegression classifier) on the full training set. Blend their predicted probabilities for the positive class using a simple average, then threshold at 0.5 to obtain final binary predictions for test.csv. If validation scores from a hold-out set are available, use a weighted average with weights proportional to each model's validation accuracy.",
+  "previous_ensemble_plans": [
+    "Train both the MinHashEncoder pipeline (Solution 1) and a GapEncoder-based pipeline (using similar LogisticRegression classifier) on the full training set. Blend their predicted probabilities for the positive class using a simple average, then threshold at 0.5 to obtain final binary predictions for test.csv. If validation scores from a hold-out set are available, use a weighted average with weights proportional to each model's validation accuracy.",
+    "Use a VotingClassifier that combines MinHashEncoder and GapEncoder pipelines with soft voting, where each pipeline uses LogisticRegression. Train on the full training set, then predict on test set."
+  ],
+  "ensemble_iter": 1,
+  "ensemble_code_0": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder, GapEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Convert target to numeric if it's string\nif y.dtype == 'object':\n    y = y.map({'Not Toxic': 0, 'Toxic': 1})\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build and train pipeline with MinHashEncoder\npipeline_minhash = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline_minhash.fit(X_train, y_train)\n\n# Predict probabilities on validation set for MinHash\nminhash_probs = pipeline_minhash.predict_proba(X_val)[:, 1]\n\n# Build and train pipeline with GapEncoder\npipeline_gap = Pipeline([\n    ('encoder', GapEncoder(n_components=100)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\npipeline_gap.fit(X_train, y_train)\n\n# Predict probabilities on validation set for GapEncoder\ngap_probs = pipeline_gap.predict_proba(X_val)[:, 1]\n\n# Ensemble: simple average of probabilities\nensemble_probs = (minhash_probs + gap_probs) / 2\n\n# Threshold at 0.5\nensemble_preds = (ensemble_probs >= 0.5).astype(int)\n\n# Compute accuracy\nfinal_accuracy = accuracy_score(y_val, ensemble_preds)\n\nprint(f'Final Validation Performance: {final_accuracy:.3f}')\n",
+  "ensemble_code_exec_result_0": {
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "Traceback (most recent call last):\n  File \"/workspaces/mle-star-mcts-skrub/machine_learning_engineering/workspace/toxicity/ensemble/ensemble0.py\", line 52, in <module>\n    final_accuracy = accuracy_score(y_val, ensemble_preds)\n  File \"/workspaces/mle-star-mcts-skrub/.venv/lib/python3.13/site-packages/sklearn/utils/_param_validation.py\", line 218, in wrapper\n    return func(*args, **kwargs)\n  File \"/workspaces/mle-star-mcts-skrub/.venv/lib/python3.13/site-packages/sklearn/metrics/_classification.py\", line 405, in accuracy_score\n    y_type, _, y_true, y_pred, sample_weight = _check_targets(\n                                               ~~~~~~~~~~~~~~^\n        y_true, y_pred, sample_weight\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/workspaces/mle-star-mcts-skrub/.venv/lib/python3.13/site-packages/sklearn/metrics/_classification.py\", line 159, in _check_targets\n    unique_labels_ = unique_labels(y_true, y_pred, ys_types={y_type})\n  File \"/workspaces/mle-star-mcts-skrub/.venv/lib/python3.13/site-packages/sklearn/utils/multiclass.py\", line 126, in unique_labels\n    raise ValueError(f\"Mix of label input types (string and number); {msg_details}\")\nValueError: Mix of label input types (string and number); Got ['Not Toxic' 'Toxic'] and [0 1].\n",
+    "execution_time": 7.585072040557861,
+    "score": 1000000000.0
+  },
+  "ensemble_plan_1": "Use a VotingClassifier that combines MinHashEncoder and GapEncoder pipelines with soft voting, where each pipeline uses LogisticRegression. Train on the full training set, then predict on test set.",
+  "ensemble_code_1": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import VotingClassifier\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder, GapEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build pipeline 1: MinHashEncoder + LogisticRegression\npipeline1 = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Build pipeline 2: GapEncoder + LogisticRegression\npipeline2 = Pipeline([\n    ('encoder', GapEncoder(n_components=100)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Create ensemble with soft voting\nensemble = VotingClassifier(\n    estimators=[\n        ('minhash', pipeline1),\n        ('gap', pipeline2)\n    ],\n    voting='soft'\n)\n\n# Train ensemble on training data\nensemble.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = ensemble.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "ensemble_code_exec_result_1": {
+    "returncode": 0,
+    "stdout": "Final Validation Performance: 0.681\n",
+    "stderr": "",
+    "execution_time": 7.402008056640625,
+    "score": 0.681
+  },
+  "best_ensemble_code": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.ensemble import VotingClassifier\nfrom sklearn.metrics import accuracy_score\nfrom skrub import MinHashEncoder, GapEncoder\n\n# Load the data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Split into training and validation sets\nX_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Build pipeline 1: MinHashEncoder + LogisticRegression\npipeline1 = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Build pipeline 2: GapEncoder + LogisticRegression\npipeline2 = Pipeline([\n    ('encoder', GapEncoder(n_components=100)),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Create ensemble with soft voting\nensemble = VotingClassifier(\n    estimators=[\n        ('minhash', pipeline1),\n        ('gap', pipeline2)\n    ],\n    voting='soft'\n)\n\n# Train ensemble on training data\nensemble.fit(X_train, y_train)\n\n# Predict on validation set\ny_pred = ensemble.predict(X_val)\n\n# Compute accuracy\naccuracy = accuracy_score(y_val, y_pred)\n\nprint(f'Final Validation Performance: {accuracy:.3f}')\n",
+  "best_ensemble_score": 0.681,
+  "best_ensemble_iter": 1,
+  "submission_code": "\nimport pandas as pd\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.pipeline import Pipeline\nfrom skrub import MinHashEncoder\n\n# Load the training data\ntrain = pd.read_csv('./input/train.csv')\n\n# Assuming the free-text feature column is named 'text' and the target is 'is_toxic'\nX = train['text']\ny = train['is_toxic']\n\n# Build the pipeline with MinHashEncoder (as per improvement plan)\npipeline = Pipeline([\n    ('encoder', MinHashEncoder(n_components=100, ngram_range=(1,2))),\n    ('classifier', LogisticRegression(max_iter=1000))\n])\n\n# Train the pipeline on full training set\npipeline.fit(X, y)\n\n# Load test data\ntest = pd.read_csv('./input/test.csv')\nX_test = test['text']\n\n# Predict on test data\ntest_predictions = pipeline.predict(X_test)\n\n# Create submission dataframe and save to ./final/submission.csv\nsubmission = pd.DataFrame({'is_toxic': test_predictions})\nsubmission.to_csv('./final/submission.csv', index=False)\n",
+  "submission_code_exec_result": {
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "",
+    "execution_time": 2.776085615158081,
+    "score": 1000000000.0
+  }
+}

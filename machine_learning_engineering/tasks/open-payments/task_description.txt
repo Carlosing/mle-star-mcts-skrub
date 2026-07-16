@@ -1,0 +1,11 @@
+# Task
+
+Predict the status.
+
+# Metric
+
+accuracy
+
+# Dataset
+
+Single-table classification task (8000 rows, 5 feature columns, high-cardinality categoricals). train.csv has the features and the 'status' column; test.csv has the features only.

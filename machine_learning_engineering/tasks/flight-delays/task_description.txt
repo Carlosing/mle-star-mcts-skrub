@@ -1,0 +1,15 @@
+# Task
+
+Predict the arr_delay.
+
+This is a relational task: aggregate the auxiliary table(s) per main row before modelling (aux_airports.csv on main.Origin = airports.iata).
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Regression task (12000 training rows, 11 feature columns). train.csv has the features and the 'arr_delay' column; test.csv has the features only.
+
+Relational regression with ~3% MISSING TARGETS (cancelled flights) — load_task drops those rows. Joins origin airport metadata (lat/long/city). Datetime columns throughout.

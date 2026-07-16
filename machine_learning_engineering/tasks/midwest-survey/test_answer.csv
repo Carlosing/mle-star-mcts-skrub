@@ -1,0 +1,500 @@
+row_id,census_region
+0,East North Central
+1,East North Central
+2,Middle Atlantic
+3,West North Central
+4,East North Central
+5,East North Central
+6,East North Central
+7,West North Central
+8,East North Central
+9,East North Central
+10,West North Central
+11,East North Central
+12,South Atlantic
+13,West South Central
+14,West North Central
+15,East North Central
+16,East North Central
+17,West South Central
+18,West North Central
+19,East North Central
+20,West North Central
+21,East North Central
+22,East South Central
+23,East South Central
+24,East North Central
+25,East North Central
+26,East South Central
+27,East North Central
+28,East North Central
+29,East North Central
+30,Pacific
+31,West North Central
+32,East North Central
+33,East North Central
+34,East South Central
+35,East South Central
+36,New England
+37,Mountain
+38,Pacific
+39,Mountain
+40,South Atlantic
+41,East North Central
+42,East North Central
+43,Pacific
+44,East North Central
+45,Middle Atlantic
+46,East North Central
+47,East North Central
+48,East North Central
+49,East North Central
+50,Middle Atlantic
+51,East North Central
+52,East North Central
+53,West North Central
+54,West South Central
+55,Middle Atlantic
+56,Middle Atlantic
+57,East South Central
+58,Middle Atlantic
+59,East North Central
+60,Middle Atlantic
+61,Middle Atlantic
+62,South Atlantic
+63,East North Central
+64,West South Central
+65,East North Central
+66,Mountain
+67,East North Central
+68,Mountain
+69,South Atlantic
+70,West North Central
+71,West North Central
+72,West North Central
+73,East South Central
+74,East North Central
+75,West South Central
+76,East North Central
+77,East South Central
+78,West North Central
+79,East North Central
+80,South Atlantic
+81,East South Central
+82,West North Central
+83,South Atlantic
+84,South Atlantic
+85,East North Central
+86,East North Central
+87,Pacific
+88,East North Central
+89,South Atlantic
+90,New England
+91,East North Central
+92,West North Central
+93,South Atlantic
+94,Middle Atlantic
+95,Middle Atlantic
+96,East North Central
+97,Middle Atlantic
+98,East South Central
+99,East North Central
+100,Middle Atlantic
+101,West North Central
+102,East North Central
+103,Middle Atlantic
+104,Mountain
+105,Pacific
+106,East North Central
+107,West North Central
+108,West South Central
+109,East North Central
+110,East North Central
+111,Pacific
+112,Pacific
+113,South Atlantic
+114,South Atlantic
+115,Mountain
+116,East North Central
+117,West North Central
+118,Pacific
+119,West North Central
+120,East North Central
+121,West South Central
+122,Pacific
+123,West North Central
+124,Middle Atlantic
+125,West North Central
+126,Pacific
+127,Middle Atlantic
+128,East South Central
+129,Pacific
+130,Pacific
+131,South Atlantic
+132,Mountain
+133,East North Central
+134,West North Central
+135,East North Central
+136,East North Central
+137,South Atlantic
+138,Pacific
+139,East North Central
+140,East North Central
+141,East North Central
+142,Mountain
+143,South Atlantic
+144,East North Central
+145,Pacific
+146,Middle Atlantic
+147,East North Central
+148,East North Central
+149,East South Central
+150,West South Central
+151,West North Central
+152,East North Central
+153,East North Central
+154,Pacific
+155,East North Central
+156,Middle Atlantic
+157,East North Central
+158,East North Central
+159,East North Central
+160,East North Central
+161,East North Central
+162,East North Central
+163,East North Central
+164,Middle Atlantic
+165,West North Central
+166,Mountain
+167,East North Central
+168,Middle Atlantic
+169,West North Central
+170,East North Central
+171,New England
+172,Mountain
+173,Mountain
+174,East North Central
+175,East North Central
+176,West North Central
+177,Pacific
+178,East North Central
+179,East North Central
+180,West South Central
+181,East North Central
+182,West South Central
+183,East North Central
+184,Mountain
+185,East South Central
+186,West North Central
+187,East North Central
+188,Pacific
+189,Middle Atlantic
+190,Middle Atlantic
+191,East North Central
+192,East North Central
+193,West North Central
+194,New England
+195,East South Central
+196,Middle Atlantic
+197,South Atlantic
+198,West South Central
+199,Mountain
+200,East North Central
+201,Mountain
+202,Middle Atlantic
+203,West North Central
+204,Middle Atlantic
+205,Mountain
+206,East North Central
+207,New England
+208,Middle Atlantic
+209,Pacific
+210,East North Central
+211,East North Central
+212,East North Central
+213,Pacific
+214,Middle Atlantic
+215,East North Central
+216,East South Central
+217,Pacific
+218,West North Central
+219,New England
+220,East North Central
+221,Pacific
+222,Middle Atlantic
+223,East North Central
+224,West North Central
+225,West North Central
+226,West South Central
+227,Mountain
+228,Mountain
+229,West North Central
+230,Middle Atlantic
+231,East North Central
+232,Pacific
+233,East North Central
+234,Pacific
+235,Middle Atlantic
+236,East South Central
+237,New England
+238,Middle Atlantic
+239,East North Central
+240,New England
+241,South Atlantic
+242,South Atlantic
+243,Pacific
+244,West North Central
+245,Middle Atlantic
+246,Middle Atlantic
+247,South Atlantic
+248,East South Central
+249,Mountain
+250,Pacific
+251,West South Central
+252,West North Central
+253,West South Central
+254,East South Central
+255,Middle Atlantic
+256,Middle Atlantic
+257,East North Central
+258,New England
+259,East South Central
+260,East North Central
+261,Middle Atlantic
+262,Middle Atlantic
+263,East North Central
+264,East North Central
+265,Middle Atlantic
+266,South Atlantic
+267,Middle Atlantic
+268,East North Central
+269,South Atlantic
+270,East North Central
+271,South Atlantic
+272,Middle Atlantic
+273,Middle Atlantic
+274,Middle Atlantic
+275,West South Central
+276,West South Central
+277,West North Central
+278,South Atlantic
+279,East North Central
+280,South Atlantic
+281,West North Central
+282,West North Central
+283,West North Central
+284,East North Central
+285,East North Central
+286,East North Central
+287,West South Central
+288,Middle Atlantic
+289,East North Central
+290,Mountain
+291,Middle Atlantic
+292,Pacific
+293,West North Central
+294,New England
+295,East North Central
+296,Mountain
+297,Pacific
+298,Mountain
+299,East North Central
+300,Middle Atlantic
+301,South Atlantic
+302,East North Central
+303,South Atlantic
+304,East North Central
+305,East North Central
+306,East North Central
+307,East North Central
+308,West North Central
+309,Middle Atlantic
+310,Mountain
+311,Middle Atlantic
+312,East North Central
+313,East North Central
+314,East North Central
+315,Mountain
+316,West North Central
+317,Middle Atlantic
+318,East North Central
+319,Mountain
+320,Middle Atlantic
+321,South Atlantic
+322,Middle Atlantic
+323,South Atlantic
+324,East North Central
+325,West North Central
+326,West North Central
+327,New England
+328,East North Central
+329,West North Central
+330,East North Central
+331,East North Central
+332,East South Central
+333,East North Central
+334,South Atlantic
+335,South Atlantic
+336,East North Central
+337,Mountain
+338,East North Central
+339,East North Central
+340,Pacific
+341,East North Central
+342,East North Central
+343,West South Central
+344,South Atlantic
+345,East North Central
+346,East South Central
+347,East North Central
+348,Middle Atlantic
+349,Middle Atlantic
+350,East North Central
+351,Middle Atlantic
+352,Middle Atlantic
+353,Pacific
+354,Middle Atlantic
+355,New England
+356,Mountain
+357,East North Central
+358,West North Central
+359,Mountain
+360,East North Central
+361,Middle Atlantic
+362,Mountain
+363,Mountain
+364,New England
+365,New England
+366,South Atlantic
+367,East North Central
+368,East North Central
+369,East North Central
+370,Middle Atlantic
+371,West North Central
+372,Middle Atlantic
+373,East North Central
+374,Pacific
+375,East North Central
+376,Pacific
+377,Pacific
+378,East North Central
+379,Middle Atlantic
+380,West North Central
+381,West North Central
+382,Pacific
+383,Mountain
+384,West North Central
+385,East North Central
+386,East North Central
+387,New England
+388,East North Central
+389,Pacific
+390,South Atlantic
+391,East North Central
+392,East North Central
+393,Mountain
+394,West South Central
+395,Pacific
+396,Middle Atlantic
+397,South Atlantic
+398,East North Central
+399,East North Central
+400,East North Central
+401,Pacific
+402,West North Central
+403,Pacific
+404,South Atlantic
+405,Mountain
+406,West North Central
+407,South Atlantic
+408,Pacific
+409,Middle Atlantic
+410,East North Central
+411,Pacific
+412,Pacific
+413,Pacific
+414,East North Central
+415,South Atlantic
+416,West South Central
+417,West North Central
+418,East North Central
+419,Pacific
+420,West North Central
+421,West North Central
+422,West North Central
+423,East North Central
+424,West North Central
+425,East South Central
+426,South Atlantic
+427,Middle Atlantic
+428,East North Central
+429,Middle Atlantic
+430,Middle Atlantic
+431,Middle Atlantic
+432,Mountain
+433,West North Central
+434,Pacific
+435,West North Central
+436,East South Central
+437,East North Central
+438,South Atlantic
+439,West South Central
+440,Mountain
+441,South Atlantic
+442,Middle Atlantic
+443,South Atlantic
+444,East South Central
+445,East North Central
+446,New England
+447,West North Central
+448,South Atlantic
+449,South Atlantic
+450,East North Central
+451,East North Central
+452,Middle Atlantic
+453,Pacific
+454,West South Central
+455,East North Central
+456,West South Central
+457,Pacific
+458,East North Central
+459,Mountain
+460,Pacific
+461,New England
+462,South Atlantic
+463,Mountain
+464,East North Central
+465,West North Central
+466,South Atlantic
+467,Middle Atlantic
+468,East North Central
+469,East North Central
+470,West North Central
+471,West North Central
+472,East North Central
+473,Pacific
+474,East North Central
+475,West North Central
+476,West South Central
+477,West North Central
+478,Pacific
+479,West South Central
+480,West South Central
+481,South Atlantic
+482,Pacific
+483,Pacific
+484,Middle Atlantic
+485,Pacific
+486,South Atlantic
+487,East North Central
+488,West North Central
+489,East North Central
+490,East South Central
+491,Mountain
+492,East North Central
+493,South Atlantic
+494,Mountain
+495,East North Central
+496,West North Central
+497,East North Central
+498,Middle Atlantic

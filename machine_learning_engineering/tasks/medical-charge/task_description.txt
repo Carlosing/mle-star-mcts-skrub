@@ -1,0 +1,13 @@
+# Task
+
+Predict the average_total_payments.
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Regression task (16000 training rows, 10 feature columns). train.csv has the features and the 'average_total_payments' column; test.csv has the features only.
+
+Hospital inpatient payments. 'Average_Medicare_Payments' was dropped: it is a component of the target (r=0.989). Dirty high-cardinality provider names/addresses drive the difficulty.

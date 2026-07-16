@@ -1,0 +1,11 @@
+# Task
+
+Predict the census_region.
+
+# Metric
+
+accuracy
+
+# Dataset
+
+Single-table classification task (2494 rows, 28 feature columns, high-cardinality categoricals). train.csv has the features and the 'census_region' column; test.csv has the features only.

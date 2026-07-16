@@ -1,0 +1,24 @@
+{
+  "method": "mlestar",
+  "task": "videogame-sales",
+  "model": "meta-llama-3.1-8b-instruct",
+  "time_budget_s": 300,
+  "web_search": true,
+  "relational": true,
+  "status": "failed",
+  "abort_reason": "no internal score found in final_state.json",
+  "wall_clock_s": 0.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 26142
+  },
+  "tokens_by_agent": {},
+  "holdout": {
+    "error": "no internal score found in final_state.json"
+  },
+  "reused_spec": false,
+  "budget": null,
+  "leaderboard": null
+}

@@ -1,0 +1,9 @@
+# Task
+
+Predict the fraud_flag of each basket (binary classification). The main table
+lists baskets; the auxiliary table lists the products each basket contains
+(join on baskets.ID = products.basket_ID) and must be aggregated per basket.
+
+# Metric
+
+roc_auc

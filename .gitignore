@@ -1,4 +1,29 @@
 .env
-
+.env.local
+CLAUDE.md
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+*.egg-info/
+.eggs/
+*.log
+
+# DataOps visulizations and experiments
+notebooks/
+data/
+
+# Mac and VSCode specific files
+.vscode/
+.idea/
+*.DS_Store
+
+# Pipeline run artifacts (presentation outputs)
+runs/
+sweeps/
+temp/
+
+# MLE-STAR generated solution workspaces
+workspace/

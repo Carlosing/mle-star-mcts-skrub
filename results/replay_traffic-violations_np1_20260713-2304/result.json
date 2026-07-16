@@ -1,0 +1,793 @@
+{
+  "method": "extension",
+  "task": "traffic-violations",
+  "task_description": "# Task\n\nPredict the violation_type.\n\n# Metric\n\naccuracy\n\n# Dataset\n\nClassification task (12001 training rows, 42 feature columns). train.csv has the features and the 'violation_type' column; test.csv has the features only.\n\nMulti-class (4 classes, heavily imbalanced tail). 40+ mixed columns: dirty free text, dates, times, lat/long, many binary Yes/No flags. The widest feature space of any staged task.\n",
+  "target": "violation_type",
+  "task_type": "classification",
+  "metric": "accuracy",
+  "model": "gemini-2.5-flash",
+  "budget": 40,
+  "time_budget_s": null,
+  "search_scorer": "accuracy",
+  "search_reward_scale": "raw",
+  "best_state": {
+    "cleaner__Cleaner__drop_if_constant": "False",
+    "cleaner__Cleaner__drop_if_unique": "False",
+    "scope_description_text": "skip",
+    "scope_location_encoding": "skip",
+    "scope_datetime_expansion": "skip",
+    "vectorizer__TableVectorizer__cardinality_threshold": 30,
+    "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+    "vectorizer__datetime__DatetimeEncoder__resolution": "month",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+    "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+    "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+    "vectorizer__numeric": "StandardScaler()",
+    "scale": "None",
+    "feature_eng": "None",
+    "model__LGBMClassifier__class_weight": "balanced",
+    "model__LGBMClassifier__colsample_bytree": 0.75,
+    "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+    "model__LGBMClassifier__max_depth": 8,
+    "model__LGBMClassifier__n_estimators": 300,
+    "model__LGBMClassifier__num_leaves": 15,
+    "model__LGBMClassifier__reg_lambda": 2.5,
+    "model": "LGBMClassifier",
+    "scope_geolocation_parsing": "GapEncoder"
+  },
+  "best_search_score": 0.8825,
+  "report": {
+    "scorer": "accuracy",
+    "score": 0.8794268360405386
+  },
+  "holdout": {
+    "scorer": "accuracy",
+    "score": 0.8833333333333333
+  },
+  "action_space": {
+    "cleaner__Cleaner__drop_if_constant": [
+      "False",
+      "True"
+    ],
+    "cleaner__Cleaner__drop_if_unique": [
+      "False",
+      "True"
+    ],
+    "scope_description_text__GapEncoder__n_components": [
+      20,
+      27,
+      30,
+      33,
+      40
+    ],
+    "scope_description_text": [
+      "skip",
+      "GapEncoder",
+      "StringEncoder"
+    ],
+    "scope_location_encoding__MinHashEncoder__n_components": [
+      30,
+      40,
+      45,
+      50,
+      60
+    ],
+    "scope_location_encoding__GapEncoder__n_components": [
+      20,
+      27,
+      30,
+      33,
+      40
+    ],
+    "scope_location_encoding": [
+      "skip",
+      "MinHashEncoder",
+      "GapEncoder"
+    ],
+    "scope_datetime_expansion__DatetimeEncoder__add_total_seconds": [
+      "False",
+      "True"
+    ],
+    "scope_datetime_expansion__DatetimeEncoder__add_weekday": [
+      "False",
+      "True"
+    ],
+    "scope_datetime_expansion__DatetimeEncoder__resolution": [
+      "hour",
+      "day"
+    ],
+    "scope_datetime_expansion": [
+      "skip",
+      "DatetimeEncoder"
+    ],
+    "scope_geolocation_parsing__GapEncoder__n_components": [
+      20,
+      30,
+      35,
+      40,
+      50
+    ],
+    "scope_geolocation_parsing__MinHashEncoder__n_components": [
+      30,
+      40,
+      45,
+      50,
+      60
+    ],
+    "scope_geolocation_parsing": [
+      "skip",
+      "GapEncoder",
+      "MinHashEncoder"
+    ],
+    "vectorizer__TableVectorizer__cardinality_threshold": [
+      10,
+      23,
+      30,
+      37,
+      50
+    ],
+    "vectorizer__datetime__DatetimeEncoder__add_weekday": [
+      "False",
+      "True"
+    ],
+    "vectorizer__datetime__DatetimeEncoder__resolution": [
+      "hour",
+      "day",
+      "month"
+    ],
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": [
+      30,
+      47,
+      55,
+      63,
+      80
+    ],
+    "vectorizer__high_cardinality__GapEncoder__n_components": [
+      20,
+      30,
+      35,
+      40,
+      50
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+      "GapEncoder(n_components=choose_int(20, 50, name='vectorizer__..._n_components'),\n           random_state=42)"
+    ],
+    "vectorizer__low_cardinality": [
+      "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+      "OrdinalEncoder()"
+    ],
+    "vectorizer__numeric": [
+      "StandardScaler()",
+      "RobustScaler()",
+      "MinMaxScaler()"
+    ],
+    "scope_search_flags_interaction__PolynomialFeatures__include_bias": [
+      "False",
+      "True"
+    ],
+    "scope_search_flags_interaction__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "scope_search_flags_interaction": [
+      "skip",
+      "PolynomialFeatures"
+    ],
+    "scale": [
+      "None",
+      "StandardScaler()",
+      "RobustScaler()",
+      "MinMaxScaler()"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "feature_eng__PCA__n_components": [
+      0.5,
+      0.6633333333333333,
+      0.745,
+      0.8266666666666667,
+      0.99
+    ],
+    "feature_eng__PCA__whiten": [
+      "False",
+      "True"
+    ],
+    "feature_eng": [
+      "None",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=False,\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+      "PCA(n_components=choose_float(0.5, 0.99, name='feature_eng_..._n_components'),\n    random_state=42,\n    whiten=choose_from([False, True], name='feature_eng__PCA__whiten'))"
+    ],
+    "model__LGBMClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__LGBMClassifier__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__LGBMClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__LGBMClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__LGBMClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMClassifier__num_leaves": [
+      15,
+      52,
+      71,
+      90,
+      127
+    ],
+    "model__LGBMClassifier__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBClassifier__colsample_bytree": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__XGBClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__XGBClassifier__max_depth": [
+      2,
+      5,
+      6,
+      7,
+      10
+    ],
+    "model__XGBClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBClassifier__reg_lambda": [
+      0.0,
+      1.6666666666666667,
+      2.5,
+      3.3333333333333335,
+      5.0
+    ],
+    "model__XGBClassifier__scale_pos_weight": [
+      1.0,
+      4.641588833612778,
+      10.000000000000002,
+      21.544346900318832,
+      100.0
+    ],
+    "model__XGBClassifier__subsample": [
+      0.5,
+      0.6666666666666666,
+      0.75,
+      0.8333333333333333,
+      1.0
+    ],
+    "model__HistGradientBoostingClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__HistGradientBoostingClassifier__l2_regularization": [
+      0.0,
+      0.3333333333333333,
+      0.5,
+      0.6666666666666666,
+      1.0
+    ],
+    "model__HistGradientBoostingClassifier__learning_rate": [
+      0.01,
+      0.031072325059538584,
+      0.05477225575051663,
+      0.09654893846056294,
+      0.3
+    ],
+    "model__HistGradientBoostingClassifier__max_depth": [
+      2,
+      5,
+      7,
+      9,
+      12
+    ],
+    "model__HistGradientBoostingClassifier__max_iter": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__RandomForestClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__RandomForestClassifier__max_depth": [
+      3,
+      9,
+      12,
+      14,
+      20
+    ],
+    "model__RandomForestClassifier__max_features": [
+      "sqrt",
+      "log2",
+      "1.0"
+    ],
+    "model__RandomForestClassifier__min_samples_leaf": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "model__RandomForestClassifier__n_estimators": [
+      100,
+      200,
+      250,
+      300,
+      400
+    ],
+    "model__LogisticRegression__C": [
+      0.001,
+      0.1,
+      1.0,
+      10.0,
+      1000.0
+    ],
+    "model__LogisticRegression__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__LogisticRegression__max_iter": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model": [
+      "LGBMClassifier",
+      "XGBClassifier",
+      "HistGradientBoostingClassifier",
+      "RandomForestClassifier",
+      "LogisticRegression"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "scope_geolocation_parsing__GapEncoder__n_components",
+    "scope_geolocation_parsing__MinHashEncoder__n_components",
+    "scope_geolocation_parsing",
+    "scope_search_flags_interaction__PolynomialFeatures__include_bias",
+    "scope_search_flags_interaction__PolynomialFeatures__interaction_only",
+    "scope_search_flags_interaction",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__whiten",
+    "vectorizer__numeric:MinMaxScaler()",
+    "scale:MinMaxScaler()",
+    "feature_eng:PCA(n_components=choose_float(0.5, 0.99, name='feature_eng_..._n_components'),\n    random_state=42,\n    whiten=choose_from([False, True], name='feature_eng__PCA__whiten'))"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "cleaner__Cleaner__drop_if_constant",
+    "cleaner__Cleaner__drop_if_unique",
+    "feature_eng",
+    "model",
+    "model__HistGradientBoostingClassifier__class_weight",
+    "model__HistGradientBoostingClassifier__l2_regularization",
+    "model__HistGradientBoostingClassifier__learning_rate",
+    "model__HistGradientBoostingClassifier__max_depth",
+    "model__HistGradientBoostingClassifier__max_iter",
+    "model__LGBMClassifier__class_weight",
+    "model__LGBMClassifier__colsample_bytree",
+    "model__LGBMClassifier__learning_rate",
+    "model__LGBMClassifier__max_depth",
+    "model__LGBMClassifier__n_estimators",
+    "model__LGBMClassifier__num_leaves",
+    "model__LGBMClassifier__reg_lambda",
+    "model__XGBClassifier__colsample_bytree",
+    "model__XGBClassifier__learning_rate",
+    "model__XGBClassifier__max_depth",
+    "model__XGBClassifier__n_estimators",
+    "model__XGBClassifier__reg_lambda",
+    "model__XGBClassifier__scale_pos_weight",
+    "model__XGBClassifier__subsample",
+    "scale",
+    "scope_datetime_expansion",
+    "scope_datetime_expansion__DatetimeEncoder__add_total_seconds",
+    "scope_datetime_expansion__DatetimeEncoder__add_weekday",
+    "scope_datetime_expansion__DatetimeEncoder__resolution",
+    "scope_description_text",
+    "scope_description_text__GapEncoder__n_components",
+    "scope_geolocation_parsing",
+    "scope_location_encoding",
+    "scope_location_encoding__GapEncoder__n_components",
+    "scope_location_encoding__MinHashEncoder__n_components",
+    "scope_search_flags_interaction",
+    "vectorizer__TableVectorizer__cardinality_threshold",
+    "vectorizer__datetime__DatetimeEncoder__add_weekday",
+    "vectorizer__datetime__DatetimeEncoder__resolution",
+    "vectorizer__high_cardinality",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components",
+    "vectorizer__low_cardinality",
+    "vectorizer__numeric"
+  ],
+  "subsample_seeds": 1,
+  "ensemble": {
+    "scorer": "accuracy",
+    "k": 2,
+    "pool_size": 10,
+    "states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "month",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 71,
+        "model__LGBMClassifier__reg_lambda": 5.0,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 71,
+        "model__LGBMClassifier__reg_lambda": 5.0,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 37,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 50,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 9,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 71,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "True",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 9,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 71,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "skip",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 30,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "day",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      }
+    ],
+    "selected_states": [
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 37,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      },
+      {
+        "cleaner__Cleaner__drop_if_constant": "False",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__class_weight": "balanced",
+        "model__LGBMClassifier__colsample_bytree": 0.75,
+        "model__LGBMClassifier__learning_rate": 0.05477225575051663,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "model__LGBMClassifier__num_leaves": 15,
+        "model__LGBMClassifier__reg_lambda": 2.5,
+        "scale": "None",
+        "scope_datetime_expansion": "skip",
+        "scope_description_text": "skip",
+        "scope_geolocation_parsing": "GapEncoder",
+        "scope_location_encoding": "skip",
+        "vectorizer__TableVectorizer__cardinality_threshold": 50,
+        "vectorizer__datetime__DatetimeEncoder__add_weekday": "False",
+        "vectorizer__datetime__DatetimeEncoder__resolution": "hour",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(30, 80, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 55,
+        "vectorizer__low_cardinality": "OneHotEncoder(handle_unknown='infrequent_if_exist', sparse_output=False)",
+        "vectorizer__numeric": "StandardScaler()"
+      }
+    ],
+    "weights": [
+      0.5,
+      0.5
+    ],
+    "individual_scores": [
+      0.8833333333333333,
+      0.8846666666666667,
+      0.8833333333333333,
+      0.8833333333333333,
+      0.8846666666666667,
+      0.8853333333333333,
+      0.8853333333333333,
+      0.8836666666666667,
+      0.8836666666666667,
+      0.8853333333333333
+    ],
+    "ensemble_score": 0.8856666666666667,
+    "ensemble_score_mean": 0.884
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": true,
+  "llm_calls": 1,
+  "wall_clock_s": 1461.0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "data_summary": "Dataset: 12001 rows x 43 columns. Target column: 'violation_type'.\nInferred task type: classification.\n\nColumns:\n  - seqid: dtype=object, missing=0.0%, cardinality=11921, examples='fd3ee8f9-05f0-4d57-bdb6-9498d303a94c', '3ca2ee89-9e21-4a47-b583-7c426d6b3137', 'a8a3c188-0cd1-4006-9436-883f04c8f061', 'a239bc53-3581-44a6-8cda-35ac5c5df855', 'fdd85f93-0e0c-4d79-9681-9e1b1fdd9bf4'\n  - date_of_stop: dtype=object, missing=0.0%, cardinality=2714, examples='07/23/2019', '07/11/2015', '04/10/2016', '03/17/2015', '08/11/2016'\n  - time_of_stop: dtype=object, missing=0.0%, cardinality=1427, examples='00:12:00', '18:00:00', '18:38:00', '21:38:00', '08:14:00'\n  - agency: dtype=object, missing=0.0%, cardinality=1, examples='MCP'\n  - subagency: dtype=object, missing=0.0%, cardinality=7, examples='3rd District, Silver Spring', '4th District, Wheaton', 'Headquarters and Special Operations', '5th District, Germantown', '6th District, Gaithersburg / Montgomery Village'\n  - description: dtype=object, missing=0.0%, cardinality=1042, examples='DRIVER FAILURE TO USE SIGNAL LAMP BEFORE TURN', 'OPERATING VEHICLE ON HIGHWAY WITH UNAUTHORIZED WINDOW TINTING MATERIAL', 'DRIVING VEHICLE ON HIGHWAY WITHOUT CURRENT REGISTRATION PLATES AND VALIDATION TABS', 'PERSON DRIVING MOTOR VEHICLE WHILE LICENSE SUSPENDED UNDER 17-106, 26-204, 26-206, 27-103', 'EXCEEDING MAXIMUM SPEED: 56 MPH IN A POSTED 35 MPH ZONE'\n  - location: dtype=object, missing=0.0%, cardinality=9589, examples='PINEY BRANCH RD. AT DALE DR.', 'FENTON ST/WAYNE AVE', 'N/B NORBECK RD @ AVERY RD', 'CENTERWAY RD/CLUB HOUSE RD', '26400 BLK OF WOODFIELD RD'\n  - latitude: dtype=float64, missing=0.0%, cardinality=10590, min=0 max=39.7 mean=36.16\n  - longitude: dtype=float64, missing=0.0%, cardinality=10681, min=-77.43 max=0 mean=-71.34\n  - accident: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - belts: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - personal_injury: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - property_damage: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - fatal: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - commercial_license: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - hazmat: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - commercial_vehicle: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - alcohol: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - work_zone: dtype=object, missing=0.0%, cardinality=2, examples='No', 'Yes'\n  - search_conducted: dtype=object, missing=38.6%, cardinality=2, examples='Yes', 'No'\n  - search_disposition: dtype=object, missing=95.6%, cardinality=4, examples='Nothing', 'Property Only', 'Contraband and Property', 'Contraband Only'\n  - search_outcome: dtype=object, missing=39.6%, cardinality=4, examples='Arrest', 'Citation', 'Warning', 'SERO'\n  - search_reason: dtype=object, missing=95.6%, cardinality=6, examples='Probable Cause', 'Incident to Arrest', 'Consensual', 'Exigent Circumstances', 'Other'\n  - search_reason_for_stop: dtype=object, missing=38.6%, cardinality=275, examples='13-411(c1)', '21-201(a1)', '21-1124.2(d2)', '23-104', '22-201.1'\n  - search_type: dtype=object, missing=95.6%, cardinality=3, examples='Both', 'Property', 'Person'\n  - search_arrest_reason: dtype=object, missing=96.9%, cardinality=4, examples='Stop', 'Warrant', 'Other', 'Search'\n  - state: dtype=object, missing=0.0%, cardinality=53, examples='MD', 'WA', 'VA', 'XX', 'MB'\n  - vehicletype: dtype=object, missing=0.0%, cardinality=19, examples='02 - Automobile', '03 - Station Wagon', '29 - Unknown', '05 - Light Duty Truck', '01 - Motorcycle'\n  - year: dtype=float64, missing=0.7%, cardinality=55, min=0 max=2913 mean=2006\n  - make: dtype=object, missing=0.7%, cardinality=343, examples='ACURA', 'NISSAN', 'SUBARU', 'HOND', 'TOYOTA'\n  - model: dtype=object, missing=0.7%, cardinality=1398, examples='TL', 'MAXIMA', 'IMPREZA', 'TK', 'CAMRY'\n  - color: dtype=object, missing=1.2%, cardinality=24, examples='SILVER', 'WHITE', 'BLACK', 'GREEN', 'BLUE'\n  - charge: dtype=object, missing=0.0%, cardinality=401, examples='21-605(a)', '22-406(i1)', '13-411(d)', '16-303(h)', '21-801.1'\n  - article: dtype=object, missing=4.9%, cardinality=3, examples='Transportation Article', 'Maryland Rules', 'BR'\n  - contributed_to_accident: dtype=bool, missing=0.0%, cardinality=2, min=0 max=1 mean=0.02091\n  - race: dtype=object, missing=0.0%, cardinality=6, examples='BLACK', 'WHITE', 'ASIAN', 'OTHER', 'HISPANIC'\n  - gender: dtype=object, missing=0.0%, cardinality=3, examples='M', 'F', 'U'\n  - driver_city: dtype=object, missing=0.0%, cardinality=667, examples='SILVER SPRING', 'LANHAM', 'BELLINGHA', 'GERMANTOWN', 'MOUNT AIRY'\n  - driver_state: dtype=object, missing=0.0%, cardinality=44, examples='MD', 'WA', 'VA', 'WV', 'DC'\n  - dl_state: dtype=object, missing=0.1%, cardinality=54, examples='MD', 'WA', 'VA', 'XX', 'WV'\n  - arrest_type: dtype=object, missing=0.0%, cardinality=18, examples='A - Marked Patrol', 'B - Unmarked Patrol', 'G - Marked Moving Radar (Stationary)', 'Q - Marked Laser', 'E - Marked Stationary Radar'\n  - geolocation: dtype=object, missing=0.0%, cardinality=10988, examples='(39.04653, -76.9952916666667)', '(38.9938683333333, -77.0240883333333)', '(39.0915, -77.1258583333333)', '(39.17332, -77.2013716666667)', '(39.2844416666667, -77.201995)'\n  - violation_type (TARGET): dtype=object, missing=0.0%, cardinality=4, examples='Citation', 'ESERO', 'SERO', 'Warning'\n      class balance: 'Warning'=50.0%, 'Citation'=45.1%, 'ESERO'=4.8%, 'SERO'=0.1%\n\nFirst 5 rows:\n                               seqid date_of_stop time_of_stop agency                           subagency                                                                               description                     location  latitude  longitude accident belts personal_injury property_damage fatal commercial_license hazmat commercial_vehicle alcohol work_zone search_conducted search_disposition search_outcome  search_reason search_reason_for_stop search_type search_arrest_reason state     vehicletype   year   make   model  color     charge                article  contributed_to_accident  race gender   driver_city driver_state dl_state                          arrest_type                           geolocation violation_type\nfd3ee8f9-05f0-4d57-bdb6-9498d303a94c   07/23/2019     00:12:00    MCP         3rd District, Silver Spring                                             DRIVER FAILURE TO USE SIGNAL LAMP BEFORE TURN PINEY BRANCH RD. AT DALE DR. 39.046530 -76.995292       No    No              No              No    No                 No     No                 No      No        No              Yes            Nothing         Arrest Probable Cause             13-411(c1)        Both                 Stop    MD 02 - Automobile 2005.0  ACURA      TL SILVER  21-605(a) Transportation Article                    False BLACK      M SILVER SPRING           MD       MD                    A - Marked Patrol         (39.04653, -76.9952916666667)       Citation\n3ca2ee89-9e21-4a47-b583-7c426d6b3137   07/11/2015     18:00:00    MCP         3rd District, Silver Spring                    OPERATING VEHICLE ON HIGHWAY WITH UNAUTHORIZED WINDOW TINTING MATERIAL          FENTON ST/WAYNE AVE 38.993868 -77.024088       No    No              No              No    No                 No     No                 No      No        No               No                NaN       Citation            NaN             21-201(a1)         NaN                  NaN    MD 02 - Automobile 2006.0 NISSAN  MAXIMA  WHITE 22-406(i1) Transportation Article                    False BLACK      M        LANHAM           MD       MD                    A - Marked Patrol (38.9938683333333, -77.0240883333333)       Citation\na8a3c188-0cd1-4006-9436-883f04c8f061   04/10/2016     18:38:00    MCP               4th District, Wheaton        DRIVING VEHICLE ON HIGHWAY WITHOUT CURRENT REGISTRATION PLATES AND VALIDATION TABS    N/B NORBECK RD @ AVERY RD 39.091500 -77.125858       No   Yes              No              No    No                 No     No                 No      No        No               No                NaN       Citation            NaN          21-1124.2(d2)         NaN                  NaN    WA 02 - Automobile 2004.0 SUBARU IMPREZA SILVER  13-411(d) Transportation Article                    False WHITE      M     BELLINGHA           WA       WA                    A - Marked Patrol          (39.0915, -77.1258583333333)       Citation\na239bc53-3581-44a6-8cda-35ac5c5df855   03/17/2015     21:38:00    MCP Headquarters and Special Operations PERSON DRIVING MOTOR VEHICLE WHILE LICENSE SUSPENDED UNDER 17-106, 26-204, 26-206, 27-103   CENTERWAY RD/CLUB HOUSE RD 39.173320 -77.201372       No    No              No              No    No                 No     No                 No      No        No               No                NaN       Citation            NaN                 23-104         NaN                  NaN    MD 02 - Automobile 1997.0   HOND      TK  BLACK  16-303(h) Transportation Article                    False BLACK      M    GERMANTOWN           MD       MD                  B - Unmarked Patrol         (39.17332, -77.2013716666667)       Citation\nfdd85f93-0e0c-4d79-9681-9e1b1fdd9bf4   08/11/2016     08:14:00    MCP            5th District, Germantown                                   EXCEEDING MAXIMUM SPEED: 56 MPH IN A POSTED 35 MPH ZONE    26400 BLK OF WOODFIELD RD 39.284442 -77.201995       No    No              No              No    No                 No     No                 No      No        No              NaN                NaN            NaN            NaN                    NaN         NaN                  NaN    MD 02 - Automobile 2004.0 TOYOTA   CAMRY SILVER   21-801.1 Transportation Article                    False WHITE      F    MOUNT AIRY           MD       MD G - Marked Moving Radar (Stationary)        (39.2844416666667, -77.201995)       Citation",
+  "analysis": "",
+  "spec_raw": "\n\n{\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_constant\": {\"choice\": [false, true]},\n      \"drop_if_unique\": {\"choice\": [false, true]},\n      \"drop_high_missing\": {\"float\": [0.9, 0.99]}\n    }\n  },\n  \"vectorizer\": {\n    \"params\": {\n      \"cardinality_threshold\": {\"int\": [10, 50]}\n    },\n    \"slots\": {\n      \"high_cardinality\": [\n        {\"name\": \"skrub.MinHashEncoder\", \"params\": {\"n_components\": {\"int\": [30, 80]}}},\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [20, 50]}}}\n      ],\n      \"low_cardinality\": [\n        \"sklearn.preprocessing.OneHotEncoder\",\n        \"sklearn.preprocessing.OrdinalEncoder\"\n      ],\n      \"datetime\": [\n        {\"name\": \"skrub.DatetimeEncoder\", \"params\": {\"resolution\": {\"choice\": [\"hour\", \"day\", \"month\"]}, \"add_weekday\": {\"choice\": [false, true]}}}\n      ],\n      \"numeric\": [\n        \"sklearn.preprocessing.StandardScaler\",\n        \"sklearn.preprocessing.RobustScaler\"\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"description_text\",\n      \"cols\": [\"description\"],\n      \"options\": [\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [20, 40]}}},\n        {\"name\": \"skrub.StringEncoder\"}\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    },\n    {\n      \"name\": \"location_encoding\",\n      \"cols\": [\"location\"],\n      \"options\": [\n        {\"name\": \"skrub.MinHashEncoder\", \"params\": {\"n_components\": {\"int\": [30, 60]}}},\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [20, 40]}}}\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": false\n    },\n    {\n      \"name\": \"datetime_expansion\",\n      \"cols\": [\"date_of_stop\", \"time_of_stop\"],\n      \"options\": [\n        {\"name\": \"skrub.DatetimeEncoder\", \"params\": {\"resolution\": {\"choice\": [\"hour\", \"day\"]}, \"add_weekday\": {\"choice\": [false, true]}, \"add_total_seconds\": {\"choice\": [false, true]}}}\n      ],\n      \"position\": \"pre_encode\",\n      \"additive\": true\n    }\n  ],\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.StandardScaler\",\n        \"sklearn.preprocessing.RobustScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\",\n        {\"name\": \"sklearn.preprocessing.PolynomialFeatures\", \"params\": {\"degree\": {\"int\": [2, 3]}, \"interaction_only\": {\"choice\": [true, false]}}}\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"lightgbm.LGBMClassifier\",\n      \"prior\": 0.85,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n        \"num_leaves\": {\"int\": [15, 127]},\n        \"max_depth\": {\"int\": [3, 12]},\n        \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n        \"reg_lambda\": {\"float\": [0.0, 5.0]},\n        \"class_weight\": {\"choice\": [\"balanced\", \"None\"]}\n      }\n    },\n    {\n      \"name\": \"xgboost.XGBClassifier\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n        \"max_depth\": {\"int\": [2, 10]},\n        \"subsample\": {\"float\": [0.5, 1.0]},\n        \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n        \"reg_lambda\": {\"float\": [0.0, 5.0]},\n        \"scale_pos_weight\": {\"float\": [1.0, 100.0], \"log\": true}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n      \"prior\": 0.7,\n      \"params\": {\n        \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n        \"max_iter\": {\"int\": [100, 500]},\n        \"max_depth\": {\"int\": [2, 12]},\n        \"l2_regularization\": {\"float\": [0.0, 1.0]},\n        \"class_weight\": {\"choice\": [\"balanced\", \"None\"]}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n      \"prior\": 0.5,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 400]},\n        \"max_depth\": {\"int\": [3, 20]},\n        \"min_samples_leaf\": {\"int\": [1, 10]},\n        \"max_features\": {\"choice\": [\"sqrt\", \"log2\", 1.0]},\n        \"class_weight\": {\"choice\": [\"balanced\", \"None\"]}\n      }\n    },\n    {\n      \"name\": \"sklearn.linear_model.LogisticRegression\",\n      \"prior\": 0.3,\n      \"params\": {\n        \"C\": {\"float\": [0.001, 1000.0], \"log\": true},\n        \"class_weight\": {\"choice\": [\"balanced\", \"None\"]},\n        \"max_iter\": {\"int\": [100, 500]}\n      }\n    }\n  ]\n}"
+}

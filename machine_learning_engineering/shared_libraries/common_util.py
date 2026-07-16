@@ -1,36 +1,41 @@
-"""Common utility functions."""
+"""Common utility functions.
+
+Deliberately stdlib-only: this module sits on the ``pipeline.py`` import chain
+(via ``run_logging``), so it must not pull in torch or any other OpenMP-loading
+library. See docs/BUG_LEDGER.md #11.
+"""
 
 import os
-import random
 import shutil
 
-import numpy as np
-import torch
-from google.adk.models import llm_response
 
+def get_text_from_response(response) -> str:
+    """Extract the text of an LLM response, whichever stack produced it.
 
-def get_text_from_response(
-    response: llm_response.LlmResponse,
-) -> str:
-    """Extracts text from response."""
-    final_text = ""
-    if response.content and response.content.parts:
-        num_parts = len(response.content.parts)
-        for i in range(num_parts):
-            if hasattr(response.content.parts[i], "text"):
-                final_text += response.content.parts[i].text
-    return final_text
+    Two response shapes coexist in this repo: the extension's ADK stack
+    (``run_logging`` → ``LlmResponse``, text split across ``content.parts``)
+    and the MLE-STAR baseline's OpenAI-compatible stack (``runner.llm_call`` →
+    a chat completion). Dispatch on shape rather than making each caller pick.
 
+    Example:
+        >>> get_text_from_response(openai_completion)  # .choices[0].message
+        'import pandas as pd'
+        >>> get_text_from_response(adk_llm_response)   # .content.parts[*].text
+        'import pandas as pd'
+    """
+    # OpenAI-compatible chat completion (MLE-STAR baseline).
+    choices = getattr(response, "choices", None)
+    if choices:
+        return choices[0].message.content or ""
 
-def set_random_seed(seed: int) -> None:
-    """Sets the random seed for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    # ADK LlmResponse (extension agents): text can arrive in several parts.
+    content = getattr(response, "content", None)
+    if content is not None and getattr(content, "parts", None):
+        return "".join(
+            part.text for part in content.parts if getattr(part, "text", None)
+        )
+
+    return ""
 
 
 def copy_file(source_file_path: str, destination_dir: str) -> None:

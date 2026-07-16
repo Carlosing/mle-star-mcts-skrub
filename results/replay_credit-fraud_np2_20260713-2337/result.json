@@ -1,0 +1,494 @@
+{
+  "method": "extension",
+  "task": "credit-fraud",
+  "task_description": "# Task\n\nPredict the fraud_flag of each basket (binary classification). The main table\nlists baskets; the auxiliary table lists the products each basket contains\n(join on baskets.ID = products.basket_ID) and must be aggregated per basket.\n\n# Metric\n\nroc_auc\n",
+  "target": "fraud_flag",
+  "task_type": "classification",
+  "metric": "roc_auc",
+  "model": "gemini-2.5-flash",
+  "budget": 60,
+  "time_budget_s": null,
+  "search_scorer": "roc_auc",
+  "search_reward_scale": "raw",
+  "best_state": {
+    "assemble": "all_aggregates",
+    "cleaner__Cleaner__drop_if_unique": "True",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": 20,
+    "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+    "scale": "None",
+    "feature_eng": "None",
+    "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+    "model__LGBMClassifier__max_depth": 8,
+    "model__LGBMClassifier__n_estimators": 100,
+    "model__LGBMClassifier__is_unbalance": "False",
+    "model": "LGBMClassifier"
+  },
+  "best_search_score": 0.7193771258503402,
+  "report": {
+    "scorer": "roc_auc",
+    "score": 0.8424973340660591
+  },
+  "holdout": {
+    "scorer": "roc_auc",
+    "score": 0.8235789268046035
+  },
+  "action_space": {
+    "assemble": [
+      "skip",
+      "numeric_basic",
+      "numeric_extended",
+      "categorical_mode",
+      "numeric_robust",
+      "all_aggregates"
+    ],
+    "cleaner__Cleaner__drop_if_unique": [
+      "False",
+      "True"
+    ],
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": [
+      20,
+      33,
+      40,
+      47,
+      60
+    ],
+    "vectorizer__high_cardinality__GapEncoder__n_components": [
+      10,
+      20,
+      25,
+      30,
+      40
+    ],
+    "vectorizer__high_cardinality__StringEncoder__n_components": [
+      20,
+      33,
+      40,
+      47,
+      60
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+      "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)",
+      "StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)"
+    ],
+    "vectorizer__low_cardinality__OneHotEncoder__handle_unknown": [
+      "ignore",
+      "error"
+    ],
+    "vectorizer__low_cardinality__OneHotEncoder__min_frequency": [
+      1,
+      4,
+      6,
+      7,
+      10
+    ],
+    "scale": [
+      "None",
+      "RobustScaler()",
+      "StandardScaler()"
+    ],
+    "feature_eng__PowerTransformer__standardize": [
+      "True",
+      "False"
+    ],
+    "feature_eng__PCA__n_components": [
+      0.5,
+      0.6633333333333333,
+      0.745,
+      0.8266666666666667,
+      0.99
+    ],
+    "feature_eng__PCA__svd_solver": [
+      "auto",
+      "full",
+      "arpack"
+    ],
+    "feature_eng__PolynomialFeatures__degree": [
+      2,
+      3
+    ],
+    "feature_eng__PolynomialFeatures__include_bias": [
+      "False",
+      "True"
+    ],
+    "feature_eng__PolynomialFeatures__interaction_only": [
+      "True",
+      "False"
+    ],
+    "feature_eng": [
+      "None",
+      "PowerTransformer(standardize=choose_from([True, False], name='feature_eng_...__standardize'))",
+      "PCA(n_components=choose_float(0.5, 0.99, name='feature_eng_..._n_components'),\n    random_state=42,\n    svd_solver=choose_from(['auto', 'full', 'arpack'], name='feature_eng__PCA__svd_solver'))",
+      "PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=choose_from([False, True], name='feature_eng_..._include_bias'),\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))"
+    ],
+    "model__LGBMClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__LGBMClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__LGBMClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMClassifier__is_unbalance": [
+      "True",
+      "False"
+    ],
+    "model__HistGradientBoostingClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__HistGradientBoostingClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__HistGradientBoostingClassifier__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingClassifier__max_iter": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__RandomForestClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__RandomForestClassifier__max_depth": [
+      5,
+      10,
+      12,
+      15,
+      20
+    ],
+    "model__RandomForestClassifier__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model__XGBClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__XGBClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__XGBClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__XGBClassifier__scale_pos_weight": [
+      10.0,
+      21.544346900318832,
+      31.622776601683803,
+      46.41588833612777,
+      100.0
+    ],
+    "model__XGBClassifier__tree_method": [
+      "hist",
+      "exact"
+    ],
+    "model__LogisticRegression__C": [
+      0.01,
+      0.1,
+      0.31622776601683805,
+      1.0,
+      10.0
+    ],
+    "model__LogisticRegression__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__LogisticRegression__max_iter": [
+      100,
+      400,
+      550,
+      700,
+      1000
+    ],
+    "model__LogisticRegression__penalty": [
+      "l2",
+      "l1"
+    ],
+    "model__LogisticRegression__solver": [
+      "liblinear",
+      "saga"
+    ],
+    "model": [
+      "LGBMClassifier",
+      "HistGradientBoostingClassifier",
+      "RandomForestClassifier",
+      "XGBClassifier",
+      "LogisticRegression"
+    ]
+  },
+  "target_key": "model",
+  "injected_options": [
+    "vectorizer__high_cardinality__StringEncoder__n_components",
+    "model__XGBClassifier__learning_rate",
+    "model__XGBClassifier__max_depth",
+    "model__XGBClassifier__n_estimators",
+    "model__XGBClassifier__scale_pos_weight",
+    "model__XGBClassifier__tree_method",
+    "vectorizer__high_cardinality:StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)",
+    "model:XGBClassifier",
+    "vectorizer__low_cardinality__OneHotEncoder__handle_unknown",
+    "vectorizer__low_cardinality__OneHotEncoder__min_frequency",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__svd_solver",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__include_bias",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "model__LogisticRegression__C",
+    "model__LogisticRegression__class_weight",
+    "model__LogisticRegression__max_iter",
+    "model__LogisticRegression__penalty",
+    "model__LogisticRegression__solver",
+    "assemble:numeric_robust",
+    "feature_eng:PCA(n_components=choose_float(0.5, 0.99, name='feature_eng_..._n_components'),\n    random_state=42,\n    svd_solver=choose_from(['auto', 'full', 'arpack'], name='feature_eng__PCA__svd_solver'))",
+    "feature_eng:PolynomialFeatures(degree=choose_int(2, 3, name='feature_eng_...tures__degree'),\n                   include_bias=choose_from([False, True], name='feature_eng_..._include_bias'),\n                   interaction_only=choose_from([True, False], name='feature_eng_...eraction_only'))",
+    "model:LogisticRegression"
+  ],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "assemble",
+    "cleaner__Cleaner__drop_if_unique",
+    "feature_eng",
+    "feature_eng__PCA__n_components",
+    "feature_eng__PCA__svd_solver",
+    "feature_eng__PolynomialFeatures__degree",
+    "feature_eng__PolynomialFeatures__include_bias",
+    "feature_eng__PolynomialFeatures__interaction_only",
+    "feature_eng__PowerTransformer__standardize",
+    "model",
+    "model__HistGradientBoostingClassifier__class_weight",
+    "model__HistGradientBoostingClassifier__learning_rate",
+    "model__HistGradientBoostingClassifier__max_depth",
+    "model__HistGradientBoostingClassifier__max_iter",
+    "model__LGBMClassifier__is_unbalance",
+    "model__LGBMClassifier__learning_rate",
+    "model__LGBMClassifier__max_depth",
+    "model__LGBMClassifier__n_estimators",
+    "model__LogisticRegression__C",
+    "model__LogisticRegression__class_weight",
+    "model__LogisticRegression__max_iter",
+    "model__LogisticRegression__penalty",
+    "model__LogisticRegression__solver",
+    "model__RandomForestClassifier__class_weight",
+    "model__RandomForestClassifier__max_depth",
+    "model__RandomForestClassifier__n_estimators",
+    "model__XGBClassifier__learning_rate",
+    "model__XGBClassifier__max_depth",
+    "model__XGBClassifier__n_estimators",
+    "model__XGBClassifier__scale_pos_weight",
+    "model__XGBClassifier__tree_method",
+    "scale",
+    "vectorizer__high_cardinality",
+    "vectorizer__high_cardinality__GapEncoder__n_components",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components",
+    "vectorizer__high_cardinality__StringEncoder__n_components",
+    "vectorizer__low_cardinality__OneHotEncoder__handle_unknown",
+    "vectorizer__low_cardinality__OneHotEncoder__min_frequency"
+  ],
+  "subsample_seeds": 3,
+  "ensemble": {
+    "scorer": "roc_auc",
+    "k": 2,
+    "pool_size": 10,
+    "states": [
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "False",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 100,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 20
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "False",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 100,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 60
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 60
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)"
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 47
+      },
+      {
+        "assemble": "numeric_robust",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "False",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "scale": "None",
+        "vectorizer__high_cardinality": "StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)"
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)"
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 47
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 60
+      }
+    ],
+    "selected_states": [
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "False",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 100,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "numeric_robust",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "False",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "scale": "None",
+        "vectorizer__high_cardinality": "StringEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'),\n              random_state=42)"
+      }
+    ],
+    "weights": [
+      0.6666666666666666,
+      0.3333333333333333
+    ],
+    "individual_scores": [
+      0.8235789268046035,
+      0.834177004269109,
+      0.8323843232341805,
+      0.8230589343890233,
+      0.8049540050907544,
+      0.8214156434403387,
+      0.8168132796295127,
+      0.8284599605840004,
+      0.8083784855292719,
+      0.8230589343890233
+    ],
+    "ensemble_score": 0.8447607173022449,
+    "ensemble_score_mean": 0.8355157692727575
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": true,
+  "llm_calls": 2,
+  "wall_clock_s": 1096.5,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "data_summary": "Dataset: 15000 rows x 2 columns. Target column: 'fraud_flag'.\nInferred task type: classification.\n\nColumns:\n  - ID: dtype=int64, missing=0.0%, cardinality=15000, min=0 max=7.654e+04 mean=3.849e+04\n  - fraud_flag (TARGET): dtype=int64, missing=0.0%, cardinality=2, min=0 max=1 mean=0.01247\n      class balance: '0'=98.8%, '1'=1.2%\n\nFirst 5 rows:\n   ID  fraud_flag\n 7012           0\n14698           0\n48689           0\n30581           0\n53751           0\n\nAuxiliary table 'products': 26795 rows x 7 columns.\n  Columns:\n    - basket_ID: dtype=int64, cardinality=15000\n    - item: dtype=object, cardinality=134\n    - cash_price: dtype=int64, cardinality=865\n    - make: dtype=object, cardinality=357\n    - model: dtype=object, cardinality=2759\n    - goods_code: dtype=object, cardinality=4335\n    - Nbr_of_prod_purchas: dtype=int64, cardinality=13",
+  "analysis": "",
+  "spec_raw": "\n\n{\n  \"assemble\": [\n    {\n      \"name\": \"numeric_basic\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"sum\", \"mean\", \"count\"],\n      \"cols\": [\"cash_price\", \"Nbr_of_prod_purchas\"]\n    },\n    {\n      \"name\": \"numeric_extended\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"sum\", \"mean\", \"std\", \"count\"],\n      \"cols\": [\"cash_price\", \"Nbr_of_prod_purchas\"]\n    },\n    {\n      \"name\": \"categorical_mode\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"mode\", \"count\"],\n      \"cols\": [\"make\", \"model\", \"goods_code\", \"item\"]\n    }\n  ],\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_unique\": {\"choice\": [false, true]}\n    }\n  },\n  \"vectorizer\": {\n    \"slots\": {\n      \"high_cardinality\": [\n        {\"name\": \"skrub.MinHashEncoder\", \"params\": {\"n_components\": {\"int\": [20, 60]}}},\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [10, 40]}}}\n      ]\n    }\n  },\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.RobustScaler\",\n        \"sklearn.preprocessing.StandardScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\",\n        {\"name\": \"sklearn.preprocessing.PowerTransformer\", \"params\": {\"standardize\": {\"choice\": [true, false]}}}\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"lightgbm.LGBMClassifier\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.2], \"log\": true},\n        \"max_depth\": {\"int\": [3, 12]},\n        \"is_unbalance\": {\"choice\": [true, false]}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n      \"prior\": 0.6,\n      \"params\": {\n        \"max_iter\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.2], \"log\": true},\n        \"max_depth\": {\"int\": [2, 16]},\n        \"class_weight\": {\"choice\": [\"balanced\", null]}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n      \"prior\": 0.4,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 300]},\n        \"max_depth\": {\"int\": [5, 20]},\n        \"class_weight\": {\"choice\": [\"balanced\", null]}\n      }\n    }\n  ]\n}"
+}

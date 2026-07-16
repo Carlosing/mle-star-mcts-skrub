@@ -1,0 +1,337 @@
+{
+  "method": "extension",
+  "task": "credit-fraud",
+  "task_description": "# Task\n\nPredict the fraud_flag of each basket (binary classification). The main table\nlists baskets; the auxiliary table lists the products each basket contains\n(join on baskets.ID = products.basket_ID) and must be aggregated per basket.\n\n# Metric\n\nroc_auc\n",
+  "target": "fraud_flag",
+  "task_type": "classification",
+  "metric": "roc_auc",
+  "model": "gemini-2.5-flash",
+  "budget": 60,
+  "time_budget_s": null,
+  "search_scorer": "roc_auc",
+  "search_reward_scale": "raw",
+  "best_state": {
+    "assemble": "all_aggregates",
+    "cleaner__Cleaner__drop_if_unique": "True",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": 60,
+    "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+    "scale": "None",
+    "feature_eng": "None",
+    "model": "HistGradientBoostingClassifier"
+  },
+  "best_search_score": 0.7026892006802722,
+  "report": {
+    "scorer": "roc_auc",
+    "score": 0.7855618555270872
+  },
+  "holdout": {
+    "scorer": "roc_auc",
+    "score": 0.8091340546193139
+  },
+  "action_space": {
+    "assemble": [
+      "skip",
+      "numeric_basic",
+      "numeric_extended",
+      "categorical_mode",
+      "all_aggregates"
+    ],
+    "cleaner__Cleaner__drop_if_unique": [
+      "False",
+      "True"
+    ],
+    "vectorizer__high_cardinality__MinHashEncoder__n_components": [
+      20,
+      33,
+      40,
+      47,
+      60
+    ],
+    "vectorizer__high_cardinality__GapEncoder__n_components": [
+      10,
+      20,
+      25,
+      30,
+      40
+    ],
+    "vectorizer__high_cardinality": [
+      "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+      "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)"
+    ],
+    "scale": [
+      "None",
+      "RobustScaler()",
+      "StandardScaler()"
+    ],
+    "feature_eng__PowerTransformer__standardize": [
+      "True",
+      "False"
+    ],
+    "feature_eng": [
+      "None",
+      "PowerTransformer(standardize=choose_from([True, False], name='feature_eng_...__standardize'))"
+    ],
+    "model__LGBMClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__LGBMClassifier__max_depth": [
+      3,
+      6,
+      8,
+      9,
+      12
+    ],
+    "model__LGBMClassifier__n_estimators": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__LGBMClassifier__is_unbalance": [
+      "True",
+      "False"
+    ],
+    "model__HistGradientBoostingClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__HistGradientBoostingClassifier__learning_rate": [
+      0.01,
+      0.027144176165949066,
+      0.0447213595499958,
+      0.07368062997280773,
+      0.2
+    ],
+    "model__HistGradientBoostingClassifier__max_depth": [
+      2,
+      7,
+      9,
+      11,
+      16
+    ],
+    "model__HistGradientBoostingClassifier__max_iter": [
+      100,
+      233,
+      300,
+      367,
+      500
+    ],
+    "model__RandomForestClassifier__class_weight": [
+      "balanced",
+      "None"
+    ],
+    "model__RandomForestClassifier__max_depth": [
+      5,
+      10,
+      12,
+      15,
+      20
+    ],
+    "model__RandomForestClassifier__n_estimators": [
+      100,
+      167,
+      200,
+      233,
+      300
+    ],
+    "model": [
+      "LGBMClassifier",
+      "HistGradientBoostingClassifier",
+      "RandomForestClassifier"
+    ]
+  },
+  "target_key": null,
+  "injected_options": [],
+  "proposal_injection_error": null,
+  "refined_dims": [
+    "assemble",
+    "feature_eng",
+    "feature_eng__PowerTransformer__standardize",
+    "model",
+    "model__LGBMClassifier__is_unbalance",
+    "model__LGBMClassifier__learning_rate",
+    "model__LGBMClassifier__max_depth",
+    "model__LGBMClassifier__n_estimators",
+    "scale",
+    "vectorizer__high_cardinality",
+    "vectorizer__high_cardinality__GapEncoder__n_components",
+    "vectorizer__high_cardinality__MinHashEncoder__n_components"
+  ],
+  "subsample_seeds": 3,
+  "ensemble": {
+    "scorer": "roc_auc",
+    "k": 3,
+    "pool_size": 10,
+    "states": [
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 60
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "True",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 33
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 47
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)"
+      },
+      {
+        "assemble": "categorical_mode",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "True",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "PowerTransformer(standardize=choose_from([True, False], name='feature_eng_...__standardize'))",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "categorical_mode",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 33
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      },
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "StandardScaler()",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      }
+    ],
+    "selected_states": [
+      {
+        "assemble": "all_aggregates",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "GapEncoder(n_components=choose_int(10, 40, name='vectorizer__..._n_components'),\n           random_state=42)"
+      },
+      {
+        "assemble": "categorical_mode",
+        "cleaner__Cleaner__drop_if_unique": "False",
+        "feature_eng": "None",
+        "model": "HistGradientBoostingClassifier",
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 33
+      },
+      {
+        "assemble": "categorical_mode",
+        "cleaner__Cleaner__drop_if_unique": "True",
+        "feature_eng": "None",
+        "model": "LGBMClassifier",
+        "model__LGBMClassifier__is_unbalance": "True",
+        "model__LGBMClassifier__learning_rate": 0.0447213595499958,
+        "model__LGBMClassifier__max_depth": 8,
+        "model__LGBMClassifier__n_estimators": 300,
+        "scale": "None",
+        "vectorizer__high_cardinality": "MinHashEncoder(n_components=choose_int(20, 60, name='vectorizer__..._n_components'))",
+        "vectorizer__high_cardinality__MinHashEncoder__n_components": 40
+      }
+    ],
+    "weights": [
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333
+    ],
+    "individual_scores": [
+      0.8091340546193139,
+      0.8081687648312754,
+      0.8096770301250855,
+      0.8004866669348027,
+      0.8227658999890831,
+      0.8165834487275987,
+      0.8141070207594763,
+      0.8129779764538241,
+      0.8190598766957211,
+      0.8190598766957211
+    ],
+    "ensemble_score": 0.8503800828540402,
+    "ensemble_score_mean": 0.8174625519274195
+  },
+  "used_fallback_spec": false,
+  "dropped_sections": [],
+  "single_option_stages": [],
+  "scoring_errors": null,
+  "reused_spec": true,
+  "llm_calls": 0,
+  "wall_clock_s": 288.6,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "data_summary": "Dataset: 15000 rows x 2 columns. Target column: 'fraud_flag'.\nInferred task type: classification.\n\nColumns:\n  - ID: dtype=int64, missing=0.0%, cardinality=15000, min=0 max=7.654e+04 mean=3.849e+04\n  - fraud_flag (TARGET): dtype=int64, missing=0.0%, cardinality=2, min=0 max=1 mean=0.01247\n      class balance: '0'=98.8%, '1'=1.2%\n\nFirst 5 rows:\n   ID  fraud_flag\n 7012           0\n14698           0\n48689           0\n30581           0\n53751           0\n\nAuxiliary table 'products': 26795 rows x 7 columns.\n  Columns:\n    - basket_ID: dtype=int64, cardinality=15000\n    - item: dtype=object, cardinality=134\n    - cash_price: dtype=int64, cardinality=865\n    - make: dtype=object, cardinality=357\n    - model: dtype=object, cardinality=2759\n    - goods_code: dtype=object, cardinality=4335\n    - Nbr_of_prod_purchas: dtype=int64, cardinality=13",
+  "analysis": "",
+  "spec_raw": "\n\n{\n  \"assemble\": [\n    {\n      \"name\": \"numeric_basic\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"sum\", \"mean\", \"count\"],\n      \"cols\": [\"cash_price\", \"Nbr_of_prod_purchas\"]\n    },\n    {\n      \"name\": \"numeric_extended\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"sum\", \"mean\", \"std\", \"count\"],\n      \"cols\": [\"cash_price\", \"Nbr_of_prod_purchas\"]\n    },\n    {\n      \"name\": \"categorical_mode\",\n      \"table\": \"products\",\n      \"main_key\": \"ID\",\n      \"aux_key\": \"basket_ID\",\n      \"operations\": [\"mode\", \"count\"],\n      \"cols\": [\"make\", \"model\", \"goods_code\", \"item\"]\n    }\n  ],\n  \"cleaner\": {\n    \"params\": {\n      \"drop_if_unique\": {\"choice\": [false, true]}\n    }\n  },\n  \"vectorizer\": {\n    \"slots\": {\n      \"high_cardinality\": [\n        {\"name\": \"skrub.MinHashEncoder\", \"params\": {\"n_components\": {\"int\": [20, 60]}}},\n        {\"name\": \"skrub.GapEncoder\", \"params\": {\"n_components\": {\"int\": [10, 40]}}}\n      ]\n    }\n  },\n  \"stages\": [\n    {\n      \"name\": \"scale\",\n      \"options\": [\n        \"skip\",\n        \"sklearn.preprocessing.RobustScaler\",\n        \"sklearn.preprocessing.StandardScaler\"\n      ]\n    },\n    {\n      \"name\": \"feature_eng\",\n      \"options\": [\n        \"skip\",\n        {\"name\": \"sklearn.preprocessing.PowerTransformer\", \"params\": {\"standardize\": {\"choice\": [true, false]}}}\n      ]\n    }\n  ],\n  \"model\": [\n    {\n      \"name\": \"lightgbm.LGBMClassifier\",\n      \"prior\": 0.8,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.2], \"log\": true},\n        \"max_depth\": {\"int\": [3, 12]},\n        \"is_unbalance\": {\"choice\": [true, false]}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n      \"prior\": 0.6,\n      \"params\": {\n        \"max_iter\": {\"int\": [100, 500]},\n        \"learning_rate\": {\"float\": [0.01, 0.2], \"log\": true},\n        \"max_depth\": {\"int\": [2, 16]},\n        \"class_weight\": {\"choice\": [\"balanced\", null]}\n      }\n    },\n    {\n      \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n      \"prior\": 0.4,\n      \"params\": {\n        \"n_estimators\": {\"int\": [100, 300]},\n        \"max_depth\": {\"int\": [5, 20]},\n        \"class_weight\": {\"choice\": [\"balanced\", null]}\n      }\n    }\n  ]\n}"
+}

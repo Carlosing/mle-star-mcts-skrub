@@ -1,0 +1,13 @@
+# Task
+
+Predict the is_toxic.
+
+# Metric
+
+accuracy
+
+# Dataset
+
+Classification task (800 training rows, 1 feature columns). train.csv has the features and the 'is_toxic' column; test.csv has the features only.
+
+1000 rows, ONE free-text feature column. A pure text-encoder benchmark: the entire action space that matters is the encoder stage (GapEncoder vs MinHash vs StringEncoder).

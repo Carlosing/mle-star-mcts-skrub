@@ -1,0 +1,122 @@
+# Tabular pipeline stages (skrub) — the MCTS search space
+
+The constructive MCTS searches over the *stages* of a tabular/relational
+pipeline. This document is the canonical stage taxonomy: what each stage is,
+which skrub API provides it, and whether `build_staged_plan`
+([skrub_ops.py](../machine_learning_engineering/skrub_ops.py)) builds it today.
+It is derived from the skrub 0.9 API reference and verified against the
+installed library.
+
+## Stage order
+
+```
+assemble (relational) → clean → scope (pre_encode) → encode → scope (post_encode) → feature-eng/scale → select → model → hyperparameters → post-process
+```
+
+A plan is built top-down in this order; MCTS decides one stage at a time
+(constructive topology). The `clean` and `encode` backbones **always run** (a
+`skrub.Cleaner` then a `skrub.TableVectorizer`); every other stage is optional
+with **skip as its default outcome**, so an undecided stage means "not yet
+enriched." The two backbones default to bare skrub instances (the robust root);
+their knobs become search dimensions only when the LLM authors them.
+
+## The stages
+
+| # | Stage | skrub API | In `build_staged_plan`? | Notes |
+|---|-------|-----------|:---:|-------|
+| 0 | **Assemble** (relational) | `AggJoiner`, `MultiAggJoiner`, `AggTarget`, `Joiner`, `InterpolationJoiner`, `fuzzy_join` | ✅ (`AggJoiner`) | Build the feature table from multiple tables. Highest-leverage stage for relational data — the skrub differentiator vs. flat-table AutoML |
+| 1 | **Clean / coerce** | `Cleaner` (always-on backbone) | ✅ (`cleaner`) | Parse nulls/dates, drop bad/constant/unique columns, coerce types. Always-on `Cleaner()`; the LLM tunes its constructor knobs (`drop_if_constant`, `drop_if_unique`, `parse_numbers`, …) via `cleaner.params`, resolved like HPs |
+| 2 | **Encode / vectorize** | `TableVectorizer` (always-on backbone) with `GapEncoder`/`MinHashEncoder`/`StringEncoder`/`TextEncoder`/`DatetimeEncoder`/`OneHotEncoder`/… in its slots | ✅ (`vectorizer`) | Per-column-type encoding. Always-on `TableVectorizer()`; the LLM makes its slots (`high_cardinality`/`low_cardinality`/`numeric`/`datetime`) and scalar knobs (`cardinality_threshold`, `drop_*`) searchable via `vectorizer.slots` / `vectorizer.params` |
+| 3 | **Scope** | `.skb.apply(estimator, cols=<selector>)`; selectors: `regex`, `cols`, `numeric`, `cardinality_below`, …; additive: `SelectCols` sub-select + `.skb.concat(axis=1)` | ✅ (`scoped_encodings`) | Apply a *searchable* operator to an explicit column subset. Per group: `"position"` `pre_encode` (default, before the TableVectorizer) or `post_encode` (after it — only numeric passthrough names survive vectorization); `"additive": true` KEEPS the originals and concatenates the operator's output by row index, suffixed `__<group>` (skip = `SelectCols([])`, an empty frame — `None` would passthrough-duplicate). Column names are validated at resolve/build time; the runtime selector is a union of exact-match regexes, so a column dropped upstream degrades the group to a no-op (`skrub_ops._scope_selector` — `selectors.cols()` would raise) |
+| 4 | **Feature-eng / scale** | `apply(PolynomialFeatures/PCA/…)`, `DatetimeEncoder`, `SquashingScaler`/`StandardScaler`, `apply_func`, `deferred` | ✅ (`stages`) | skrub has no large FE library — FE = `apply` any sklearn transformer + custom funcs |
+| 5 | **Select features** | `SelectCols`, `DropCols`, `DropUninformative`, sklearn selectors | ✅ (`stages`) | Optional feature selection |
+| 6 | **Model** | `choose_from` over estimators via `apply` | ✅ (`model`) | Required; has a real default so partial pipelines run |
+| 7 | **Hyperparameters** | `choose_int`/`choose_float`/`choose_from` | ✅ (`spec_resolver`) | Per-operator HP ranges in the JSON plan become nested `choose_*` nodes that MCTS searches. CASH note: HPs of a non-selected model are inactive search dims — conditional (model-gated) nesting is **shipped** (`get_choice_gating`), and a post-budget **focused-refinement bonus phase** (`search_loop`, `ceil(budget/4)` rollouts from the incumbent node) spends extra budget on all of the incumbent's single-edit neighbors, its gated HPs included |
+| 8 | **Post-process / ensemble** | `concat` (stacking), `if_else`, `match`, `apply_func` | ❌ future | Combine feature sets / predictions; conditional branches |
+
+Not pipeline stages, but relevant: `TableReport` and `column_associations` are
+**EDA** utilities — useful as *input to the LLM planner* (à la SELA's EDA
+stage), not as runtime transforms.
+
+`build_staged_plan` also inserts two **fixed, non-searchable** steps that are
+invisible to the action space: `_ScalarizeAggregates` right after the assemble
+stage (collapses the array cells `AggJoiner(operations="mode")` leaves on modal
+ties) and `_SanitizeColumns` just before the model (renames skrub's
+special-character feature names, which LightGBM/XGBoost reject). See
+[BUG_LEDGER.md](BUG_LEDGER.md) for the bugs behind both.
+
+## Spec schema (the LLM "rich plan" hand-off)
+
+`build_staged_plan(spec, df, aux_tables=...)` consumes this shape (operators are
+real estimator instances; translating LLM text → instances is a separate
+concern):
+
+```python
+spec = {
+    # 0. assemble (needs aux_tables={name: df}); a 'skip' option is auto-added
+    "assemble": [
+        {"name": "aux_mean", "table": "aux", "operations": ["mean"],
+         "key": "id", "cols": ["v"]},
+    ],
+    # 1. clean — ALWAYS-ON Cleaner backbone. The LLM authors only the knobs to
+    #    search (resolved into choose_* nodes); omit the key for a bare Cleaner().
+    "cleaner": {"params": {"drop_if_constant": {"choice": [False, True]}}},
+    # 3. scope — searchable operator on an explicit column subset (skip default).
+    #    Optional per group: "position": "pre_encode"|"post_encode" (where it
+    #    runs relative to the TableVectorizer) and "additive": True (keep the
+    #    originals, concatenate the derived output by row index).
+    "scoped_encodings": [
+        {"name": "title_enc", "cols": ["job_title"],
+         "options": [GapEncoder(), MinHashEncoder()]},
+        {"name": "date_feats", "cols": ["signup"], "additive": True,
+         "options": [DatetimeEncoder()]},
+        {"name": "num_scale", "cols": ["age"], "position": "post_encode",
+         "options": [StandardScaler()]},
+    ],
+    # 2. encode — ALWAYS-ON TableVectorizer backbone. Author slots (estimator
+    #    lists) and/or scalar params to search; omit the key for a bare
+    #    TableVectorizer(). Handles all unscoped columns.
+    "vectorizer": {"slots": {"high_cardinality": ["skrub.GapEncoder", "skrub.MinHashEncoder"]},
+                   "params": {"cardinality_threshold": {"int": [10, 40]}}},
+    # 4–5. post-encoding numeric stages
+    "stages": [
+        {"name": "scale",       "options": [None, StandardScaler()]},
+        {"name": "feature_eng", "options": [None, PolynomialFeatures(2)]},
+    ],
+    # 6. model (required)
+    "model": {"GBM": ..., "RF": ..., "LogReg": ...},
+}
+```
+
+The assemble stage uses a **labeled dict** `choose_from` internally so options
+read as `aux_mean` rather than the `AggJoiner` repr (which embeds the whole aux
+table). Every other optional stage uses `None` = skip as its default.
+
+## Cautions
+
+- **`AggTarget` aggregates the target** → leakage source. It must be computed
+  inside the CV fold, which is exactly why skrub's `mark_as_X`/`mark_as_y` (and
+  the brief's `A_leakage` agent) exist. Treat target-based aggregation as a
+  guarded, leakage-checked action.
+- **MCTS is weak on *continuous* hyperparameters.** Mosaic and auto-sklearn
+  couple structural search with Bayesian optimization for the HP level; we
+  discretize `choose_int`/`choose_float` instead. A BO hand-off for the HP
+  stage is the established upgrade path if discretization proves coarse.
+- **Relational rollouts:** auxiliary tables are joined whole (not subsampled);
+  only the main table is subsampled. Pass `aux=` and `main_var=` to
+  `make_rollout_fn`/`evaluate_full`.
+
+## Status
+
+Built and tested (see [test_staged.py](../tests/test_staged.py),
+[test_scope_stage.py](../tests/test_scope_stage.py),
+[test_spec_resolver.py](../tests/test_spec_resolver.py)): assemble
+(`AggJoiner`), clean, **scope** (`scoped_encodings`, incl. `pre_encode`/
+`post_encode` placement and `additive` concat groups), encode, scale,
+feature-eng, model, **hyperparameter search** (per-operator `choose_*` from
+the JSON plan), and **conditional (model-gated) HP nesting**. The relational
+assemble stage is demonstrated to lift a near-chance score when the target
+depends on an auxiliary-table aggregate, and is wired end-to-end (multi-table
+`load_task`, aux digests, `plan_author` assemble configs — see
+[test_relational_pipeline.py](../tests/test_relational_pipeline.py)). Future:
+the `post-process` (stacking) stage.

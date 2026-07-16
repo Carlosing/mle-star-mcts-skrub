@@ -10,32 +10,48 @@ authors = [
 ]
 license = {text = "Apache License 2.0"}
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 
 dependencies = [
-    "google-adk>=1.5.0",
+    # Pinned below 2.0: the 2.x line changes the agents/models API this code targets.
+    "google-adk>=1.31,<2.0",
     "google-genai>=1.9.0",
     "pydantic>=2.10.6",
     "python-dotenv>=1.0.1",
-    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
     "numpy>=2.2.3",
     "skrub",
     "pandas>=2.3.1",
     "scikit-learn>=1.7.1",
-    # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu 
+    # Gradient-boosting libraries in the operator allow-list (spec_resolver
+    # ALLOWLIST_ROOTS); sklearn-compatible API, seeded via `random_state`.
+    "lightgbm>=4.3.0",
+    "xgboost>=2.0.0",
+    # Note: If using uv or pip, use --extra-index-url https://download.pytorch.org/whl/cpu
     # to ensure the CPU version of torch is prioritized.
+    # torch is a *transitive* need (sentence-transformers / skrub's TextEncoder).
+    # It must never sit on the pipeline import chain — a second OpenMP runtime
+    # segfaults xgboost. See docs/BUG_LEDGER.md #11.
     "torch>=2.7.1",
     "openai>=1.14.0",
-    "python-dotenv>=1.0.1"
+    "ruff>=0.15.17",
+    "json-repair>=0.61.4",
+    # DuckDuckGo search, used by the MLE-STAR baseline's model-retrieval step
+    # (shared_libraries/web_search_util.py).
+    "ddgs",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-asyncio>=0.26.0",
-    "google-adk[eval]>=1.5.0",
+    "google-adk[eval]>=1.31,<2.0",
     "google-cloud-aiplatform[evaluation]>=1.93.0",
     "agent-starter-pack>=0.32.0",
+    "jupyterlab>=4.5.8",
+    "ipykernel>=7.3.0",
+    "pydot>=4.0.1",
+    "graphviz>=0.21",
+    "ipdb>=0.13.13",
 ]
 deployment = [
     "absl-py>=2.2.1",
@@ -45,9 +61,24 @@ deployment = [
 lint = [
     "ruff>=0.4.6",
 ]
+# Solo para despliegue en Vertex AI (deployment/deploy.py) — no necesario en local
+gcp = [
+    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
+]
+# Benchmark-only deps, kept out of the core so the search stack stays light.
+# AutoGluon (the time-budgeted baseline in scripts/run_autogluon.py) pulls a
+# large tree; matplotlib backs scripts/make_figures.py. Install with:
+#   uv sync --extra bench
+bench = [
+    "autogluon-tabular>=1.1",
+    "matplotlib>=3.8",
+    # skrub's TextEncoder (a strong high-cardinality-text encoder the LLM may
+    # pick on text tasks like toxicity) needs sentence-transformers at fit time.
+    "sentence-transformers>=2.2",
+]
 
 [tool.ruff]
-extend = "../../../pyproject.toml"
+line-length = 80
 
 [tool.ruff.lint]
 ignore = ["C901", "PLR0911", "PLR0912", "PLR0915"]
@@ -60,12 +91,6 @@ known-first-party = ["machine_learning_engineering"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-[tool.agent-starter-pack]
-example_question = "Execute the California housing prices task."
-
-[tool.agent-starter-pack.settings]
-agent_directory = "machine_learning_engineering"
 
 [build-system]
 requires = ["hatchling"]

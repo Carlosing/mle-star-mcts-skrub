@@ -1,0 +1,500 @@
+RespondentID,What_would_you_call_the_part_of_the_country_you_live_in_now,How_much_do_you_personally_identify_as_a_Midwesterner,Do_you_consider_Illinois_state_as_part_of_the_Midwest,Do_you_consider_Indiana_state_as_part_of_the_Midwest,Do_you_consider_Iowa_state_as_part_of_the_Midwest,Do_you_consider_Kansas_state_as_part_of_the_Midwest,Do_you_consider_Michigan_state_as_part_of_the_Midwest,Do_you_consider_Minnesota_state_as_part_of_the_Midwest,Do_you_consider_Missouri_state_as_part_of_the_Midwest,Do_you_consider_Nebraska_state_as_part_of_the_Midwest,Do_you_consider_North_Dakota_state_as_part_of_the_Midwest,Do_you_consider_Ohio_state_as_part_of_the_Midwest,Do_you_consider_South_Dakota_state_as_part_of_the_Midwest,Do_you_consider_Wisconsin_state_as_part_of_the_Midwest,Do_you_consider_Arkansas_state_as_part_of_the_Midwest,Do_you_consider_Colorado_state_as_part_of_the_Midwest,Do_you_consider_Kentucky_state_as_part_of_the_Midwest,Do_you_consider_Oklahoma_state_as_part_of_the_Midwest,Do_you_consider_Pennsylvania_state_as_part_of_the_Midwest,Do_you_consider_West_Virginia_state_as_part_of_the_Midwest,Do_you_consider_Montana_state_as_part_of_the_Midwest,Do_you_consider_Wyoming_state_as_part_of_the_Midwest,Gender,Age,Household_Income,Education,In_what_ZIP_code_is_your_home_located
+3126791039.0,Midwest,Not much,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,Male,18-29,"$0 - $24,999",Associate or bachelor degree,44106
+3126764770.0,Midwest,Some,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,No,Male,30-44,"$150,000+",Graduate degree,44054
+3126714308.0,Northeast,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,17307
+3126697024.0,Midwest,A lot,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Male,18-29,"$0 - $24,999",Associate or bachelor degree,68506
+3126639255.0,The Midwest,Some,No,Yes,No,No,No,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,Yes,No,No,No,Male,30-44,"$150,000+",Associate or bachelor degree,43214
+3126632874.0,midwest,A lot,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Some college,47586
+3126439073.0,A shithole,A lot,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Male,18-29,"$150,000+",Some college,43606
+3126412099.0,Upper Plains,Not much,No,No,No,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Male,30-44,"$25,000 - $49,999",Some college,57384
+3126394704.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,49544
+3126130261.0,ohio,Some,Yes,No,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Yes,No,No,No,No,Male,18-29,"$150,000+",Associate or bachelor degree,45324
+3126105635.0,Midwest,A lot,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,66030
+3126020547.0,"northeast (that's because I just moved to philadelphia, but I moved here from Cleveland, OH which is definitely Midwest)",A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$25,000 - $49,999",Some college,44135
+3125881486.0,Eastern United States,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,Male,18-29,"$50,000 - $99,999",Graduate degree,26505
+3125664399.0,"The south, or maybe just Texas since its really more western than southern",Not at all,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,Yes,No,No,No,No,Male,18-29,"$150,000+",Some college,76087
+3125628944.0,The Midwest,Not at all,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,63108
+3125619572.0,Living blue in a red state.,Some,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Graduate degree,46113
+3125586965.0,midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Male,45-60,"$50,000 - $99,999",Some college,44646
+3125538851.0,midsouth,Some,No,No,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,74019
+3125460697.0,Cold,A lot,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,55419
+3125449094.0,Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$25,000 - $49,999",Associate or bachelor degree,53151
+3125410670.0,"Okay, not to exciting.",A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,Yes,No,Yes,Yes,No,No,No,No,Male,45-60,?,High school degree,64063
+3125306423.0,Upper Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Some college,54956
+3125236982.0,Mid america,Not much,No,No,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,40299
+3125223841.0,midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,Yes,Yes,No,No,No,No,Male,45-60,"$25,000 - $49,999",Associate or bachelor degree,42003
+3125176085.0,The Midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,46032
+3125161972.0,Midwest,Some,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Some college,44312
+3125129988.0,South,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,Yes,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,42303
+3125126170.0,Northeastern Midwest.,Some,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$0 - $24,999",Some college,44256
+3125091344.0,Upper Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Associate or bachelor degree,48642
+3125089257.0,Flyover country,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Associate or bachelor degree,46350
+3125037373.0,Pacific Northwest,Not at all,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Male,30-44,"$100,000 - $149,999",Some college,97756
+3124991535.0,mid west,Some,Yes,No,Yes,No,No,Yes,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",High school degree,55421
+3124970690.0,Midwest,Some,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,60068
+3124948488.0,northeast,Not at all,Yes,No,Yes,Yes,No,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Male,45-60,"$50,000 - $99,999",High school degree,44662
+3124944360.0,mid-south,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,38138
+3124901466.0,Rural,Some,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,41169
+3124893233.0,North East,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,No,Yes,No,No,No,No,Male,30-44,"$100,000 - $149,999",Graduate degree,2128
+3124885120.0,Southwest,Not much,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,Male,30-44,"$0 - $24,999",Associate or bachelor degree,81147
+3124882685.0,Alaska,Not at all,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,Yes,No,Yes,No,No,No,Yes,Male,18-29,"$25,000 - $49,999",Associate or bachelor degree,99801
+3124863335.0,South West,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Some college,80923
+3124744381.0,Southeast,Not at all,No,No,No,Yes,No,No,Yes,No,No,Yes,No,No,Yes,Yes,No,Yes,No,No,No,Yes,Male,18-29,"$25,000 - $49,999",Associate or bachelor degree,30004
+3124685007.0,midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,Yes,Yes,No,Yes,No,Female,30-44,"$50,000 - $99,999",Some college,46234
+3124643426.0,MIdwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Associate or bachelor degree,53818
+3124641634.0,Northwest,Not at all,No,No,No,No,No,No,Yes,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,Male,30-44,"$25,000 - $49,999",Graduate degree,97080
+3124592446.0,upper Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,60660
+3124549372.0,northeast Pa,Not at all,Yes,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,Yes,Yes,Male,45-60,"$25,000 - $49,999",Some college,18651
+3124538810.0,Midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Graduate degree,60136
+3124514368.0,Midwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,> 60,"$100,000 - $149,999",Some college,47006
+3124395433.0,The Great Lakes Region,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$0 - $24,999",Some college,44107
+3124343997.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Yes,No,No,Yes,No,No,Male,18-29,"$150,000+",High school degree,43221
+3124284208.0,The East,Not much,No,No,No,No,No,No,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Associate or bachelor degree,15963
+3124217492.0,USA,Not much,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,Yes,No,No,No,Female,45-60,"$50,000 - $99,999",Some college,45440
+3124190930.0,midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$25,000 - $49,999",Associate or bachelor degree,48455
+3124171517.0,midwest,Some,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Graduate degree,64098
+3124163694.0,Southern Plains,Some,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Some college,73159
+3124109698.0,northeast,Not at all,Yes,Yes,Yes,No,No,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,19002
+3124066285.0,"The Northeast.  More specifically, Upstate New York",Not at all,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Some college,14423
+3124039699.0,Midwest,Some,No,Yes,Yes,Yes,No,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,Yes,No,No,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,40291
+3124039413.0,Northeast,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,14031
+3124010590.0,Northwoods.,A lot,Yes,No,No,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$25,000 - $49,999",Some college,54547
+3124008547.0,North East,Some,Yes,No,Yes,Yes,No,No,No,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Male,30-44,"$100,000 - $149,999",Associate or bachelor degree,19492
+3124004520.0,Eastern,Not at all,Yes,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",High school degree,16059
+3124001180.0,South eastern United States,Not at all,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Some college,33326
+3124000105.0,"Mid-Western, Great Lakes Region",A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Some college,54729
+3123994859.0,new and gleaming,Not at all,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Some college,76018
+3123994221.0,upper midweat,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,Male,> 60,"$150,000+",High school degree,46614
+3123988111.0,"Rural, Western Colorado",A lot,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,Yes,Female,> 60,"$25,000 - $49,999",Associate or bachelor degree,81652
+3123958939.0,The Midwest.,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,No,No,Male,45-60,"$50,000 - $99,999",Some college,43130
+3123945681.0,Southwest,Not at all,No,No,No,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,No,Male,45-60,"$25,000 - $49,999",Some college,85742
+3123938113.0,Mid Atlantic,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,21146
+3123862062.0,Upper Midwest,A lot,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Male,18-29,"$25,000 - $49,999",Associate or bachelor degree,58201
+3123849044.0,Midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,?,Graduate degree,66112
+3123839302.0,upper midwest,A lot,No,No,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$100,000 - $149,999",Associate or bachelor degree,55449
+3123829192.0,The South,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Graduate degree,36530
+3123824048.0,midwest,A lot,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Some college,46552
+3123807896.0,central usa,Not at all,No,No,No,No,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Male,45-60,"$0 - $24,999",Some college,73068
+3123780461.0,Mid West,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,Yes,No,No,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,45640
+3123779946.0,southeast,Not at all,No,No,No,Yes,No,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,No,No,No,Yes,Female,18-29,"$50,000 - $99,999",Graduate degree,37128
+3123775247.0,Midwest,Some,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Some college,55301
+3123774368.0,"I live in Illinois, and wish I was young enough to take up my roots and move elsewhere. Politically possibilly the worst state you can live in!",Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Female,> 60,"$25,000 - $49,999",Some college,60467
+3123770336.0,Washington DC suburb,Not at all,No,Yes,No,Yes,No,No,No,Yes,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,20147
+3123754249.0,Southern,Not at all,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,No,Yes,No,No,No,Yes,Female,45-60,"$0 - $24,999",Some college,35810
+3123733705.0,Great Midwest,A lot,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Some college,67204
+3123728971.0,NoVa on the east coast,Not at all,No,No,No,Yes,No,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,No,No,No,Yes,Female,18-29,"$0 - $24,999",Associate or bachelor degree,20106
+3123716600.0,Mid-Atlantic,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,21214
+3123686885.0,midwest,Some,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,Yes,Female,45-60,"$50,000 - $99,999",Graduate degree,48201
+3123681911.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,Yes,No,No,No,Female,30-44,?,?,43026
+3123676150.0,southwestern pacific,Not at all,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,Yes,Male,> 60,"$50,000 - $99,999",Some college,92117
+3123668223.0,"Midwest, Great Lakes region",A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Associate or bachelor degree,44118
+3123643262.0,Southeast,Not much,No,Yes,Yes,No,No,No,No,No,No,Yes,No,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$25,000 - $49,999",Associate or bachelor degree,34210
+3123635209.0,New England,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,Yes,Yes,Female,18-29,"$150,000+",Graduate degree,2720
+3123634298.0,Midwest urban,Some,Yes,Yes,Yes,No,No,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Some college,60641
+3123624694.0,upper midwest,A lot,No,No,Yes,No,Yes,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$100,000 - $149,999",Associate or bachelor degree,55403
+3123624436.0,Sub Tropical,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$25,000 - $49,999",Graduate degree,34654
+3123613781.0,Northeast,Not at all,No,No,Yes,No,No,No,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,Yes,No,Female,45-60,"$50,000 - $99,999",Some college,19567
+3123593166.0,united States,Not at all,No,No,No,Yes,No,No,Yes,No,No,No,No,No,Yes,Yes,Yes,No,No,No,No,Yes,Female,45-60,"$150,000+",Some college,17022
+3123570601.0,NORTH EASTERN,Not much,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Associate or bachelor degree,44062
+3123565530.0,Pittsburgh,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,Male,30-44,"$150,000+",Graduate degree,15214
+3123523741.0,SOME WHAT SOUTHERN,Not much,No,No,No,No,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,No,Yes,Yes,Yes,Male,18-29,"$0 - $24,999",Some college,40216
+3123505437.0,Midwest,A lot,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Graduate degree,47403
+3123406772.0,Northeast,Not much,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,Yes,No,No,No,Yes,Yes,No,No,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,7036
+3123403633.0,Midwest,A lot,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Female,45-60,"$100,000 - $149,999",Some college,52057
+3123357263.0,Mid west,Not much,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,46256
+3123341143.0,"Western, Midwest, small city.",Some,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,Female,18-29,"$0 - $24,999",Some college,13411
+3123332822.0,Colorado!,Some,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,Yes,Male,18-29,"$150,000+",Some college,80908
+3123329497.0,Southern California,Not at all,No,No,No,Yes,No,No,No,Yes,No,Yes,No,Yes,No,No,No,Yes,No,No,No,No,Female,45-60,"$150,000+",Some college,92026
+3123313139.0,Midwest,A lot,Yes,Yes,No,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,48335
+3123311006.0,Midwest,A lot,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Associate or bachelor degree,55337
+3123304795.0,South or Southeastern,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$150,000+",Associate or bachelor degree,70508
+3123304313.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Associate or bachelor degree,62363
+3123303114.0,Midwest farm country,Some,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,30-44,"$0 - $24,999",Associate or bachelor degree,46952
+3123294441.0,West coast,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Male,18-29,"$150,000+",Associate or bachelor degree,92115
+3123292104.0,Southwest,Not at all,No,No,Yes,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Male,18-29,"$100,000 - $149,999",Some college,90713
+3123286490.0,very sunny,Not much,No,Yes,Yes,No,Yes,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,Yes,No,Male,45-60,"$150,000+",Some college,33619
+3123286296.0,Mid-Atlantic.,Not at all,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$150,000+",Some college,20147
+3123286180.0,Southwest,Not at all,Yes,Yes,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Female,> 60,"$25,000 - $49,999",Some college,85710
+3123283922.0,midwest,A lot,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Some college,61536
+3123280304.0,Midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Female,30-44,"$100,000 - $149,999",Graduate degree,65616
+3123272161.0,Northern California,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$150,000+",Some college,95616
+3123268355.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$0 - $24,999",Associate or bachelor degree,55116
+3123265252.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$0 - $24,999",Some college,49007
+3123262506.0,The South,Not much,Yes,No,No,No,Yes,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$50,000 - $99,999",Some college,72032
+3123251678.0,CA,Not at all,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,No,Male,30-44,"$0 - $24,999",High school degree,91001
+3123250685.0,Midwest,Some,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Some college,55117
+3123249482.0,Northeast Region,Not much,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,18505
+3123248118.0,Midwest - the corn belt,A lot,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$50,000 - $99,999",Associate or bachelor degree,52240
+3123239009.0,Southwest,Not at all,No,No,No,No,No,No,No,No,No,No,Yes,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,> 60,"$50,000 - $99,999",Graduate degree,92028
+3123230773.0,The best,Not at all,No,Yes,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",High school degree,18360
+3123210107.0,Midwest,A lot,Yes,Yes,No,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,Yes,No,No,Female,45-60,"$50,000 - $99,999",Some college,41001
+3123206568.0,paradise,Not at all,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,96816
+3123204648.0,West coast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,Male,18-29,"$0 - $24,999",Some college,92104
+3123197472.0,Southeast,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$150,000+",Graduate degree,30506
+3123190671.0,West,A lot,No,No,No,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Yes,Male,45-60,"$150,000+",Graduate degree,82009
+3123185824.0,Northeastern Wisconsin,Some,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$150,000+",Associate or bachelor degree,54961
+3123181914.0,Midwest,Some,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,52411
+3123176400.0,Midwest,A lot,Yes,Yes,No,Yes,Yes,No,No,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,46563
+3123173462.0,Great lakes.,Not at all,Yes,No,Yes,No,Yes,Yes,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,48917
+3123170915.0,South east,Not at all,Yes,No,Yes,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Some college,34761
+3123169375.0,Pacific Northwest,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,Yes,Female,> 60,"$100,000 - $149,999",Associate or bachelor degree,97062
+3123167071.0,Warm & sunny most of the winter. Great birding areas particularly in winter - Florida. IN summer Michigan is sunny and lovely.,A lot,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,33862 & 49106
+3123163085.0,Midwest,A lot,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,?,Some college,48198
+3123157295.0,the midwest,A lot,Yes,No,Yes,No,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,Female,18-29,"$100,000 - $149,999",Graduate degree,53593
+3123147433.0,"West, in southern Idaho",Not much,No,No,No,No,No,No,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Yes,No,No,Yes,Yes,Female,45-60,"$0 - $24,999",Some college,83646
+3123140631.0,Beachy,Not at all,No,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Female,18-29,"$25,000 - $49,999",Less than high school degree,33584
+3123138449.0,Cold,Some,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,Female,18-29,"$50,000 - $99,999",Some college,48038
+3123134716.0,West,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,No,No,No,Yes,No,No,No,No,Female,> 60,"$150,000+",Associate or bachelor degree,94114
+3123122470.0,suburbia,Not at all,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,Yes,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,16117
+3123113210.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,46582
+3123110415.0,Midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,Male,45-60,"$150,000+",Some college,60046
+3123109692.0,Southern country,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,42729
+3123107277.0,South,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,No,No,Yes,Male,45-60,"$150,000+",Associate or bachelor degree,76262
+3123105427.0,Midwest,A lot,Yes,No,Yes,No,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Graduate degree,68154
+3123090560.0,Northern Wisconsin,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$0 - $24,999",Some college,54891
+3123090483.0,Midwest,Some,Yes,Yes,No,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,No,No,No,No,Female,30-44,"$25,000 - $49,999",Associate or bachelor degree,46037
+3123087959.0,Pacific Northwest,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$0 - $24,999",Associate or bachelor degree,99016
+3123087706.0,Midwest,Not at all,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Associate or bachelor degree,49507
+3123081306.0,Northeast,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,Yes,Yes,No,No,No,Yes,Female,18-29,"$25,000 - $49,999",Graduate degree,18058
+3123078716.0,Midwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,46220
+3123074178.0,Great Lakes Region,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$100,000 - $149,999",Graduate degree,53051
+3123067892.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,Yes,No,No,No,Female,18-29,"$150,000+",Associate or bachelor degree,60202
+3123065564.0,The Midwest,A lot,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,Male,18-29,"$50,000 - $99,999",High school degree,43123
+3123065427.0,mid-west,Some,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,48309
+3123062232.0,Up nort,A lot,No,No,Yes,Yes,No,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$150,000+",Associate or bachelor degree,54701
+3123058265.0,Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$0 - $24,999",Associate or bachelor degree,60137
+3123054308.0,The East,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,16872
+3123051103.0,Midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,Yes,Female,30-44,"$50,000 - $99,999",Some college,63376
+3123045974.0,The west,Not much,No,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,Yes,Female,30-44,"$50,000 - $99,999",Some college,89117
+3123045227.0,Rural Midwest,A lot,Yes,No,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Associate or bachelor degree,54970
+3123022568.0,Mid-Atlantic,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,No,Yes,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,19118
+3123015997.0,I would call this middle area of the country the heartland.,A lot,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,Yes,No,Yes,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Associate or bachelor degree,65355
+3123003447.0,Midwest,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Less than high school degree,61704
+3122997475.0,new england,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,No,No,Yes,No,Male,45-60,"$25,000 - $49,999",Associate or bachelor degree,5454
+3122996901.0,Southwest Midwest,A lot,No,No,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Yes,Male,45-60,"$50,000 - $99,999",Some college,80907
+3122992919.0,Southwest,Not at all,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,Yes,Female,18-29,"$50,000 - $99,999",High school degree,81321
+3122992255.0,The midwest,A lot,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$0 - $24,999",Associate or bachelor degree,60620
+3122991731.0,midwest,A lot,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$0 - $24,999",Some college,48507
+3122989161.0,Midwestern,Not at all,Yes,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Female,30-44,"$50,000 - $99,999",Some college,64801
+3122988231.0,West coast,Not at all,No,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,Yes,Yes,Male,45-60,"$150,000+",Graduate degree,91304
+3122987778.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",High school degree,54220
+3122986801.0,COLD  NORTHEAST,Not at all,No,No,No,No,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,Yes,Yes,Female,45-60,"$25,000 - $49,999",High school degree,53215
+3122979792.0,South,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,70808
+3122978050.0,upper midwest,Some,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Graduate degree,47905
+3122975801.0,"Hot, sorta uncomfortable, redneck, gun idiot to the max, religiously dark aged, stupid, head up their ass, could really do a better job at being human and needs better education.",Not at all,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,76051
+3122974955.0,North Central/east,Not much,No,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,Yes,No,Female,> 60,"$150,000+",High school degree,48761
+3122973602.0,Western Slope of the Rockies of Colorado,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,81507
+3122961959.0,Southeast,Not at all,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,40503
+3122961843.0,the Midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Associate or bachelor degree,65240
+3122961081.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$100,000 - $149,999",Graduate degree,61254
+3122960659.0,the bay area,Some,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,No,Yes,Yes,No,No,Female,> 60,"$25,000 - $49,999",Graduate degree,94085
+3122945528.0,northeast,Not at all,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,15236
+3122944206.0,The northeast,Not at all,Yes,No,Yes,Yes,Yes,No,No,No,No,No,No,Yes,Yes,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Associate or bachelor degree,7753
+3122943530.0,Upper Midwest,Some,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,Yes,Yes,Yes,Yes,Yes,No,No,Female,18-29,"$50,000 - $99,999",Some college,47905
+3122941498.0,Midwest,A lot,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Graduate degree,48067
+3122940145.0,Midwest or heartland,A lot,Yes,No,Yes,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Graduate degree,52803
+3122939941.0,North East,Not at all,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Some college,6854
+3122929847.0,East,Not much,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Female,18-29,"$100,000 - $149,999",Some college,41051
+3122926440.0,North east,Not at all,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$100,000 - $149,999",Some college,17316
+3122920724.0,Mid-Atlantic,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,22003
+3122914519.0,Midwest,A lot,Yes,Yes,No,Yes,No,Yes,Yes,Yes,No,Yes,No,No,No,No,No,Yes,No,No,No,No,Male,18-29,?,Some college,74104
+3122912377.0,Rocky Mountain Region,A lot,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Female,30-44,"$0 - $24,999",Some college,80247
+3122910164.0,Michigan,Not much,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Some college,49323
+3122905244.0,southwest,Not at all,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Some college,85029
+3122905065.0,Northeast,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Some college,17402
+3122904207.0,Midwest,A lot,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,Yes,No,Female,30-44,"$50,000 - $99,999",Some college,56601
+3122902543.0,Northeast,Not at all,Yes,No,Yes,No,No,No,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,Yes,Yes,Male,18-29,"$100,000 - $149,999",Some college,18360
+3122902403.0,Wonderful weather Colorado,Some,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,Female,> 60,"$0 - $24,999",Some college,80113
+3122900988.0,midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Associate or bachelor degree,60563
+3122895755.0,Little Siberia!,Not much,Yes,Yes,No,No,Yes,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$150,000+",High school degree,4210
+3122895664.0,Northeast,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,10583
+3122893863.0,California,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,94025
+3122893669.0,Ohio,Not at all,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,30-44,"$0 - $24,999",Some college,43207
+3122889243.0,midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Some college,53549
+3122885414.0,mid west,A lot,Yes,Yes,No,No,No,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,43015
+3122885136.0,Western,Not at all,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,Male,30-44,"$0 - $24,999",Less than high school degree,95132
+3122878257.0,Northeast,Not at all,No,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Some college,19083
+3122877221.0,Mid-America,A lot,Yes,Yes,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Some college,61550
+3122874323.0,Midwest,A lot,No,Yes,No,Yes,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,Female,18-29,"$50,000 - $99,999",Associate or bachelor degree,40502
+3122873192.0,Southern California,A lot,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Yes,No,Yes,Yes,No,No,Male,> 60,"$100,000 - $149,999",Some college,92683
+3122872466.0,Midwest,Some,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,Female,> 60,?,Graduate degree,64114
+3122870990.0,Northeastern usa,Not at all,No,No,No,No,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,No,Female,18-29,"$50,000 - $99,999",Associate or bachelor degree,6418
+3122868945.0,Midwest,A lot,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Associate or bachelor degree,62703
+3122865289.0,High Desert,Not at all,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,92392
+3122862797.0,Northeast,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,15074
+3122858954.0,Ohio,Not at all,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,Male,30-44,"$100,000 - $149,999",Some college,45419
+3122857169.0,The middle of the middle,A lot,Yes,No,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,Yes,Yes,Female,18-29,"$25,000 - $49,999",Some college,67210
+3122856120.0,western,Not much,No,No,No,Yes,No,No,Yes,No,No,No,No,No,Yes,No,No,Yes,No,No,No,Yes,Female,> 60,"$0 - $24,999",High school degree,65542
+3122855727.0,South,Not much,No,No,Yes,Yes,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,Yes,Female,18-29,?,Associate or bachelor degree,71901
+3122855525.0,Rocky Mountain Region,Not at all,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,80013
+3122855257.0,Colorado mountains,A lot,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,Female,> 60,"$150,000+",Graduate degree,80447
+3122854687.0,Midwest,Not much,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,Yes,Yes,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,63017
+3122851905.0,Western Pennsylvania,Not much,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,15146
+3122850458.0,The armpit of the nation.,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,Yes,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,46783
+3122849268.0,Silicon Valley,Not at all,No,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,Female,45-60,"$150,000+",Graduate degree,95070
+3122848483.0,"urban/suburban, mid-western city",A lot,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,45211
+3122838458.0,California,Not at all,No,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,94085
+3122834478.0,South Central Pennsylvania,Not at all,No,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,Yes,Yes,Male,45-60,"$100,000 - $149,999",Associate or bachelor degree,17013
+3122831273.0,cold,Some,No,No,No,Yes,No,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Female,18-29,"$0 - $24,999",Some college,41015
+3122831250.0,The Northeast,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,Male,45-60,"$100,000 - $149,999",Some college,2760
+3122830499.0,Northeast or philadelphia,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,Yes,No,No,No,No,No,Male,30-44,"$100,000 - $149,999",Graduate degree,19002
+3122829262.0,MIdwest,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$0 - $24,999",Some college,60201
+3122824624.0,New England,Some,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,2917
+3122816302.0,city,Not much,No,No,No,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,Yes,No,No,Yes,No,Male,18-29,"$25,000 - $49,999",Some college,22303
+3122814587.0,eastern,Not at all,No,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,Yes,Yes,No,No,No,No,Yes,No,Female,> 60,"$150,000+",Graduate degree,26362
+3122813482.0,"""America"" ---  West Coast",Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Some college,95822
+3122811912.0,the Heartland,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$25,000 - $49,999",Associate or bachelor degree,66206
+3122811292.0,The sunniest state in America,Some,No,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,Female,> 60,"$25,000 - $49,999",Some college,85365
+3122807239.0,midatlantic,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Associate or bachelor degree,19403
+3122800047.0,south florida,Not at all,Yes,No,No,No,Yes,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Some college,33461
+3122795770.0,The upper south,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,Yes,No,No,No,No,Female,45-60,"$150,000+",Some college,40509
+3122794806.0,midwest,A lot,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,Yes,Male,45-60,"$50,000 - $99,999",Some college,80123
+3122791086.0,California,Not much,No,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,95368
+3122782224.0,South,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Some college,71913
+3122775967.0,Mid-west,Some,No,No,Yes,Yes,No,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,Female,> 60,?,Some college,68506
+3122770013.0,Midwest,A lot,Yes,Yes,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,No,Yes,No,No,No,No,Male,> 60,"$100,000 - $149,999",Graduate degree,74006
+3122769937.0,southeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Yes,No,No,Yes,Yes,Female,> 60,"$50,000 - $99,999",Graduate degree,35214
+3122765399.0,north east,Not at all,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,10024
+3122754339.0,"northeast PA. rural, on the edge of the appalachians",Not at all,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,18657
+3122752085.0,central,Not much,No,No,No,Yes,No,Yes,No,Yes,Yes,No,No,No,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Female,18-29,"$150,000+",Some college,53142
+3122748576.0,New England,A lot,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,2134
+3122748472.0,Dirty south,Some,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,38301
+3122747074.0,Mid West,Not much,No,Yes,No,Yes,No,No,Yes,Yes,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,62056
+3122743350.0,America,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,Male,30-44,"$150,000+",Graduate degree,15701
+3122732278.0,Northeast,Not at all,No,No,No,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,Yes,No,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,18020
+3122721470.0,midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Some college,48114
+3122701960.0,Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Associate or bachelor degree,48098
+3122698630.0,tri-state,Not much,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,Yes,Female,> 60,"$0 - $24,999",High school degree,17202
+3122695995.0,South,A lot,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Associate or bachelor degree,32708
+3122689198.0,"Small, rugged, and to find entertainment you have to leave travel a bit.",Not at all,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",High school degree,15642
+3122688202.0,Midwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,No,Yes,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,44130
+3122684995.0,South florida,Not much,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,33064
+3122683249.0,I guess Midwest.  Cant really think of any other name.,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,?,?,60131
+3122661988.0,Southeast,Not much,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,33411
+3122658483.0,Northeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$25,000 - $49,999",Some college,16686
+3122650189.0,Mid-Atlantic region,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,19031
+3122649584.0,DORMONT,Some,No,No,No,Yes,No,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$50,000 - $99,999",Some college,15216
+3122648943.0,South,Some,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Some college,73401
+3122642603.0,central part of US,Some,No,Yes,No,No,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,Yes,Female,45-60,"$25,000 - $49,999",Some college,78028
+3122640043.0,midwest,A lot,No,No,Yes,Yes,No,No,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",High school degree,51401
+3122628272.0,God's Country,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,30-44,"$50,000 - $99,999",Graduate degree,27545
+3122621313.0,The Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Associate or bachelor degree,60056
+3122617179.0,Mid Atlantic,Some,Yes,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Male,> 60,"$150,000+",Associate or bachelor degree,21146
+3122612108.0,Upper midwest,Some,Yes,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Some college,55110
+3122609538.0,Upper Midwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$100,000 - $149,999",Graduate degree,55117
+3122607164.0,Landlocked,Not at all,Yes,No,No,No,Yes,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Associate or bachelor degree,63017
+3122569900.0,North Central,Not much,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,Male,> 60,?,?,49770
+3122565322.0,Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,53711
+3122564733.0,MidWest,Some,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Some college,49316
+3122562147.0,"Southern Mid-West, The ""Bible Belt,"" Oklahoma",Some,No,No,No,Yes,No,No,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,74120
+3122558219.0,"I live in the east coast part of NJ Somerset County, Franklin Township. I have lived here for 14 years",Not much,No,No,Yes,Yes,No,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,Yes,No,Female,45-60,"$0 - $24,999",Some college,8823
+3122557204.0,Midwest,A lot,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,No,No,No,No,Male,> 60,"$100,000 - $149,999",Associate or bachelor degree,45014
+3122549044.0,desert west,Not at all,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,Yes,Male,30-44,"$25,000 - $49,999",Some college,85301
+3122546650.0,Northeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,19063
+3122545722.0,Western USA,Not at all,No,No,Yes,Yes,No,Yes,Yes,No,No,No,No,Yes,Yes,No,No,No,No,No,Yes,Yes,Female,45-60,?,Some college,95370
+3122544515.0,Midwest,Some,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Female,30-44,"$25,000 - $49,999",Some college,65802
+3122541954.0,North east. New England,Not at all,Yes,No,No,Yes,No,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,Yes,No,Yes,Male,30-44,"$25,000 - $49,999",Some college,1844
+3122538575.0,midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Graduate degree,60048
+3122533816.0,Mountain/central/west,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,80211
+3122532858.0,Pacific Northwest,Not at all,Yes,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Male,18-29,"$100,000 - $149,999",Some college,98248
+3122530018.0,Gods country,A lot,No,No,No,No,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Female,45-60,"$50,000 - $99,999",High school degree,59453
+3122527470.0,Midwest,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,53184
+3122522288.0,the north east,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,10803
+3122520515.0,South,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,Female,45-60,?,?,27406
+3122519172.0,The midwest,Some,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$0 - $24,999",Some college,60803
+3122516224.0,Southeast,A lot,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,Male,45-60,?,?,30041
+3122509754.0,The Midwest,Not much,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Graduate degree,61614
+3122506527.0,midwest,A lot,Yes,No,Yes,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Some college,60099
+3122493776.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$25,000 - $49,999",Associate or bachelor degree,48341
+3122491682.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$100,000 - $149,999",Associate or bachelor degree,53144
+3122491110.0,Midwest,Some,Yes,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,Yes,No,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,65804
+3122480924.0,Mid-Atlantic,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Some college,7076
+3122478526.0,southwest,Some,No,No,No,No,No,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,Yes,No,Male,45-60,"$25,000 - $49,999",Some college,87120
+3122476280.0,rural northeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,17815
+3122476029.0,Hickville USA,A lot,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Female,18-29,"$0 - $24,999",Some college,49880
+3122474247.0,Midwest,Some,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,49504
+3122467578.0,middle of the north east,Some,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Some college,44130
+3122467373.0,Rocky Mountain,Not at all,No,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,18-29,"$150,000+",Some college,80525
+3122464327.0,Midwest,A lot,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Graduate degree,55303
+3122438699.0,ne,Not at all,No,No,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$0 - $24,999",Some college,11414
+3122433484.0,Mid West.,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,54403
+3122433056.0,West,A lot,Yes,No,Yes,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,81131
+3122431503.0,Northeast,Not at all,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Associate or bachelor degree,8831
+3122430626.0,busy & popular,Not at all,No,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,Yes,Male,> 60,"$25,000 - $49,999",Some college,33319
+3122430179.0,Upper mid-west region of the united States,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,Male,> 60,"$150,000+",Graduate degree,15044
+3122429686.0,South,Some,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,29615
+3122421524.0,Midwest,A lot,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,Yes,No,No,Yes,No,No,Female,18-29,"$150,000+",Graduate degree,45231
+3122413782.0,The Upper Plains,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,Yes,Yes,Male,> 60,"$50,000 - $99,999",Graduate degree,57104
+3122411792.0,midwest,A lot,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Some college,55102
+3122400683.0,The Northeast,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Male,18-29,"$0 - $24,999",Graduate degree,2130
+3122397759.0,The Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Some college,60050
+3122397563.0,Heart of America,Some,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",High school degree,64163
+3122386472.0,Midwest,A lot,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Female,45-60,?,Associate or bachelor degree,45011
+3122385504.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Some college,49058
+3122384772.0,Mid-South,Some,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,No,Yes,No,No,Yes,No,Female,45-60,"$150,000+",Some college,38016
+3122383079.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Associate or bachelor degree,53081
+3122377984.0,Northeast shore,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,Yes,No,Female,45-60,?,Some college,21740
+3122377279.0,South Florida,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Some college,33473
+3122376924.0,midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Associate or bachelor degree,47220
+3122364019.0,West,Some,No,No,No,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Graduate degree,80003
+3122359709.0,Midwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,Male,30-44,"$150,000+",Some college,53204
+3122359404.0,Great Lakes,Not much,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,Male,30-44,"$50,000 - $99,999",Associate or bachelor degree,53212
+3122356949.0,West,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$150,000+",Associate or bachelor degree,91739
+3122352517.0,Mid west,A lot,Yes,Yes,Yes,No,No,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Some college,60030
+3122351707.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,45-60,"$0 - $24,999",High school degree,46013
+3122350341.0,Mid south,Some,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Male,> 60,"$0 - $24,999",Some college,74743
+3122343834.0,mid south,Not much,No,No,No,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$25,000 - $49,999",Some college,28792
+3122343765.0,Common sense people who live in reality and not fantasy!,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Male,45-60,"$100,000 - $149,999",Associate or bachelor degree,43055
+3122338558.0,western Kentucky,Some,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,45-60,?,Graduate degree,42071
+3122326019.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Some college,2912
+3122323631.0,northeast,A lot,Yes,Yes,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Female,45-60,"$50,000 - $99,999",Graduate degree,19352
+3122309966.0,Northeast,Not at all,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,Male,45-60,"$50,000 - $99,999",Associate or bachelor degree,10463
+3122304518.0,usa,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,60586
+3122302346.0,Northeast,Not much,Yes,Yes,No,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,Yes,No,No,No,Yes,Male,45-60,"$50,000 - $99,999",Some college,16341
+3122300687.0,The northeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,No,Yes,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,8809
+3122293741.0,West Coast,Not at all,No,No,Yes,No,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Male,45-60,?,?,93454
+3122282771.0,North East,Not at all,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,No,No,No,Yes,No,Female,> 60,"$150,000+",Graduate degree,7676
+3122273318.0,Northeast,Not at all,Yes,Yes,No,No,No,Yes,No,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,Female,45-60,"$150,000+",Graduate degree,6877
+3122273039.0,West,Not at all,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,80634
+3122269359.0,"Midwest America, Indiana, USA,",A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Some college,47403
+3122268989.0,Midwest,Some,No,No,Yes,No,No,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$150,000+",Less than high school degree,55104
+3122263271.0,I live in the Rocky Mountain region.,Some,Yes,Yes,Yes,Yes,No,No,No,Yes,No,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,30-44,"$100,000 - $149,999",Graduate degree,80003
+3122261544.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Graduate degree,69565
+3122259149.0,Northeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,7601
+3122257448.0,Northwest,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$50,000 - $99,999",Graduate degree,83709
+3122252259.0,West,Not much,No,No,Yes,Yes,No,No,No,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,Yes,Female,18-29,"$0 - $24,999",Some college,84601
+3122248488.0,Northeast,Not at all,No,No,No,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,> 60,"$150,000+",Associate or bachelor degree,4915
+3122241174.0,"NorthEast, New England",Not at all,Yes,Yes,No,Yes,No,Yes,Yes,No,No,Yes,No,Yes,No,Yes,No,Yes,No,No,No,No,Male,> 60,"$150,000+",Associate or bachelor degree,2360
+3122238056.0,south central Virginia,Not at all,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,> 60,"$50,000 - $99,999",High school degree,23841
+3122235189.0,Middle America,Not much,Yes,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Some college,48625
+3122234543.0,Midwest - Northeast Ohio,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$0 - $24,999",High school degree,44107
+3122205694.0,midwest,Not much,Yes,Yes,No,Yes,No,No,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Associate or bachelor degree,62454
+3122200993.0,northeastern,Some,No,No,Yes,No,No,No,No,Yes,No,No,No,Yes,Yes,Yes,Yes,Yes,No,No,No,No,Female,45-60,"$25,000 - $49,999",Some college,19020
+3122187629.0,Midwest,Not at all,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,Yes,No,No,No,Yes,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,63101
+3122170681.0,suburbs,Not at all,No,Yes,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,Yes,No,Female,> 60,"$25,000 - $49,999",Graduate degree,19395
+3122168810.0,midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Male,> 60,"$25,000 - $49,999",Some college,48135
+3122152103.0,Pacific Northwest,Not much,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Female,18-29,"$150,000+",Some college,97140
+3122150236.0,northeast,A lot,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$0 - $24,999",Graduate degree,44405
+3122142922.0,west coast,Not much,No,No,Yes,Yes,No,No,No,Yes,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,Female,45-60,"$150,000+",Some college,92708
+3122133054.0,west,Not much,Yes,Yes,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$100,000 - $149,999",Associate or bachelor degree,91406
+3122129436.0,"Rural, city like",Not much,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$0 - $24,999",Some college,60115
+3122123806.0,east coast,Not at all,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,Yes,No,Yes,Yes,No,No,No,No,Female,45-60,"$100,000 - $149,999",Associate or bachelor degree,19038
+3122116749.0,the midwest,A lot,Yes,No,Yes,No,Yes,No,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Some college,55431
+3122115399.0,midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Associate or bachelor degree,55901
+3122102409.0,west coast,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,Yes,Male,30-44,"$25,000 - $49,999",Associate or bachelor degree,90020
+3122100270.0,Southwest,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$100,000 - $149,999",Graduate degree,80021
+3122089795.0,midwest,A lot,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Female,18-29,"$0 - $24,999",Graduate degree,68502
+3122089166.0,boring,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,Female,18-29,"$0 - $24,999",Graduate degree,43202
+3122071243.0,midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,45806
+3122064472.0,northeast,Some,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,No,No,No,No,No,Female,45-60,"$150,000+",Associate or bachelor degree,1463
+3122050569.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Graduate degree,60620
+3122041812.0,WA,Not at all,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,Male,45-60,"$150,000+",Associate or bachelor degree,98040
+3122034596.0,Southeast,Not much,Yes,No,No,No,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,32792
+3122032749.0,Midwest,Some,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,Male,45-60,"$150,000+",Some college,47715
+3122016516.0,Central Illinois (the Midwest),A lot,Yes,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,> 60,"$100,000 - $149,999",Associate or bachelor degree,61720
+3121996835.0,Western United States,Some,No,No,No,No,No,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,59701
+3121978111.0,South Central U.S.,Some,No,No,No,Yes,No,No,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,Yes,Yes,Male,> 60,"$25,000 - $49,999",Some college,75043
+3121958971.0,Northern California,Not at all,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,Yes,Male,45-60,?,Associate or bachelor degree,95219
+3121940973.0,NEW YORK,Not at all,No,Yes,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,No,No,Female,18-29,"$150,000+",Some college,13902
+3121933872.0,Mid-Atlantic,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,20009
+3121925404.0,The midwest,A lot,Yes,No,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$50,000 - $99,999",Some college,49505
+3121923813.0,The Midwest,A lot,Yes,Yes,No,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$150,000+",Graduate degree,46235
+3121916057.0,Rivirvue,Not much,Yes,No,Yes,No,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$0 - $24,999",Associate or bachelor degree,60637
+3121910376.0,California,Not at all,Yes,Yes,No,No,Yes,Yes,No,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$25,000 - $49,999",Associate or bachelor degree,94949
+3121902777.0,mid west,Some,No,No,Yes,No,No,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,Yes,Male,45-60,"$25,000 - $49,999",Some college,57401
+3121899027.0,The Pacific Northwest,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,97520
+3121895521.0,South,Not at all,Yes,Yes,No,No,No,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Some college,32963
+3121889795.0,Mountain town,A lot,Yes,No,Yes,No,Yes,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$0 - $24,999",Associate or bachelor degree,80482
+3121885924.0,Midwest,Some,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,30-44,"$150,000+",Associate or bachelor degree,50255
+3121885519.0,North America,Not much,No,No,No,No,No,No,No,No,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Female,> 60,"$25,000 - $49,999",Some college,30506
+3121880478.0,Golden State. The best in the Country.,Not at all,No,Yes,No,Yes,Yes,Yes,No,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,Female,> 60,"$100,000 - $149,999",Graduate degree,94044
+3121861653.0,"East, great lakes area of the US",Not at all,No,Yes,No,Yes,No,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Some college,14094
+3121858400.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$100,000 - $149,999",Graduate degree,49224
+3121853379.0,Pacific Northwest,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,99114
+3121842768.0,West,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,No,No,Yes,Female,30-44,"$150,000+",Associate or bachelor degree,94588
+3121838879.0,West,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,Yes,Female,30-44,"$100,000 - $149,999",Some college,94550
+3121812478.0,MIdwest,Some,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,No,Male,30-44,"$0 - $24,999",Associate or bachelor degree,47330
+3121799943.0,Mid-Atlantic,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$25,000 - $49,999",Some college,24572
+3121798446.0,Mid west or Central Western States,A lot,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,Yes,Male,> 60,"$50,000 - $99,999",Graduate degree,74801
+3121756828.0,central us,Some,No,No,No,Yes,No,No,Yes,Yes,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,67543
+3121755646.0,The Midwest,Not much,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,60563
+3121755352.0,west coast,Not at all,No,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,Female,30-44,"$150,000+",Associate or bachelor degree,92026
+3121746410.0,The Midwest,Not at all,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,No,Female,45-60,"$150,000+",Some college,57103
+3121736844.0,midwest,A lot,Yes,No,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,Yes,Yes,Male,45-60,"$100,000 - $149,999",Graduate degree,68045
+3121735557.0,Midwest,Some,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,Yes,No,Yes,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,67211
+3121714884.0,Midwest,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Associate or bachelor degree,60177
+3121701863.0,The upper Midwest,A lot,No,Yes,Yes,No,Yes,Yes,No,No,Yes,No,Yes,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$50,000 - $99,999",Some college,55120
+3121685839.0,Mid South,Some,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Some college,41169
+3121674186.0,Southwest Florida,A lot,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,Female,45-60,"$100,000 - $149,999",Graduate degree,33913
+3121660054.0,Northeast,Not at all,Yes,No,Yes,No,No,No,No,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,Yes,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,8550
+3121658912.0,The midwest,A lot,Yes,Yes,No,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,53190
+3121658884.0,The Northeast,Not at all,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,Female,30-44,"$25,000 - $49,999",Associate or bachelor degree,13135
+3121652196.0,East,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Male,18-29,"$50,000 - $99,999",Associate or bachelor degree,17110
+3121641409.0,Mid-Atlantic,Not much,Yes,Yes,Yes,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$25,000 - $49,999",Graduate degree,17046
+3121633705.0,northwest,Some,No,No,No,No,No,No,No,No,Yes,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Male,> 60,"$25,000 - $49,999",Associate or bachelor degree,59860
+3121619349.0,midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,Male,> 60,"$100,000 - $149,999",Associate or bachelor degree,65079
+3121595633.0,Western United States,Not at all,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,No,Yes,Yes,No,No,Yes,No,No,No,No,Female,> 60,"$100,000 - $149,999",Graduate degree,92253
+3121591707.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$100,000 - $149,999",Associate or bachelor degree,63017
+3121580945.0,Deep South,Not at all,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,Yes,No,Yes,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,36067
+3121568810.0,Midwest,A lot,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,> 60,"$150,000+",Graduate degree,46260
+3121559430.0,Southeast,Some,Yes,Yes,Yes,No,No,No,Yes,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,> 60,"$50,000 - $99,999",Graduate degree,29664
+3121550892.0,South Central. Country,Some,No,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Female,18-29,"$150,000+",Associate or bachelor degree,76365
+3121543625.0,rocky mountains,Not at all,Yes,Yes,No,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Graduate degree,80223
+3121538922.0,The southeast,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Male,30-44,"$25,000 - $49,999",Associate or bachelor degree,32607
+3121537456.0,East Coast,Not at all,Yes,No,No,Yes,Yes,Yes,No,Yes,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$100,000 - $149,999",Some college,19148
+3121509430.0,South,Not at all,No,No,No,Yes,No,No,No,Yes,No,No,No,No,No,No,Yes,Yes,No,No,No,No,Male,18-29,"$150,000+",High school degree,29642
+3121501303.0,South,Not at all,Yes,Yes,Yes,No,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$150,000+",Associate or bachelor degree,37215
+3121484268.0,mid west,Some,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Male,45-60,"$50,000 - $99,999",Some college,48103
+3121454852.0,New England,Not at all,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,Yes,No,Yes,Yes,No,No,No,No,Female,45-60,"$100,000 - $149,999",Graduate degree,3060
+3121424918.0,midwest,A lot,Yes,Yes,No,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,No,Female,> 60,"$50,000 - $99,999",Some college,63366
+3121302998.0,south,Not at all,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,No,No,No,No,No,Female,45-60,"$100,000 - $149,999",Associate or bachelor degree,28227
+3121246768.0,United States,Not at all,No,No,No,Yes,No,No,No,No,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,30188
+3121225269.0,east north central,Some,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$25,000 - $49,999",Some college,49024
+3121104700.0,midwest...northern midwest...i live in northern michigan,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,Yes,No,Female,18-29,"$0 - $24,999",Some college,48703
+3120996178.0,average,Not at all,No,No,No,Yes,No,No,No,Yes,Yes,No,Yes,No,No,Yes,No,Yes,No,No,Yes,Yes,Female,18-29,"$25,000 - $49,999",High school degree,15469
+3120966719.0,Pacific Northwest,Not at all,Yes,Yes,Yes,Yes,No,No,No,No,No,Yes,No,No,No,No,Yes,Yes,No,Yes,No,No,Female,18-29,"$150,000+",Some college,97211
+3120947753.0,Texas,Not at all,Yes,No,No,Yes,No,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Associate or bachelor degree,78749
+3120929335.0,Midwest,Some,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$100,000 - $149,999",High school degree,53142
+3120925600.0,South Cental,Some,No,No,Yes,Yes,No,No,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,Yes,Male,> 60,"$25,000 - $49,999",Some college,77099
+3120924055.0,Northern California,Not at all,Yes,Yes,No,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,Yes,No,No,No,Female,> 60,"$50,000 - $99,999",Associate or bachelor degree,94609
+3120917537.0,A decent place to live in.,Not much,Yes,No,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,No,Male,18-29,"$150,000+",Some college,60629
+3120914725.0,Eastern Pacific Northwest,Not much,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,30-44,"$25,000 - $49,999",Some college,59801
+3120913680.0,Pacific Northwest,Not at all,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,No,No,No,No,No,No,Yes,Yes,Female,45-60,"$150,000+",Some college,98290
+3120896148.0,New England,Not at all,No,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,Yes,No,Yes,No,No,Yes,No,Female,18-29,"$50,000 - $99,999",Some college,2721
+3120890315.0,Southeastern,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,Yes,Yes,Female,30-44,"$150,000+",Some college,31201
+3120880172.0,Southwest,Not much,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,Yes,No,No,No,Female,45-60,?,Associate or bachelor degree,80236
+3120877926.0,Midwest,A lot,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Associate or bachelor degree,49301
+3120869299.0,Central US,Some,Yes,Yes,Yes,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Graduate degree,68130
+3120859740.0,South eastern,Not at all,No,No,No,No,No,No,No,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,Female,> 60,"$25,000 - $49,999",High school degree,29061
+3120856144.0,Southwest,Not much,Yes,No,No,Yes,No,No,No,No,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Female,> 60,"$150,000+",High school degree,8739
+3120855225.0,Midwest,A lot,Yes,Yes,No,Yes,Yes,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,18-29,"$25,000 - $49,999",Some college,46528
+3120844083.0,small quaint town,A lot,Yes,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,No,No,No,No,Yes,Female,> 60,"$150,000+",High school degree,60098
+3120840117.0,Midwest,A lot,No,No,No,Yes,No,No,Yes,Yes,No,No,No,No,No,Yes,No,Yes,No,No,No,No,Female,18-29,"$150,000+",Associate or bachelor degree,67530
+3120827786.0,midwest,A lot,Yes,Yes,Yes,No,No,No,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$50,000 - $99,999",Associate or bachelor degree,50315
+3120821942.0,"a state, Colorado",A lot,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,18-29,"$150,000+",Some college,60558
+3120820850.0,Northwest,Not at all,Yes,No,Yes,Yes,No,No,Yes,Yes,No,No,Yes,No,Yes,No,Yes,Yes,No,No,No,Yes,Female,18-29,"$50,000 - $99,999",Associate or bachelor degree,95501
+3120814011.0,Midwest,Some,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,> 60,"$100,000 - $149,999",Graduate degree,60516
+3120809370.0,Midwest. The Heartland.,A lot,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Female,45-60,"$25,000 - $49,999",Some college,66062
+3120808549.0,Texas,Some,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,> 60,"$50,000 - $99,999",Associate or bachelor degree,77073
+3120807896.0,midwest,Some,No,No,Yes,Yes,No,No,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Female,> 60,"$150,000+",Some college,66111
+3120786297.0,West coast,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,92359
+3120775254.0,City,Some,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Female,18-29,"$25,000 - $49,999",Some college,76010
+3120775126.0,southwest,Not at all,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,No,No,Female,> 60,"$50,000 - $99,999",Some college,77372
+3120772070.0,South,Not at all,Yes,Yes,No,No,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,No,Female,30-44,"$150,000+",Graduate degree,29710
+3120768002.0,california,Not at all,No,No,No,Yes,No,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,Yes,Yes,Female,> 60,"$150,000+",Some college,94553
+3120765702.0,Pacific Northwest,Not at all,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,30-44,"$100,000 - $149,999",Associate or bachelor degree,98107
+3120765407.0,Southwest pennsylvania,Not at all,No,No,Yes,Yes,No,Yes,Yes,Yes,Yes,No,Yes,No,Yes,Yes,No,Yes,No,No,No,Yes,Male,30-44,?,Some college,15236
+3120763382.0,High desert pacific new united syates,Not much,No,No,No,Yes,No,Yes,Yes,Yes,Yes,No,Yes,Yes,No,Yes,No,No,No,No,No,Yes,Female,> 60,"$100,000 - $149,999",Graduate degree,99336
+3120756019.0,rural southeast,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,No,No,No,Yes,No,No,No,No,Male,> 60,"$25,000 - $49,999",Associate or bachelor degree,32536
+3120750929.0,Midwest,Some,Yes,Yes,No,No,Yes,No,No,No,No,Yes,No,No,Yes,No,Yes,No,No,No,No,No,Female,18-29,"$100,000 - $149,999",Some college,47906
+3120742187.0,North,Some,No,No,No,No,No,No,No,No,No,No,Yes,No,No,Yes,No,No,No,No,Yes,Yes,Female,45-60,"$25,000 - $49,999",Graduate degree,56301
+3120737754.0,Ohio.,Not much,No,No,Yes,No,No,No,Yes,No,Yes,No,No,Yes,No,Yes,No,No,No,No,Yes,Yes,Female,30-44,"$0 - $24,999",Associate or bachelor degree,45385
+3120735268.0,South,A lot,Yes,Yes,Yes,No,Yes,Yes,Yes,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$25,000 - $49,999",Some college,35209
+3120731500.0,Colorado,Not at all,No,No,Yes,Yes,No,No,No,Yes,No,No,Yes,No,No,No,No,No,No,No,No,No,Female,30-44,"$50,000 - $99,999",Graduate degree,80018
+3120720567.0,South Chicago suburbs,A lot,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,Yes,Yes,Yes,No,No,Yes,No,No,No,No,Male,18-29,"$150,000+",Some college,60430
+3120715507.0,Mid atlantic,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,No,No,No,No,No,No,No,Yes,No,No,No,No,Female,45-60,"$150,000+",Associate or bachelor degree,22801
+3120698852.0,Rocky Mountains,Not at all,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,No,Yes,Yes,No,No,No,No,Female,18-29,"$50,000 - $99,999",Graduate degree,80112
+3120696074.0,midwest,A lot,Yes,Yes,No,No,Yes,Yes,No,No,No,Yes,No,Yes,No,No,No,No,No,No,No,No,Female,45-60,"$150,000+",Graduate degree,48140
+3120693728.0,midwest,A lot,Yes,No,Yes,Yes,No,No,Yes,Yes,No,Yes,No,Yes,Yes,Yes,No,No,No,No,No,Yes,Female,18-29,"$50,000 - $99,999",Some college,65201
+3120685786.0,COLD,Not much,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Male,18-29,"$0 - $24,999",Associate or bachelor degree,60115
+3120663887.0,northeast,Not at all,Yes,Yes,Yes,Yes,No,No,Yes,Yes,Yes,Yes,Yes,Yes,No,Yes,No,Yes,No,No,Yes,Yes,Female,45-60,"$100,000 - $149,999",Graduate degree,10308

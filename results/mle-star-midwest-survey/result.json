@@ -1,0 +1,25 @@
+{
+  "method": "mlestar",
+  "task": "midwest-survey",
+  "model": "deepseek-v4-flash",
+  "time_budget_s": 300,
+  "web_search": true,
+  "relational": true,
+  "status": "ok",
+  "abort_reason": null,
+  "wall_clock_s": 0.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 29900
+  },
+  "tokens_by_agent": {},
+  "holdout": {
+    "scorer": "accuracy",
+    "score": 0.23809523809523808
+  },
+  "reused_spec": false,
+  "budget": null,
+  "leaderboard": null
+}

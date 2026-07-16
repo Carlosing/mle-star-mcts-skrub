@@ -1,15 +1,19 @@
 from machine_learning_engineering import client, MODEL_NAME
 
-print(f"Sending a 'Ping' to the model: {MODEL_NAME} on SAIA...")
+print(f"Sending a 'Ping' to the model: {MODEL_NAME}")
 
 try:
     response = client.chat.completions.create(
         model=MODEL_NAME,
-        messages=[{"role": "user", "content": "Respond only with the phrase: 'Connection successful'."}],
+        messages=[
+            {
+                "role": "user",
+                "content": "Respond only with the phrase: 'Connection successful'.",
+            }
+        ],
         max_tokens=10,
-        temperature=0.1
+        temperature=0.1,
     )
-    
     # Print the server's response
     print("\n✅ AGENT RESPONSE:")
     print(response.choices[0].message.content)

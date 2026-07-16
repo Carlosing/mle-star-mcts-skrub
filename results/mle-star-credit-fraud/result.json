@@ -1,0 +1,25 @@
+{
+  "method": "mlestar",
+  "task": "credit-fraud",
+  "model": "deepseek-v4-flash",
+  "time_budget_s": 300,
+  "web_search": true,
+  "relational": true,
+  "status": "ok",
+  "abort_reason": null,
+  "wall_clock_s": 0.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 31018
+  },
+  "tokens_by_agent": {},
+  "holdout": {
+    "scorer": "roc_auc",
+    "score": 0.5
+  },
+  "reused_spec": false,
+  "budget": null,
+  "leaderboard": null
+}

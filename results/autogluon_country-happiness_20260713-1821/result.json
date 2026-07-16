@@ -1,0 +1,21 @@
+{
+  "method": "autogluon",
+  "task": "country-happiness",
+  "task_type": "regression",
+  "metric": "root_mean_squared_error",
+  "target": "happiness_score",
+  "time_budget_s": 3600.0,
+  "llm_calls": 0,
+  "tokens": {
+    "prompt": 0,
+    "completion": 0,
+    "total": 0
+  },
+  "tokens_by_agent": {},
+  "relational": false,
+  "presets": "best_quality",
+  "status": "failed",
+  "error": "AssertionError('Learner is already fit.')",
+  "wall_clock_s": 13.8,
+  "holdout": null
+}

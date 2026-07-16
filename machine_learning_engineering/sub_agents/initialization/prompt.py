@@ -14,16 +14,24 @@ SUMMARIZATION_AGENT_INSTR = """# Task description
 MODEL_RETRIEVAL_INSTR = """# Competition
 {task_summary}
 
+# Recent web search results
+{web_search_results}
+
 # Your task
-- List {num_model_candidates} recent effective models and their example codes to win the above competition.
+- Propose {num_model_candidates} simple and effective machine learning models for the above competition.
+- Use the recent web search results above to inform your proposals.
+- For California housing prices (a tabular regression task), prefer scikit-learn models such as RandomForestRegressor, GradientBoostingRegressor, or a simple neural network with scikit-learn's MLPRegressor.
+- Avoid PyTorch unless strictly necessary; scikit-learn is preferred for this task.
 
 # Requirement
+- Provide the model name and a short, self-contained Python code snippet showing how to train it on a train/validation split.
 - The example code should be concise and simple.
-- You must provide an example code, i.e., do not just mention GitHubs or papers.
 
-Use this JSON schema:
-Model = {{'model_name': str, 'example_code': str}}
-Return: list[Model]"""
+Use this exact JSON format (and nothing else):
+[
+  {{"model_name": "Name of the model", "example_code": "from sklearn...\nmodel = ..."}}
+]
+"""
 
 
 MODEL_EVAL_INSTR = """# Introduction
@@ -41,12 +49,14 @@ MODEL_EVAL_INSTR = """# Introduction
 - Implement the solution in Python.
 - You must use the model as described in the model description.
 - This first solution design should be relatively simple, without ensembling or hyper-parameter optimization.
-- Propose an evaluation metric that is reasonable for this task.
+- Propose an evaluation metric that is reasonable for this task (e.g., RMSE for regression).
 - All the provided data is already prepared and available in the `./input` directory. There is no need to unzip any files.
 - Do not include other models that are not directly related to the model described.
-- Use PyTorch rather than TensorFlow. Use CUDA if you need. All the necessary libraries are installed.
+- Prefer scikit-learn for this tabular task. PyTorch is allowed only if the model description explicitly requires it.
+- If you use scikit-learn >= 1.7, use `sklearn.metrics.root_mean_squared_error` to compute RMSE. Do NOT pass `squared=False` to `mean_squared_error`.
 - The code should implement the proposed solution and print the value of the evaluation metric computed on a hold-out validation set.
-- Only use the provided train data in the `./input` directory.
+- Only use the provided train data in the `./input` directory for training and validation. Do NOT use test.csv for computing the validation score.
+- For California Housing: the train.csv has an ID column first, then 8 feature columns, then the target column `median_house_value`. Use `train_test_split` from sklearn on train.csv to create train and validation sets.
 
 # Required
 - There should be no additional headings or text in your response.
@@ -108,7 +118,7 @@ CODE_INTEGRATION_INSTR = """# Introduction
 - When integrating, ensemble the models.
 - The solution design should be relatively simple.
 - The code should implement the proposed solution and print the value of the evaluation metric computed on a hold-out validation set.
-- Only use the provided train data in the `./input` directory.
+- Only use the provided train data in the `./input` directory. Do NOT load test.csv.
 
 # Required
 - There should be no additional headings or text in your response.
@@ -128,10 +138,11 @@ CHECK_DATA_USE_INSTR = """I have provided Python code for a machine learning tas
 {task_description}
 
 # Your task
-If the above solution code does not use the information provided, try to incorporate all. Do not bypass using try-except.
+If the above solution code does not use the information provided, try to incorporate all PROVIDED information. Do not bypass using try-except.
 DO NOT USE TRY and EXCEPT; just occur error so we can debug it!
 See the task description carefully, to know how to extract unused information effectively.
 When improving the solution code by incorporating unused information, DO NOT FORGET to print out 'Final Validation Performance: {{final_validation_score}}' as in original solution code.
+- Only use columns that actually exist in the provided train.csv and test.csv files. Do NOT invent columns such as 'ocean_proximity' if they are not present.
 
 Response format:
 Option 1: If the code did not use all the provided information, your response should be a single markdown code block (wrapped in ```) which is the improved code block. There should be no additional headings or text in your response.

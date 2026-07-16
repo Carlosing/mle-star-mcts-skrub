@@ -1,0 +1,104 @@
+"""Metric configuration — kept separate from the search engine on purpose.
+
+Two distinct roles (see docs/mcts-uct.md for why they must not be conflated):
+
+1. SEARCH-REWARD scorer — drives MCTS rollouts. Must be ONE consistent,
+   bounded, higher-is-better metric across every config in the tree, or the Q/N
+   values UCT compares become meaningless. Bounded (~[0,1]) also keeps rewards
+   on the same scale as the exploration term (c=0.5). `r2` is bounded above but
+   NOT below, so `skrub_ops._bounded_reward` squashes it order-preservingly
+   onto (0,1] before backprop; the scorer names below stay the raw CV metric.
+
+2. TASK/REPORT metric — the competition metric (e.g. RMSE). Used only to score
+   the final incumbent for reporting, never for search. Lower-is-better is fine;
+   sklearn orients it (RMSE -> neg_root_mean_squared_error).
+
+A model's internal training loss (e.g. a NN criterion) is a THIRD thing — a
+searchable hyperparameter of the model, not a CV scorer — so it lives in the
+model registry/spec, evaluated by the single search scorer above.
+"""
+
+# Role 1 — the MCTS search reward, per task type (bounded, higher-is-better).
+SEARCH_SCORER = {
+    "regression": "r2",
+    "classification": "accuracy",
+}
+
+# Role 2 — task/report metric name -> sklearn scorer (higher-is-better form).
+_REPORT_SCORER = {
+    "root_mean_squared_error": "neg_root_mean_squared_error",
+    "rmse": "neg_root_mean_squared_error",
+    "mean_squared_error": "neg_mean_squared_error",
+    "mse": "neg_mean_squared_error",
+    "mean_absolute_error": "neg_mean_absolute_error",
+    "mae": "neg_mean_absolute_error",
+    "r2": "r2",
+    "accuracy": "accuracy",
+    "roc_auc": "roc_auc",
+    "log_loss": "neg_log_loss",
+    "f1": "f1",
+}
+
+
+# Report metrics that are ALSO valid search rewards (bounded ~[0,1],
+# higher-is-better). RMSE etc. stay report-only: unbounded rewards break UCT.
+_BOUNDED_SCORERS = {"roc_auc", "accuracy", "f1", "r2"}
+
+
+def search_scorer(task_type: str, metric_name: str | None = None) -> str:
+    """The MCTS reward scorer for a task type (raises on unknown task type).
+
+    If the task's own metric is already a bounded, higher-is-better scorer
+    (e.g. roc_auc), search on it directly — this matters for imbalanced
+    classification, where accuracy cannot separate configurations.
+
+    Example:
+        search_scorer("classification")             # -> "accuracy"
+        search_scorer("classification", "roc_auc")  # -> "roc_auc"
+        search_scorer("regression", "rmse")         # -> "r2"  (rmse is unbounded)
+    """
+    reported = report_scorer(metric_name) if metric_name else None
+    if reported in _BOUNDED_SCORERS:
+        return reported
+    try:
+        return SEARCH_SCORER[task_type]
+    except KeyError:
+        raise ValueError(
+            f"no search scorer configured for task_type={task_type!r}"
+        )
+
+
+def report_scorer(metric_name: str) -> str | None:
+    """sklearn scorer for the competition metric, or None if unrecognized."""
+    return _REPORT_SCORER.get((metric_name or "").strip().lower())
+
+
+# Metrics that only make sense for one task type. `r2` and `accuracy` are
+# unambiguous; `roc_auc`/`f1`/`log_loss` are classification-only; the error
+# metrics are regression-only. Used to overrule the row-count heuristic in
+# `data_summary.infer_task_type` (a 10-value half-star rating column is a
+# regression target, whatever its cardinality says).
+_METRIC_TASK_TYPE = {
+    "root_mean_squared_error": "regression",
+    "rmse": "regression",
+    "mean_squared_error": "regression",
+    "mse": "regression",
+    "mean_absolute_error": "regression",
+    "mae": "regression",
+    "r2": "regression",
+    "accuracy": "classification",
+    "roc_auc": "classification",
+    "log_loss": "classification",
+    "f1": "classification",
+}
+
+
+def metric_task_type(metric_name: str | None) -> str | None:
+    """The task type a metric implies, or None when it doesn't imply one.
+
+    Example:
+        metric_task_type("rmse")      # -> "regression"
+        metric_task_type("roc_auc")   # -> "classification"
+        metric_task_type("bogus")     # -> None
+    """
+    return _METRIC_TASK_TYPE.get((metric_name or "").strip().lower())

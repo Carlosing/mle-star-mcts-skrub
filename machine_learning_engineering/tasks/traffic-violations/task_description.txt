@@ -1,0 +1,13 @@
+# Task
+
+Predict the violation_type.
+
+# Metric
+
+accuracy
+
+# Dataset
+
+Classification task (12001 training rows, 42 feature columns). train.csv has the features and the 'violation_type' column; test.csv has the features only.
+
+Multi-class (4 classes, heavily imbalanced tail). 40+ mixed columns: dirty free text, dates, times, lat/long, many binary Yes/No flags. The widest feature space of any staged task.

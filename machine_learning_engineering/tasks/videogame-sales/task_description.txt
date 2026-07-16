@@ -1,0 +1,13 @@
+# Task
+
+Predict the global_sales.
+
+# Metric
+
+root_mean_squared_error
+
+# Dataset
+
+Regression task (13258 training rows, 5 feature columns). train.csv has the features and the 'global_sales' column; test.csv has the features only.
+
+Regional sales columns and 'Rank' were dropped: they sum to / rank the target. What remains (title, platform, genre, publisher, year) makes this a genuinely hard, heavy-tailed regression.
