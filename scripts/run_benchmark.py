@@ -6,6 +6,10 @@ archived `result.json` for that (task, method) pair under `results/` — so
 in order, rather than a generic sweep. Tasks run sequentially; a failure on one
 task is recorded and the sequence continues.
 
+`top_k` is the exception: `result.json` does not record it, so it cannot be
+recovered per task and is fixed at `EXTENSION_TOP_K` (3, what every archived
+run used). Do not derive it from `ensemble.k` — see that constant's comment.
+
 Heads-ups baked into the configs (see also EXPERIMENTS.md):
 - **AutoGluon used the 1-hour mark on every task** (`time_budget_s=3600`,
   `presets=best_quality`, `num_cpus=1` — required on macOS-ARM, libomp).
@@ -37,9 +41,16 @@ import time
 
 # The 10 benchmark tasks, in the order the arms are run.
 TASKS = [
-    "bike-sharing", "country-happiness", "credit-fraud", "flight-delays",
-    "medical-charge", "movielens", "open-payments", "toxicity",
-    "traffic-violations", "videogame-sales",
+    "bike-sharing",
+    "country-happiness",
+    "credit-fraud",
+    "flight-delays",
+    "medical-charge",
+    "movielens",
+    "open-payments",
+    "toxicity",
+    "traffic-violations",
+    "videogame-sales",
 ]
 
 # ---------------------------------------------------------------------------
@@ -48,19 +59,29 @@ TASKS = [
 # run needed it to avoid memory overload (bike-sharing, flight-delays).
 # ---------------------------------------------------------------------------
 EXTENSION = {
-    # task: (budget, top_k, n_jobs)         source run
-    "bike-sharing":       (60, 1, 1),   # bike-sharing_20260714-0809 (n_jobs=1: memory)
-    "country-happiness":  (60, 3, 6),   # country-happiness_20260713-0014
-    "credit-fraud":       (60, 3, 6),   # credit-fraud_20260712-1806 (3 subsample seeds auto)
-    "flight-delays":      (60, 1, 1),   # flight-delays_20260714-0932 (n_jobs=1: memory)
-    "medical-charge":     (60, 2, 6),   # medical-charge_20260714-0854
-    "movielens":          (100, 3, 6),  # movielens_20260713-1224
-    "open-payments":      (100, 1, 6),  # open-payments_20260713-1300
-    "toxicity":           (100, 2, 6),  # toxicity_20260713-0041
-    "traffic-violations": (40, 3, 6),   # traffic-violations_20260712-2301
-    "videogame-sales":    (100, 1, 6),  # videogame-sales_20260713-1351
+    # task: (budget, n_jobs)            source run
+    "bike-sharing": (60, 1),  # bike-sharing_20260714-0809 (n_jobs=1: memory)
+    "country-happiness": (60, 6),  # country-happiness_20260713-0014
+    "credit-fraud": (
+        60,
+        6,
+    ),  # credit-fraud_20260712-1806 (3 subsample seeds auto)
+    "flight-delays": (60, 1),  # flight-delays_20260714-0932 (n_jobs=1: memory)
+    "medical-charge": (60, 6),  # medical-charge_20260714-0854
+    "movielens": (100, 6),  # movielens_20260713-1224
+    "open-payments": (100, 6),  # open-payments_20260713-1300
+    "toxicity": (100, 6),  # toxicity_20260713-0041
+    "traffic-violations": (40, 6),  # traffic-violations_20260712-2301
+    "videogame-sales": (100, 6),  # videogame-sales_20260713-1351
 }
-EXTENSION_N_PROPOSES = 2  # every archived run: llm_calls=4 = 2 agents + 2 proposals
+EXTENSION_N_PROPOSES = (
+    2  # every archived run: llm_calls=4 = 2 agents + 2 proposals
+)
+# Ensemble size — uniform across the archived runs. NOT recoverable from
+# `result.json` (it records no `top_k`); the `ensemble.k` stored there is how
+# many members Caruana *selected*, which collapses to 1 on a near-duplicate
+# pool, so reading it back under-configures the run.
+EXTENSION_TOP_K = 3
 
 # ---------------------------------------------------------------------------
 # AutoGluon — every archived run: the 1-hour budget, best_quality, num_cpus=1.
@@ -69,7 +90,9 @@ EXTENSION_N_PROPOSES = 2  # every archived run: llm_calls=4 = 2 agents + 2 propo
 # ---------------------------------------------------------------------------
 AUTOGLUON_TIME_BUDGET_S = 3600
 AUTOGLUON_PRESETS = "best_quality"
-AUTOGLUON_NUM_CPUS = 1  # REQUIRED on macOS-ARM (LightGBM/XGBoost libomp segfault)
+AUTOGLUON_NUM_CPUS = (
+    1  # REQUIRED on macOS-ARM (LightGBM/XGBoost libomp segfault)
+)
 
 # ---------------------------------------------------------------------------
 # MLE-STAR — the clean protocol (scores the shared test.csv/test_answer.csv).
@@ -92,45 +115,93 @@ def _run(cmd: list[str], env: dict | None = None) -> int:
 
 
 def cmd_extension(task: str) -> tuple[list[str], dict]:
-    budget, top_k, n_jobs = EXTENSION[task]
+    budget, n_jobs = EXTENSION[task]
     return (
-        [sys.executable, "-m", "machine_learning_engineering.pipeline",
-         "--task", task, "--budget", str(budget), "--top-k", str(top_k),
-         "--n-proposes", str(EXTENSION_N_PROPOSES), "--n-jobs", str(n_jobs)],
+        [
+            sys.executable,
+            "-m",
+            "machine_learning_engineering.pipeline",
+            "--task",
+            task,
+            "--budget",
+            str(budget),
+            "--top-k",
+            str(EXTENSION_TOP_K),
+            "--n-proposes",
+            str(EXTENSION_N_PROPOSES),
+            "--n-jobs",
+            str(n_jobs),
+        ],
         {"PROVIDER": os.environ.get("PROVIDER", "school")},
     )
 
 
 def cmd_autogluon(task: str) -> tuple[list[str], dict]:
     return (
-        [sys.executable, "scripts/run_autogluon.py",
-         "--task", task, "--time-budget-s", str(AUTOGLUON_TIME_BUDGET_S),
-         "--num-cpus", str(AUTOGLUON_NUM_CPUS), "--presets", AUTOGLUON_PRESETS],
+        [
+            sys.executable,
+            "scripts/run_autogluon.py",
+            "--task",
+            task,
+            "--time-budget-s",
+            str(AUTOGLUON_TIME_BUDGET_S),
+            "--num-cpus",
+            str(AUTOGLUON_NUM_CPUS),
+            "--presets",
+            AUTOGLUON_PRESETS,
+        ],
         {"OMP_NUM_THREADS": "1"},
     )
 
 
 def cmd_mlestar(task: str) -> tuple[list[str], dict]:
     return (
-        [sys.executable, "scripts/run_mlestar.py",
-         "--task", task, "--max-calls", str(MLESTAR_MAX_CALLS),
-         "--time-budget-s", str(MLESTAR_TIME_BUDGET_S)],
-        {"PROVIDER": os.environ.get("PROVIDER", "school"), "OMP_NUM_THREADS": "1"},
+        [
+            sys.executable,
+            "scripts/run_mlestar.py",
+            "--task",
+            task,
+            "--max-calls",
+            str(MLESTAR_MAX_CALLS),
+            "--time-budget-s",
+            str(MLESTAR_TIME_BUDGET_S),
+        ],
+        {
+            "PROVIDER": os.environ.get("PROVIDER", "school"),
+            "OMP_NUM_THREADS": "1",
+        },
     )
 
 
-METHODS = {"extension": cmd_extension, "autogluon": cmd_autogluon, "mlestar": cmd_mlestar}
+METHODS = {
+    "extension": cmd_extension,
+    "autogluon": cmd_autogluon,
+    "mlestar": cmd_mlestar,
+}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--method", required=True, choices=sorted(METHODS),
-                        help="which arm to run over all 10 tasks, in order")
-    parser.add_argument("--tasks", nargs="*", default=TASKS,
-                        help="subset/override of tasks (default: all 10, in order)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print the commands without running them")
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--method",
+        required=True,
+        choices=sorted(METHODS),
+        help="which arm to run over all 10 tasks, in order",
+    )
+    parser.add_argument(
+        "--tasks",
+        nargs="*",
+        default=TASKS,
+        help="subset/override of tasks (default: all 10, in order)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the commands without running them",
+    )
     args = parser.parse_args()
 
     make_cmd = METHODS[args.method]
@@ -151,8 +222,10 @@ def main() -> None:
 
     if failures:
         print(f"\n{len(failures)} task(s) failed: {', '.join(failures)}")
-        print("(For autogluon country-happiness / mlestar videogame-sales a failure "
-              "is the expected, reportable outcome — see EXPERIMENTAL_RESULTS.md.)")
+        print(
+            "(For autogluon country-happiness / mlestar videogame-sales a failure "
+            "is the expected, reportable outcome — see EXPERIMENTAL_RESULTS.md.)"
+        )
         sys.exit(1)
     print("\nall tasks completed")
 

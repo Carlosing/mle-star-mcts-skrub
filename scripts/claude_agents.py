@@ -6,7 +6,7 @@ the logic layer:
   1. plan authoring (``data_analyst`` -> ``plan_author``): one JSON plan per
      task, fed to ``run_pipeline(spec_raw=...)`` which then skips both ADK
      agents entirely.
-  2. Extended Feature 3 (``search_loop`` proposer): a plain ``propose(plan_json,
+  2. Optional Feature 3 (``search_loop`` proposer): a plain ``propose(plan_json,
      context) -> dict`` callable returning an extension of the current plan —
      ``make_llm_proposer`` is just the Gemini default; ``make_replay_proposer``
      here is a pure, offline stand-in.
@@ -19,7 +19,7 @@ Claude-authored space, which is the point: full offline throughput without
 burning the Gemini free-tier quota.
 
 Each plan deliberately holds back a strong operator or two (e.g. LGBM/XGBoost on
-the model stage) so the Extended Feature 3 proposer has a genuinely NEW option to inject —
+the model stage) so the Optional Feature 3 proposer has a genuinely NEW option to inject —
 that is what the flexibility-lift figure measures.
 """
 
@@ -72,7 +72,7 @@ def _generic_plan(task_type: str) -> dict:
 
 
 def proposal_for(task: str, task_type: str) -> dict:
-    """The authored Extended Feature 3 extension for ``task``, else the booster menu."""
+    """The authored Optional Feature 3 extension for ``task``, else the booster menu."""
     return PROPOSALS.get(task) or {"model": _boosters(task_type)}
 
 
@@ -529,7 +529,7 @@ PLANS: dict[str, dict] = {
 }
 
 
-# --- authored Extended Feature 3 extension plans (Claude as the proposer) ---------------
+# --- authored Optional Feature 3 extension plans (Claude as the proposer) ---------------
 #
 # Each value is a PARTIAL raw plan (only the stages that gain entries) merged
 # additively into the current plan by search_loop._merge_raw_plans. Every

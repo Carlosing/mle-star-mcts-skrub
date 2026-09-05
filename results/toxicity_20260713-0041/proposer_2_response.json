@@ -1,0 +1,310 @@
+[
+  {
+    "ts": "2026-07-12T23:14:12.051024+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"impute_missing\": {\n    \"choice\": [\n     \"most_frequent\",\n     \"constant\"\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"high_cardinality\": [\n    \"skrub.GapEncoder\",\n    \"skrub.MinHashEncoder\",\n    \"skrub.StringEncoder\",\n    \"skrub.TextEncoder\"\n   ]\n  }\n },\n \"scoped_encodings\": [\n  {\n   \"name\": \"text_encoder\",\n   \"cols\": [\n    \"text\"\n   ],\n   \"options\": [\n    \"skrub.StringEncoder\",\n    \"skrub.TextEncoder\",\n    \"skrub.MinHashEncoder\"\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  }\n ],\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.Normalizer\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.decomposition.TruncatedSVD\",\n    \"sklearn.decomposition.PCA\"\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.2\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      50,\n      300\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      10\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.LogisticRegression\",\n   \"prior\": 0.4,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.001,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      500\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMClassifier\",\n   \"prior\": 0.1,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      50,\n      300\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.2\n     ],\n     \"log\": true\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      63\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      10\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBClassifier\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      50,\n      300\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"reg_alpha\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      50,\n      300\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      20\n     ]\n    },\n    \"min_samples_split\": {\n     \"int\": [\n      2,\n      20\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      null\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.svm.LinearSVC\",\n   \"prior\": 0.75,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.01,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      1000,\n      5000\n     ]\n    },\n    \"loss\": {\n     \"choice\": [\n      \"squared_hinge\",\n      \"hinge\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.RidgeClassifier\",\n   \"prior\": 0.65,\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.01,\n      100.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.SGDClassifier\",\n   \"prior\": 0.55,\n   \"params\": {\n    \"loss\": {\n     \"choice\": [\n      \"log_loss\",\n      \"hinge\",\n      \"squared_hinge\"\n     ]\n    },\n    \"alpha\": {\n     \"float\": [\n      1e-5,\n      1e-1\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      1000\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "impute_missing": {
+            "choice": [
+              "most_frequent",
+              "constant"
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "high_cardinality": [
+            "skrub.GapEncoder",
+            "skrub.MinHashEncoder",
+            "skrub.StringEncoder",
+            "skrub.TextEncoder"
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "text_encoder",
+          "cols": [
+            "text"
+          ],
+          "options": [
+            "skrub.StringEncoder",
+            "skrub.TextEncoder",
+            "skrub.MinHashEncoder"
+          ],
+          "position": "pre_encode",
+          "additive": false
+        }
+      ],
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.Normalizer"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            "sklearn.decomposition.TruncatedSVD",
+            "sklearn.decomposition.PCA"
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+          "prior": 0.5,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.2
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                50,
+                300
+              ]
+            },
+            "max_depth": {
+              "int": [
+                2,
+                10
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.LogisticRegression",
+          "prior": 0.4,
+          "params": {
+            "C": {
+              "float": [
+                0.001,
+                100.0
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMClassifier",
+          "prior": 0.1,
+          "params": {
+            "n_estimators": {
+              "int": [
+                50,
+                300
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.2
+              ],
+              "log": true
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                63
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                10
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBClassifier",
+          "prior": 0.6,
+          "params": {
+            "n_estimators": {
+              "int": [
+                50,
+                300
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestClassifier",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                50,
+                300
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                20
+              ]
+            },
+            "min_samples_split": {
+              "int": [
+                2,
+                20
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                null
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.svm.LinearSVC",
+          "prior": 0.75,
+          "params": {
+            "C": {
+              "float": [
+                0.01,
+                100.0
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                1000,
+                5000
+              ]
+            },
+            "loss": {
+              "choice": [
+                "squared_hinge",
+                "hinge"
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.RidgeClassifier",
+          "prior": 0.65,
+          "params": {
+            "alpha": {
+              "float": [
+                0.01,
+                100.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.SGDClassifier",
+          "prior": 0.55,
+          "params": {
+            "loss": {
+              "choice": [
+                "log_loss",
+                "hinge",
+                "squared_hinge"
+              ]
+            },
+            "alpha": {
+              "float": [
+                1e-05,
+                0.1
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                1000
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

@@ -5,7 +5,7 @@ MLE-STAR), and two of the three arms are agentic. This doc covers both:
 
 | Arm | Agent stack | LLM cost model | Web search |
 |---|---|---|---|
-| **Extension** (the project) | ADK graph `data_analyst → plan_author` ([`adk_agent.py`](../machine_learning_engineering/adk_agent.py)) | **O(1)** calls/task (2, +1 per Extended Feature 3 proposal) | `google_search` (Gemini path only) |
+| **Extension** (the project) | ADK graph `data_analyst → plan_author` ([`adk_agent.py`](../machine_learning_engineering/adk_agent.py)) | **O(1)** calls/task (2, +1 per Optional Feature 3 proposal) | `google_search` (Gemini path only) |
 | **MLE-STAR** (revived baseline) | ported `ManagerAgent` + `sub_agents/` over [`runner.py`](../machine_learning_engineering/runner.py) | **unbounded** (code-and-debug cascade), hard-capped by the harness | DuckDuckGo (`shared_libraries/web_search_util.py`) |
 | AutoGluon | none (pure AutoML) | 0 | — |
 
@@ -34,7 +34,7 @@ imports no LLM client at all.
 **The logic layer never imports an LLM client.** `mcts.py` / `skrub_ops.py` /
 `spec_resolver.py` / `search_loop.py` stay import-clean and offline-testable;
 the only lazy provider imports are inside `search_loop.make_llm_proposer`
-(`google.genai` on a `gemini-*` model, `openai` otherwise — the Extended Feature 3
+(`google.genai` on a `gemini-*` model, `openai` otherwise — the Optional Feature 3
 proposer follows the same provider switch as the agents) and
 `adk_agent._resolve_model` (`LiteLlm`, only on the non-Gemini path).
 

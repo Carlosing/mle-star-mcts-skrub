@@ -1,0 +1,533 @@
+[
+  {
+    "ts": "2026-07-14T07:18:44.386543+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"drop_if_unique\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"impute_missing\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"high_cardinality\": [\n    \"skrub.MinHashEncoder\",\n    \"skrub.GapEncoder\",\n    \"skrub.TargetEncoder\"\n   ],\n   \"low_cardinality\": [\n    \"sklearn.preprocessing.OneHotEncoder\"\n   ],\n   \"numeric\": [\n    \"skrub.TableVectorizer\"\n   ]\n  }\n },\n \"stages\": [\n  {\n   \"name\": \"assemble\",\n   \"options\": [\n    \"skip\"\n   ]\n  },\n  {\n   \"name\": \"scoped_pre_encode\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"cols\": [\n       \"DRG_Definition\"\n      ],\n      \"n_components\": {\n       \"int\": [\n        10,\n        50\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"cols\": [\n       \"DRG_Definition\"\n      ],\n      \"n_components\": {\n       \"int\": [\n        20,\n        80\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"prior\": 0.75\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"prior\": 0.7\n    },\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"params\": {\n      \"cols\": [\n       \"Provider_State\",\n       \"Hospital_Referral_Region_(HRR)_Description\"\n      ],\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        100.0\n       ],\n       \"log\": true\n      }\n     },\n     \"prior\": 0.8\n    }\n   ]\n  },\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.RobustScaler\",\n    \"sklearn.preprocessing.StandardScaler\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n     \"params\": {\n      \"degree\": {\n       \"int\": [\n        2,\n        3\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.preprocessing.FunctionTransformer\",\n     \"params\": {\n      \"func\": {\n       \"choice\": [\n        \"lambda X: np.log1p(X)\",\n        \"lambda X: np.sqrt(X)\"\n       ]\n      },\n      \"cols\": {\n       \"choice\": [\n        [\n         \"Total_Discharges\",\n         \"Average_Covered_Charges\"\n        ],\n        [\n         \"Average_Covered_Charges\"\n        ]\n       ]\n      }\n     },\n     \"prior\": 0.6\n    },\n    {\n     \"name\": \"skrub.Joiner\",\n     \"params\": {\n      \"cols\": {\n       \"choice\": [\n        [\n         \"Provider_Zip_Code\"\n        ],\n        [\n         \"Provider_State\"\n        ]\n       ]\n      },\n      \"add_columns\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     },\n     \"prior\": 0.5\n    }\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\",\n   \"prior\": 0.8,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      600\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      16\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMRegressor\",\n   \"prior\": 0.7,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      127\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBRegressor\",\n   \"prior\": 0.7,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestRegressor\",\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      30\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.Ridge\",\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.001,\n      1000.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"catboost.CatBoostRegressor\",\n   \"prior\": 0.85,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"depth\": {\n     \"int\": [\n      4,\n      10\n     ]\n    },\n    \"l2_leaf_reg\": {\n     \"float\": [\n      1.0,\n      10.0\n     ],\n     \"log\": true\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bylevel\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.neural_network.MLPRegressor\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"hidden_layer_sizes\": {\n     \"choice\": [\n      [\n       50,\n       25\n      ],\n      [\n       100,\n       50,\n       25\n      ],\n      [\n       200,\n       100\n      ]\n     ]\n    },\n    \"alpha\": {\n     \"float\": [\n      0.0001,\n      0.1\n     ],\n     \"log\": true\n    },\n    \"learning_rate_init\": {\n     \"float\": [\n      0.001,\n      0.1\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      500\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBRegressor\",\n   \"prior\": 0.85,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"reg_alpha\": {\n     \"float\": [\n      0.0,\n      5.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMRegressor\",\n   \"prior\": 0.8,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      127\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"min_data_in_leaf\": {\n     \"int\": [\n      5,\n      100\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "drop_if_unique": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "impute_missing": {
+            "choice": [
+              false,
+              true
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "high_cardinality": [
+            "skrub.MinHashEncoder",
+            "skrub.GapEncoder",
+            "skrub.TargetEncoder"
+          ],
+          "low_cardinality": [
+            "sklearn.preprocessing.OneHotEncoder"
+          ],
+          "numeric": [
+            "skrub.TableVectorizer"
+          ]
+        }
+      },
+      "stages": [
+        {
+          "name": "assemble",
+          "options": [
+            "skip"
+          ]
+        },
+        {
+          "name": "scoped_pre_encode",
+          "options": [
+            "skip",
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "cols": [
+                  "DRG_Definition"
+                ],
+                "n_components": {
+                  "int": [
+                    10,
+                    50
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "cols": [
+                  "DRG_Definition"
+                ],
+                "n_components": {
+                  "int": [
+                    20,
+                    80
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.MinHashEncoder",
+              "prior": 0.75
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "prior": 0.7
+            },
+            {
+              "name": "skrub.TargetEncoder",
+              "params": {
+                "cols": [
+                  "Provider_State",
+                  "Hospital_Referral_Region_(HRR)_Description"
+                ],
+                "smooth": {
+                  "float": [
+                    1.0,
+                    100.0
+                  ],
+                  "log": true
+                }
+              },
+              "prior": 0.8
+            }
+          ]
+        },
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.RobustScaler",
+            "sklearn.preprocessing.StandardScaler"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PolynomialFeatures",
+              "params": {
+                "degree": {
+                  "int": [
+                    2,
+                    3
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.preprocessing.FunctionTransformer",
+              "params": {
+                "func": {
+                  "choice": [
+                    "lambda X: np.log1p(X)",
+                    "lambda X: np.sqrt(X)"
+                  ]
+                },
+                "cols": {
+                  "choice": [
+                    [
+                      "Total_Discharges",
+                      "Average_Covered_Charges"
+                    ],
+                    [
+                      "Average_Covered_Charges"
+                    ]
+                  ]
+                }
+              },
+              "prior": 0.6
+            },
+            {
+              "name": "skrub.Joiner",
+              "params": {
+                "cols": {
+                  "choice": [
+                    [
+                      "Provider_Zip_Code"
+                    ],
+                    [
+                      "Provider_State"
+                    ]
+                  ]
+                },
+                "add_columns": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              },
+              "prior": 0.5
+            }
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+          "prior": 0.8,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                600
+              ]
+            },
+            "max_depth": {
+              "int": [
+                2,
+                16
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMRegressor",
+          "prior": 0.7,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                127
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBRegressor",
+          "prior": 0.7,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestRegressor",
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                30
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.Ridge",
+          "params": {
+            "alpha": {
+              "float": [
+                0.001,
+                1000.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "catboost.CatBoostRegressor",
+          "prior": 0.85,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "depth": {
+              "int": [
+                4,
+                10
+              ]
+            },
+            "l2_leaf_reg": {
+              "float": [
+                1.0,
+                10.0
+              ],
+              "log": true
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bylevel": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.neural_network.MLPRegressor",
+          "prior": 0.5,
+          "params": {
+            "hidden_layer_sizes": {
+              "choice": [
+                [
+                  50,
+                  25
+                ],
+                [
+                  100,
+                  50,
+                  25
+                ],
+                [
+                  200,
+                  100
+                ]
+              ]
+            },
+            "alpha": {
+              "float": [
+                0.0001,
+                0.1
+              ],
+              "log": true
+            },
+            "learning_rate_init": {
+              "float": [
+                0.001,
+                0.1
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBRegressor",
+          "prior": 0.85,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                5.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMRegressor",
+          "prior": 0.8,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                127
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "min_data_in_leaf": {
+              "int": [
+                5,
+                100
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

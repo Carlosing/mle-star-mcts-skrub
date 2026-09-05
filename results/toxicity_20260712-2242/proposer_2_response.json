@@ -1,0 +1,403 @@
+[
+  {
+    "ts": "2026-07-12T20:52:53.025629+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"drop_if_unique\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"high_cardinality\": [\n    \"skrub.StringEncoder\",\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        50,\n        200\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        100\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.feature_extraction.text.TfidfVectorizer\",\n     \"params\": {\n      \"max_features\": {\n       \"int\": [\n        100,\n        1000\n       ]\n      },\n      \"ngram_range\": {\n       \"choice\": [\n        [\n         1,\n         1\n        ],\n        [\n         1,\n         2\n        ]\n       ]\n      },\n      \"min_df\": {\n       \"int\": [\n        1,\n        5\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.feature_extraction.text.HashingVectorizer\",\n     \"prior\": 0.5,\n     \"params\": {\n      \"n_features\": {\n       \"int\": [\n        1024,\n        65536\n       ]\n      },\n      \"ngram_range\": {\n       \"choice\": [\n        [\n         1,\n         1\n        ],\n        [\n         1,\n         2\n        ]\n       ]\n      },\n      \"alternate_sign\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.feature_extraction.text.CountVectorizer\",\n     \"prior\": 0.4,\n     \"params\": {\n      \"max_features\": {\n       \"int\": [\n        100,\n        2000\n       ]\n      },\n      \"ngram_range\": {\n       \"choice\": [\n        [\n         1,\n         1\n        ],\n        [\n         1,\n         2\n        ]\n       ]\n      },\n      \"min_df\": {\n       \"int\": [\n        1,\n        5\n       ]\n      }\n     }\n    }\n   ]\n  }\n },\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.MaxAbsScaler\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.decomposition.TruncatedSVD\"\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      400\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.LogisticRegression\",\n   \"prior\": 0.3,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.01,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      500,\n      2000\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n   \"prior\": 0.1,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      300\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      5,\n      20\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      5\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBClassifier\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      10\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_alpha\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMClassifier\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      100\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"feature_fraction\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"min_child_samples\": {\n     \"int\": [\n      5,\n      50\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.svm.LinearSVC\",\n   \"prior\": 0.3,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.01,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      500,\n      2000\n     ]\n    },\n    \"loss\": {\n     \"choice\": [\n      \"hinge\",\n      \"squared_hinge\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.naive_bayes.MultinomialNB\",\n   \"prior\": 0.7,\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.001,\n      10.0\n     ],\n     \"log\": true\n    },\n    \"fit_prior\": {\n     \"choice\": [\n      true,\n      false\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.SGDClassifier\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"loss\": {\n     \"choice\": [\n      \"hinge\",\n      \"log_loss\",\n      \"modified_huber\"\n     ]\n    },\n    \"alpha\": {\n     \"float\": [\n      1e-05,\n      0.001\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      1000\n     ]\n    },\n    \"penalty\": {\n     \"choice\": [\n      \"l2\",\n      \"l1\",\n      \"elasticnet\"\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "drop_if_unique": {
+            "choice": [
+              false,
+              true
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "high_cardinality": [
+            "skrub.StringEncoder",
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    50,
+                    200
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    100
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.feature_extraction.text.TfidfVectorizer",
+              "params": {
+                "max_features": {
+                  "int": [
+                    100,
+                    1000
+                  ]
+                },
+                "ngram_range": {
+                  "choice": [
+                    [
+                      1,
+                      1
+                    ],
+                    [
+                      1,
+                      2
+                    ]
+                  ]
+                },
+                "min_df": {
+                  "int": [
+                    1,
+                    5
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.feature_extraction.text.HashingVectorizer",
+              "prior": 0.5,
+              "params": {
+                "n_features": {
+                  "int": [
+                    1024,
+                    65536
+                  ]
+                },
+                "ngram_range": {
+                  "choice": [
+                    [
+                      1,
+                      1
+                    ],
+                    [
+                      1,
+                      2
+                    ]
+                  ]
+                },
+                "alternate_sign": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.feature_extraction.text.CountVectorizer",
+              "prior": 0.4,
+              "params": {
+                "max_features": {
+                  "int": [
+                    100,
+                    2000
+                  ]
+                },
+                "ngram_range": {
+                  "choice": [
+                    [
+                      1,
+                      1
+                    ],
+                    [
+                      1,
+                      2
+                    ]
+                  ]
+                },
+                "min_df": {
+                  "int": [
+                    1,
+                    5
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.MaxAbsScaler"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            "sklearn.decomposition.TruncatedSVD"
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+          "prior": 0.6,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                400
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.LogisticRegression",
+          "prior": 0.3,
+          "params": {
+            "C": {
+              "float": [
+                0.01,
+                100.0
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                500,
+                2000
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestClassifier",
+          "prior": 0.1,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                300
+              ]
+            },
+            "max_depth": {
+              "int": [
+                5,
+                20
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                5
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBClassifier",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                10
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMClassifier",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                100
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "feature_fraction": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "min_child_samples": {
+              "int": [
+                5,
+                50
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.svm.LinearSVC",
+          "prior": 0.3,
+          "params": {
+            "C": {
+              "float": [
+                0.01,
+                100.0
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                500,
+                2000
+              ]
+            },
+            "loss": {
+              "choice": [
+                "hinge",
+                "squared_hinge"
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.naive_bayes.MultinomialNB",
+          "prior": 0.7,
+          "params": {
+            "alpha": {
+              "float": [
+                0.001,
+                10.0
+              ],
+              "log": true
+            },
+            "fit_prior": {
+              "choice": [
+                true,
+                false
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.SGDClassifier",
+          "prior": 0.6,
+          "params": {
+            "loss": {
+              "choice": [
+                "hinge",
+                "log_loss",
+                "modified_huber"
+              ]
+            },
+            "alpha": {
+              "float": [
+                1e-05,
+                0.001
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                1000
+              ]
+            },
+            "penalty": {
+              "choice": [
+                "l2",
+                "l1",
+                "elasticnet"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

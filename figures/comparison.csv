@@ -8,14 +8,6 @@ country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,0,5
 country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,128.2,,False
 country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,2,207.6,,False
 country-happiness,extension,neg_root_mean_squared_error,-568.7021554080973,0,2,223.7,,False
-country-happiness,extension,neg_root_mean_squared_error,-721.4820965742887,0,1,29.2,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,206.2,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,301.6,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,44.6,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,394.8,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,77.2,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,124.4,,False
-country-happiness,extension,neg_root_mean_squared_error,-753.8692081830474,0,1,161.0,,False
 country-happiness,mlestar,neg_root_mean_squared_error,-734.2606,30876,0,0.0,300,True
 credit-fraud,autogluon,roc_auc,0.6022891157830625,0,0,3176.7,3600.0,False
 credit-fraud,extension,roc_auc,0.8264230842157883,43523,4,1620.4,,False

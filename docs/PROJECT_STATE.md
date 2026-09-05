@@ -5,7 +5,7 @@ LLM agents read the data and author a *rich JSON plan* (a menu of operators +
 hyperparameter ranges per stage); a pure-code MCTS engine then searches that
 space — structure **and** hyperparameters — over a fixed evaluation budget. The
 LLM never does the search; it only proposes the space (**O(1) LLM calls per
-task**, plus at most one call between search slices for Extended Feature 3 — never inside
+task**, plus at most one call between search slices for Optional Feature 3 — never inside
 the inner search loop).
 
 _Last updated: **2026-07-15 — submission.** The code is feature-complete and the
@@ -139,14 +139,14 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 4. **resolve_spec** → JSON names/HP-ranges → seeded estimators + `choose_*` nodes (allowed-list, no `eval`).
 5. **build_staged_plan** → skrub DataOps plan; **get_action_space** → the MCTS search space; **get_choice_gating** → model→HP gate.
 6. **run_search_loop** → persisted-tree MCTS over `budget` rollouts (score cache + gated HPs),
-   amplified by the three **Extended Features** (older commit messages call 1 and 3 "Option 1/3"):
-   - **Extended Feature 1 — ablation targeting**: `outer_steps>1` runs the budget as fixed-size
+   amplified by the three **Optional Features** (older commit messages call 1 and 3 "Option 1/3"):
+   - **Optional Feature 1 — ablation targeting**: `outer_steps>1` runs the budget as fixed-size
      slices on one tree, re-mining the tree between slices to pick a focus stage — a proposer
      hint only, expansion is never locked (`retarget=`).
-   - **Extended Feature 2 — prior warm-start**: plan options may carry `"prior": 0.0–1.0`;
+   - **Optional Feature 2 — prior warm-start**: plan options may carry `"prior": 0.0–1.0`;
      `resolve_spec` collects them and `_make_prior_fn` seeds every fresh child's Q/N (neutral
      0.5 default), the AlphaZero policy-prior pattern at zero extra LLM calls.
-   - **Extended Feature 3 — mid-search plan injection**: with a proposer, one LLM call before
+   - **Optional Feature 3 — mid-search plan injection**: with a proposer, one LLM call before
      each subsequent slice asks for a whole *extended plan* (`search → propose → search → …`;
      merged strictly additively via `_merge_raw_plans`, re-resolved and rebuilt, so injected
      operators arrive with their HP ranges).
@@ -168,7 +168,7 @@ layer imports no LLM client.** See [agent-architecture.md](agent-architecture.md
 |---|---|
 | `mcts.py` | MCTS engine (UCT select/expand/backprop, **persistent tree, score cache, `gating`/`target_key` in `expand`, `canonicalize`**, `prior_fn` hook) |
 | `skrub_ops.py` | skrub glue: `build_staged_plan` (incl. relational `assemble` + fixed `_ScalarizeAggregates`/`_SanitizeColumns` steps), `get_action_space`, **`get_choice_gating`**, `apply_state`, seeded rollouts (profile-aware subsample sizing, optional seed-averaged rewards, per-rollout 60s wall-clock cap, CV folds parallel via `n_jobs`), `run_ablation`, `pick_target_node` |
-| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Extended Feature 1 focus pick (`retarget=`, a proposer hint), Extended Feature 3 **whole-plan extending injection**, `make_llm_proposer` (≤ one provider call between slices); post-budget **focused-refinement bonus phase** |
+| `search_loop.py` | **outer loop**: persisted MCTS as fixed-budget slices; `tree_action_values` (tree-mined ablation), Optional Feature 1 focus pick (`retarget=`, a proposer hint), Optional Feature 3 **whole-plan extending injection**, `make_llm_proposer` (≤ one provider call between slices); post-budget **focused-refinement bonus phase** |
 | `spec_resolver.py` | LLM JSON → seeded estimators **+ HP `choose_*`**; **import** allow-list (roots `sklearn`/`skrub`/`lightgbm`/`xgboost`) is the safety envelope; free-form HP ranges unless curated in `REGISTRY` (then clipped); per-param safety nets; `assemble` passthrough |
 | `data_summary.py` | `make_data_summary` — EDA digest for the analyst |
 | `adk_agent.py` | ADK graph `data_analyst → plan_author`; `build_root_agent`; `_resolve_model` env-switches native Gemini vs `LiteLlm`; `google_search` Gemini-only |
@@ -232,7 +232,7 @@ The search grew its distinguishing features, roughly one axis per commit:
 - `8d6b921` — live run artifacts (`result.json`/`summary.md`) + the Makefile.
 - `307559e` — the **import allow-list** generalizing operator resolution.
 - `a1093a6` — **conditional (model-gated) HP expansion, the score cache, and
-  Extended Feature 3 injected options** — the CASH fix and the mid-search flexibility axis.
+  Optional Feature 3 injected options** — the CASH fix and the mid-search flexibility axis.
 - `e61e469` — **relational table-join wiring** (AggJoiner assemble), ensemble
   improvements, the plan proposer, stratified-KFold fixes.
 - `b9dd9da` — **interleaved propose-between-slices** (`search → propose →
@@ -318,7 +318,7 @@ new search features; the LLM-call invariant was never touched:
 - **Persist the tree, don't restart** — the scorer is fixed, so a config's reward
   never changes when the target moves; the tree is a running ablation mined for free.
 - **LLM-call complexity is the cost model** — O(1) per task, ≤ O(outer steps)
-  with Extended Feature 3; never O(expansions) or O(rollouts).
+  with Optional Feature 3; never O(expansions) or O(rollouts).
 - **One ADK stack, env-switched provider, shared logic** — `ROOT_AGENT_MODEL`
   selects native Gemini or OpenAI/compatible with no code change; the MCTS/skrub
   core is client-agnostic and import-clean.

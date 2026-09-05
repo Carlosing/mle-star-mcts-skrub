@@ -1,0 +1,163 @@
+[
+  {
+    "ts": "2026-07-14T06:13:43.290007+00:00",
+    "agent": "proposer",
+    "call": 1,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"impute_strategy\": {\n    \"choice\": [\"most_frequent\", \"mean\", \"constant\"]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"low_cardinality\": [\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"params\": {\n      \"cv\": {\n       \"int\": [3, 10]\n      },\n      \"smooth\": {\n       \"float\": [0.1, 100.0],\n       \"log\": true\n      }\n     }\n    }\n   ],\n   \"datetime\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\"hour\", \"day\", \"month\", \"minute\"]\n      },\n      \"add_weekday\": {\n       \"choice\": [true, false]\n      },\n      \"add_total_seconds\": {\n       \"choice\": [false, true]\n      },\n      \"add_day_of_year\": {\n       \"choice\": [false, true]\n      }\n     }\n    }\n   ]\n  }\n },\n \"scoped_encodings\": [\n  {\n   \"name\": \"cyclical_hour\",\n   \"cols\": [\"date\"],\n   \"options\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\"hour\"]\n      },\n      \"add_weekday\": {\n       \"choice\": [true, false]\n      },\n      \"add_total_seconds\": {\n       \"choice\": [false, true]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": true\n  }\n ],\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"sklearn.preprocessing.MaxAbsScaler\",\n    \"sklearn.preprocessing.MinMaxScaler\"\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"catboost.CatBoostRegressor\",\n   \"prior\": 0.82,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [100, 600]\n    },\n    \"learning_rate\": {\n     \"float\": [0.01, 0.3],\n     \"log\": true\n    },\n    \"depth\": {\n     \"int\": [4, 12]\n    },\n    \"l2_leaf_reg\": {\n     \"float\": [1.0, 20.0],\n     \"log\": true\n    },\n    \"random_strength\": {\n     \"float\": [0.0, 1.0]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "impute_strategy": {
+            "choice": [
+              "most_frequent",
+              "mean",
+              "constant"
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "low_cardinality": [
+            {
+              "name": "skrub.TargetEncoder",
+              "params": {
+                "cv": {
+                  "int": [
+                    3,
+                    10
+                  ]
+                },
+                "smooth": {
+                  "float": [
+                    0.1,
+                    100.0
+                  ],
+                  "log": true
+                }
+              }
+            }
+          ],
+          "datetime": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour",
+                    "day",
+                    "month",
+                    "minute"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                },
+                "add_day_of_year": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "cyclical_hour",
+          "cols": [
+            "date"
+          ],
+          "options": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": true
+        }
+      ],
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "sklearn.preprocessing.MaxAbsScaler",
+            "sklearn.preprocessing.MinMaxScaler"
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "catboost.CatBoostRegressor",
+          "prior": 0.82,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                600
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "depth": {
+              "int": [
+                4,
+                12
+              ]
+            },
+            "l2_leaf_reg": {
+              "float": [
+                1.0,
+                20.0
+              ],
+              "log": true
+            },
+            "random_strength": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

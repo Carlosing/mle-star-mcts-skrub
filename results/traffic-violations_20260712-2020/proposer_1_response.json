@@ -1,0 +1,283 @@
+[
+  {
+    "ts": "2026-07-12T18:25:41.667461+00:00",
+    "agent": "proposer",
+    "call": 1,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"model\": [\n  \"sklearn.ensemble.HistGradientBoostingClassifier\",\n  \"sklearn.ensemble.RandomForestClassifier\",\n  \"xgboost.XGBClassifier\",\n  \"lightgbm.LGBMClassifier\"\n ],\n \"model_params\": {\n  \"xgboost.XGBClassifier\": {\n   \"prior\": 0.85,\n   \"params\": {\n    \"n_estimators\": {\"int\": [100, 500]},\n    \"max_depth\": {\"int\": [3, 12]},\n    \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n    \"subsample\": {\"float\": [0.5, 1.0]},\n    \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n    \"colsample_bylevel\": {\"float\": [0.5, 1.0]},\n    \"min_child_weight\": {\"int\": [1, 10]},\n    \"gamma\": {\"float\": [0.0, 0.5]},\n    \"reg_alpha\": {\"float\": [0.0, 5.0], \"log\": true},\n    \"reg_lambda\": {\"float\": [0.0, 5.0], \"log\": true},\n    \"scale_pos_weight\": {\"float\": [1.0, 10.0], \"log\": true},\n    \"tree_method\": {\"choice\": [\"hist\", \"approx\"]},\n    \"eval_metric\": {\"choice\": [\"mlogloss\", \"auc\"]}\n   }\n  },\n  \"lightgbm.LGBMClassifier\": {\n   \"prior\": 0.8,\n   \"params\": {\n    \"n_estimators\": {\"int\": [100, 500]},\n    \"max_depth\": {\"int\": [-1, 15]},\n    \"num_leaves\": {\"int\": [20, 100]},\n    \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n    \"subsample\": {\"float\": [0.5, 1.0]},\n    \"colsample_bytree\": {\"float\": [0.5, 1.0]},\n    \"min_child_samples\": {\"int\": [5, 50]},\n    \"reg_alpha\": {\"float\": [0.0, 5.0], \"log\": true},\n    \"reg_lambda\": {\"float\": [0.0, 5.0], \"log\": true},\n    \"class_weight\": {\"choice\": [null, \"balanced\"]},\n    \"boosting_type\": {\"choice\": [\"gbdt\", \"dart\"]},\n    \"metric\": {\"choice\": [\"multi_logloss\", \"auc\"]}\n   }\n  },\n  \"sklearn.ensemble.HistGradientBoostingClassifier\": {\n   \"params\": {\n    \"max_iter\": {\"int\": [100, 500]},\n    \"max_depth\": {\"int\": [3, 15]},\n    \"max_leaf_nodes\": {\"int\": [15, 255]},\n    \"learning_rate\": {\"float\": [0.01, 0.3], \"log\": true},\n    \"min_samples_leaf\": {\"int\": [5, 50]},\n    \"l2_regularization\": {\"float\": [0.0, 10.0], \"log\": true},\n    \"class_weight\": {\"choice\": [null, \"balanced\"]}\n   }\n  },\n  \"sklearn.ensemble.RandomForestClassifier\": {\n   \"params\": {\n    \"n_estimators\": {\"int\": [100, 500]},\n    \"max_depth\": {\"int\": [5, 30]},\n    \"min_samples_split\": {\"int\": [2, 20]},\n    \"min_samples_leaf\": {\"int\": [1, 10]},\n    \"max_features\": {\"choice\": [\"sqrt\", \"log2\", null]},\n    \"class_weight\": {\"choice\": [null, \"balanced\", \"balanced_subsample\"]},\n    \"bootstrap\": {\"choice\": [true, false]}\n   }\n  }\n }\n}",
+    "proposal": {
+      "model": [
+        "sklearn.ensemble.HistGradientBoostingClassifier",
+        "sklearn.ensemble.RandomForestClassifier",
+        "xgboost.XGBClassifier",
+        "lightgbm.LGBMClassifier"
+      ],
+      "model_params": {
+        "xgboost.XGBClassifier": {
+          "prior": 0.85,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bylevel": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "min_child_weight": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "gamma": {
+              "float": [
+                0.0,
+                0.5
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                5.0
+              ],
+              "log": true
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ],
+              "log": true
+            },
+            "scale_pos_weight": {
+              "float": [
+                1.0,
+                10.0
+              ],
+              "log": true
+            },
+            "tree_method": {
+              "choice": [
+                "hist",
+                "approx"
+              ]
+            },
+            "eval_metric": {
+              "choice": [
+                "mlogloss",
+                "auc"
+              ]
+            }
+          }
+        },
+        "lightgbm.LGBMClassifier": {
+          "prior": 0.8,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                -1,
+                15
+              ]
+            },
+            "num_leaves": {
+              "int": [
+                20,
+                100
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "min_child_samples": {
+              "int": [
+                5,
+                50
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                5.0
+              ],
+              "log": true
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ],
+              "log": true
+            },
+            "class_weight": {
+              "choice": [
+                null,
+                "balanced"
+              ]
+            },
+            "boosting_type": {
+              "choice": [
+                "gbdt",
+                "dart"
+              ]
+            },
+            "metric": {
+              "choice": [
+                "multi_logloss",
+                "auc"
+              ]
+            }
+          }
+        },
+        "sklearn.ensemble.HistGradientBoostingClassifier": {
+          "params": {
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                15
+              ]
+            },
+            "max_leaf_nodes": {
+              "int": [
+                15,
+                255
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "min_samples_leaf": {
+              "int": [
+                5,
+                50
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                10.0
+              ],
+              "log": true
+            },
+            "class_weight": {
+              "choice": [
+                null,
+                "balanced"
+              ]
+            }
+          }
+        },
+        "sklearn.ensemble.RandomForestClassifier": {
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                5,
+                30
+              ]
+            },
+            "min_samples_split": {
+              "int": [
+                2,
+                20
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                null
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                null,
+                "balanced",
+                "balanced_subsample"
+              ]
+            },
+            "bootstrap": {
+              "choice": [
+                true,
+                false
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+]

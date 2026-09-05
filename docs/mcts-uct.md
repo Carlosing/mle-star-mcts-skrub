@@ -72,10 +72,10 @@ pipeline.run_pipeline
        ├─ slice k: mcts.mcts_search(root, tried_states, score_cache, gating, …)
        │     ├─ select → expand → rollout → backpropagate   (× slice budget)
        │     └─ rollout = skrub_ops.make_rollout_fn(plan)   (seeded subsampled CV)
-       ├─ between slices: tree_action_values → pick_target_node   (Extended Feature 1 —
+       ├─ between slices: tree_action_values → pick_target_node   (Optional Feature 1 —
        │     a *hint* passed to the proposer, never an expansion lock)
        │     and propose(plan_json, context) → _merge_raw_plans → re-resolve →
-       │     rebuild plan + action space                     (Extended Feature 3 — ≤1 LLM
+       │     rebuild plan + action space                     (Optional Feature 3 — ≤1 LLM
        │     call per slice boundary; injected operators arrive with HP ranges)
        └─ after the budget: bonus phase — mcts_search(start_node=best_node)
              over ceil(total/4) rollouts, ALL single-edit neighbors of the
@@ -113,7 +113,7 @@ Key engine plumbing the outer loop relies on:
   `mcts_search` accepts `target_key` — a single choice name, or a *set* of
   them — so `expand` only edits those stages while UCT selection and backprop
   are untouched. (The outer loop no longer uses it: since 2026-07-13 the
-  Extended Feature 1 pick is only a proposer hint — the variance ledger elects `model`
+  Optional Feature 1 pick is only a proposer hint — the variance ledger elects `model`
   on essentially every pick, and locking expansion to it starved off-target
   injected options until the bonus phase.) The **focused-refinement bonus
   phase** instead

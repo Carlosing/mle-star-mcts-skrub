@@ -1,8 +1,8 @@
 """Replay a completed run's exact plan + real proposals at reduced n_proposes.
 
-Isolates the marginal value of each Extended Feature 3 `propose()` call without
+Isolates the marginal value of each Optional Feature 3 `propose()` call without
 spending new LLM budget: reads a past run's `result.json` (`spec_raw`, the
-budget, task, ensemble size, ...) plus its `proposer_<k>_response.json`
+budget, task, seed, ...) plus its `proposer_<k>_response.json`
 artifacts — the REAL parsed proposal dicts the live LLM returned during that
 run — and replays `pipeline.run_pipeline` using only the first `n_proposes`
 of those real proposals as a deterministic stand-in proposer. Everything else
@@ -12,7 +12,7 @@ got to react to.
 
 Naming note: the INITIAL plan (`spec_raw`, authored once up front by
 `data_analyst` -> `plan_author`) is NOT a "proposal" — only
-`proposer_<k>_response.json` files (Extended Feature 3's mid-search extension calls)
+`proposer_<k>_response.json` files (Optional Feature 3's mid-search extension calls)
 count toward `n_proposes`. `plan_author_response.json` /
 `data_analyst_response.json` are ignored here on purpose.
 
@@ -21,18 +21,22 @@ The source run is also the ceiling: it only ever called `propose()`
 no real recorded content to draw on — this script raises rather than silently
 padding with something that was never actually said by the LLM.
 
-Writes straight into `results/` (the small, git-shareable mirror
-`scripts/collect_results.py` otherwise populates from `runs/`) — same
-`result.json`-only convention, no `runs/`-style side artifacts, since a
-replay's compute never touches an API and never needs its own `data_analyst_
-*`/`plan_author_*` files (those simply aren't produced when `spec_raw` skips
-the agent graph, live or replayed).
+Reads from and writes into `results/` — the git-shareable mirror
+`scripts/collect_results.py` populates from `runs/`. That mirror carries each
+run's `proposer_<k>_response.json` alongside its `result.json`, which is
+exactly what a replay needs, so an archived run is replayable from a fresh
+clone; `runs/` is gitignored and only holds what the local machine produced.
+Pass `--source-root runs` to replay something not yet collected.
+
+A replay writes `result.json` only — no `data_analyst_*`/`plan_author_*` side
+artifacts, since its compute never touches an API (those simply aren't produced
+when `spec_raw` skips the agent graph, live or replayed).
 
 Run:
     uv run python scripts/replay_from_run.py \\
-        --source runs/credit-fraud_20260712-1806 --n-proposes 0
+        --source credit-fraud_20260712-1806 --n-proposes 0
     uv run python scripts/replay_from_run.py \\
-        --source runs/credit-fraud_20260712-1806 --n-proposes 1
+        --source credit-fraud_20260712-1806 --n-proposes 2
 """
 
 import argparse
@@ -43,6 +47,46 @@ import re
 from datetime import datetime
 
 from machine_learning_engineering import pipeline
+
+# Ensemble size for a replay. The archived benchmark runs all used top_k=3;
+# this is NOT read back from the source run's `ensemble.k`, which records how
+# many members Caruana *selected* (it collapses to 1 on a near-duplicate pool)
+# rather than the requested top-k.
+DEFAULT_TOP_K = 3
+
+# Where a bare `--source` name is looked up. `results/` is the committed mirror
+# (`scripts/collect_results.py`), so it carries the archived runs on a fresh
+# clone — `runs/` is gitignored and only holds what this machine produced.
+DEFAULT_SOURCE_ROOT = "results"
+
+
+def resolve_source(source: str, root: str = DEFAULT_SOURCE_ROOT) -> str:
+    """Resolve `source` to a run directory: a path as given, else a name under `root`.
+
+    Lets you pass either `results/credit-fraud_20260712-1806` or just
+    `credit-fraud_20260712-1806`. Raises `FileNotFoundError` naming the
+    candidates tried, plus what `root` actually holds.
+
+    Example:
+        resolve_source("credit-fraud_20260712-1806") -> "results/credit-fraud_20260712-1806"
+    """
+    direct = source.rstrip("/")
+    candidates = [direct]
+    if os.path.dirname(direct) == "":
+        candidates.append(os.path.join(root, direct))
+
+    for path in candidates:
+        if os.path.isfile(os.path.join(path, "result.json")):
+            return path
+
+    available = sorted(
+        os.path.basename(os.path.dirname(p))
+        for p in glob.glob(os.path.join(root, "*", "result.json"))
+    )
+    raise FileNotFoundError(
+        f"no run directory with a result.json at any of {candidates}. "
+        f"{root}/ holds: {', '.join(available) if available else '(nothing)'}"
+    )
 
 
 def _available_proposals(source_dir: str) -> list[dict]:
@@ -98,6 +142,7 @@ def replay_from_run(
     source_dir: str,
     n_proposes: int,
     seed: int | None = None,
+    top_k: int = DEFAULT_TOP_K,
 ) -> dict:
     """Replay `source_dir`'s exact plan + first `n_proposes` real proposals.
 
@@ -106,9 +151,13 @@ def replay_from_run(
     all persistence). Raises `ValueError` if `n_proposes` exceeds how many
     proposals the source run actually logged (see module docstring).
 
-    Every field (budget, seed, ensemble size, time budget) is reused from the
-    source run; the ONLY thing that varies across replays is `n_proposes`, so
-    each one isolates the marginal value of an Extended Feature 3 call.
+    Budget, seed and time budget are reused from the source run; `top_k` is
+    `DEFAULT_TOP_K` (the benchmark's ensemble size) unless overridden. The ONLY
+    thing that varies across replays is `n_proposes`, so each one isolates the
+    marginal value of an Optional Feature 3 call.
+
+    Example:
+        replay_from_run("runs/credit-fraud_20260712-1806", 2) -> {...}
     """
     with open(os.path.join(source_dir, "result.json"), encoding="utf-8") as f:
         source = json.load(f)
@@ -135,7 +184,7 @@ def replay_from_run(
         propose=make_fixed_sequence_proposer(proposals[:n_proposes])
         if n_proposes > 0
         else None,
-        top_k=(source.get("ensemble") or {}).get("k", 1),
+        top_k=top_k,
         spec_raw=source["spec_raw"],
         subsample_seeds=source.get("subsample_seeds"),
         time_budget_s=source.get("time_budget_s"),
@@ -148,7 +197,16 @@ def _main() -> None:
         "at reduced n_proposes, offline and at zero new LLM cost."
     )
     parser.add_argument(
-        "--source", required=True, help="path to the completed run directory"
+        "--source",
+        required=True,
+        help=f"completed run to replay: a bare directory name looked up under "
+        f"--source-root (default {DEFAULT_SOURCE_ROOT}/), or an explicit path",
+    )
+    parser.add_argument(
+        "--source-root",
+        default=DEFAULT_SOURCE_ROOT,
+        help=f"where a bare --source name is resolved "
+        f"(default: {DEFAULT_SOURCE_ROOT})",
     )
     parser.add_argument(
         "--n-proposes",
@@ -165,6 +223,13 @@ def _main() -> None:
         "42 if not recorded)",
     )
     parser.add_argument(
+        "--top-k",
+        type=int,
+        default=DEFAULT_TOP_K,
+        help=f"ensemble size for the replay (default: {DEFAULT_TOP_K}, the "
+        "size every archived benchmark run used)",
+    )
+    parser.add_argument(
         "--out",
         default=None,
         help="artifact dir (default: results/replay_<task>_np<n>_<ts> — the "
@@ -173,7 +238,7 @@ def _main() -> None:
     )
     args = parser.parse_args()
 
-    source_dir = args.source.rstrip("/")
+    source_dir = resolve_source(args.source, args.source_root)
     with open(os.path.join(source_dir, "result.json"), encoding="utf-8") as f:
         task = json.load(f)["task"]
 
@@ -182,7 +247,9 @@ def _main() -> None:
         f"replay_{task}_np{args.n_proposes}_{datetime.now():%Y%m%d-%H%M}",
     )
 
-    result = replay_from_run(source_dir, args.n_proposes, seed=args.seed)
+    result = replay_from_run(
+        source_dir, args.n_proposes, seed=args.seed, top_k=args.top_k
+    )
 
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as f:
