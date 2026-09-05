@@ -42,7 +42,7 @@ Constraints to preserve, verbatim from the current design:
 - **Determinism** — seeded subsamples + seeded estimators; the sampler itself
   must be seeded too, or the score cache stops being exact.
 - **Bounded higher-is-better reward**; the 60s wall-clock cap → 0.0 stays.
-- **Dynamic space growth** — Extended Feature 3 injections extend categorical choice
+- **Dynamic space growth** — Optional Feature 3 injections extend categorical choice
   sets mid-run. Optuna's define-by-run space handles a growing option list
   naturally (old trials remain valid `tell`s); ConfigSpace does **not** like a
   mutating space — with SMAC you'd rebuild the space and re-`tell` the cached
@@ -60,7 +60,7 @@ same ≤-one-call-per-slice proposer:
 - **Parameter importances** (fANOVA) — replaces `pick_target_node`'s
   variance ledger as the `target_stage` hint. Notably, this may fix the
   known null result: the ledger elected `model` on essentially every pick
-  (see PROJECT_STATE, Extended Feature 1); fANOVA importance over the study history is
+  (see PROJECT_STATE, Optional Feature 1); fANOVA importance over the study history is
   a far better-calibrated signal for "which stage is worth extending".
 - **Marginal distributions per choice** (e.g. "GapEncoder won 7/9 trials it
   appeared in") — cheap to compute from the trial dataframe, compact to
@@ -123,7 +123,7 @@ Safety rules for `prune` (code-owned, like everything structural):
 - Prunes go through the same resolve → rebuild path as extensions; a prune
   that would empty a stage falls back to the stage's default entry.
 
-This is the missing half of Extended Feature 3: at small budgets, *shrinking* a bloated
+This is the missing half of Optional Feature 3: at small budgets, *shrinking* a bloated
 LLM-authored space is plausibly worth more rollouts than extending it — every
 pruned dead option redirects budget to live ones.
 
@@ -155,7 +155,7 @@ their value is only visible indirectly. Two cheap upgrades:
 - **Attribution:** log, per injected option, whether it was ever selected in
   a rollout, entered the top-k pool, or survived into the incumbent /
   ensemble members. An injection hit-rate per task is one dict-comprehension
-  over the score cache and turns "Extended Feature 3 helps" from an anecdote (the
+  over the score cache and turns "Optional Feature 3 helps" from an anecdote (the
   country-happiness QuantileTransformer rescue) into a measured rate.
 - **Diff-gated injection:** before merging, diff the proposed plan against
   the current space and rank additions by novelty along dimensions the

@@ -1,0 +1,556 @@
+[
+  {
+    "ts": "2026-07-14T06:22:11.019016+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"impute_strategy\": {\n    \"choice\": [\n     \"most_frequent\",\n     \"mean\",\n     \"constant\",\n     \"median\"\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"datetime\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\n        \"hour\",\n        \"day\",\n        \"month\"\n       ]\n      },\n      \"add_weekday\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     }\n    },\n    \"skrub.DatetimeEncoder\",\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"add_total_seconds\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      },\n      \"add_day_of_year\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"high_cardinality\": [\n    \"skrub.GapEncoder\",\n    \"skrub.MinHashEncoder\",\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"params\": {\n      \"cv\": {\n       \"int\": [\n        3,\n        10\n       ]\n      },\n      \"smooth\": {\n       \"float\": [\n        0.1,\n        100.0\n       ],\n       \"log\": true\n      }\n     }\n    }\n   ],\n   \"low_cardinality\": [\n    \"sklearn.preprocessing.OneHotEncoder\",\n    \"sklearn.preprocessing.OrdinalEncoder\",\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"params\": {\n      \"cv\": {\n       \"int\": [\n        3,\n        10\n       ]\n      },\n      \"smooth\": {\n       \"float\": [\n        0.1,\n        100.0\n       ],\n       \"log\": true\n      }\n     }\n    }\n   ],\n   \"numeric\": [\n    \"sklearn.preprocessing.StandardScaler\",\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PowerTransformer\",\n     \"params\": {\n      \"standardize\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      },\n      \"method\": {\n       \"choice\": [\n        \"yeo-johnson\",\n        \"box-cox\"\n       ]\n      }\n     }\n    }\n   ]\n  }\n },\n \"scoped_encodings\": [\n  {\n   \"name\": \"date_expansion\",\n   \"cols\": [\n    \"date\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\n        \"hour\",\n        \"day\",\n        \"month\"\n       ]\n      },\n      \"add_weekday\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      },\n      \"add_total_seconds\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    },\n    \"skrub.DatetimeEncoder\"\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": true\n  },\n  {\n   \"name\": \"cyclical_hour\",\n   \"cols\": [\n    \"date\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\n        \"hour\"\n       ]\n      },\n      \"add_weekday\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      },\n      \"add_total_seconds\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": true\n  }\n ],\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.RobustScaler\",\n    \"sklearn.preprocessing.MaxAbsScaler\",\n    \"sklearn.preprocessing.MinMaxScaler\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n     \"params\": {\n      \"degree\": {\n       \"int\": [\n        2,\n        3\n       ]\n      },\n      \"interaction_only\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.decomposition.PCA\",\n     \"params\": {\n      \"n_components\": {\n       \"choice\": [\n        2,\n        3,\n        4,\n        5,\n        0.9,\n        0.95\n       ]\n      }\n     }\n    }\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\",\n   \"prior\": 0.85,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      600\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      16\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMRegressor\",\n   \"prior\": 0.75,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      127\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      16\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBRegressor\",\n   \"prior\": 0.7,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestRegressor\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      30\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.Ridge\",\n   \"prior\": 0.3,\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.001,\n      1000.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.neighbors.KNeighborsRegressor\",\n   \"prior\": 0.2,\n   \"params\": {\n    \"n_neighbors\": {\n     \"int\": [\n      3,\n      50\n     ]\n    },\n    \"weights\": {\n     \"choice\": [\n      \"uniform\",\n      \"distance\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"catboost.CatBoostRegressor\",\n   \"prior\": 0.82,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      600\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"depth\": {\n     \"int\": [\n      4,\n      12\n     ]\n    },\n    \"l2_leaf_reg\": {\n     \"float\": [\n      1.0,\n      20.0\n     ],\n     \"log\": true\n    },\n    \"random_strength\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.ExtraTreesRegressor\",\n   \"prior\": 0.65,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      30\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      1.0,\n      \"sqrt\",\n      \"log2\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.GradientBoostingRegressor\",\n   \"prior\": 0.55,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.ElasticNet\",\n   \"prior\": 0.4,\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.001,\n      1000.0\n     ],\n     \"log\": true\n    },\n    \"l1_ratio\": {\n     \"float\": [\n      0.1,\n      0.9\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "impute_strategy": {
+            "choice": [
+              "most_frequent",
+              "mean",
+              "constant",
+              "median"
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "datetime": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour",
+                    "day",
+                    "month"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              }
+            },
+            "skrub.DatetimeEncoder",
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                },
+                "add_day_of_year": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "high_cardinality": [
+            "skrub.GapEncoder",
+            "skrub.MinHashEncoder",
+            {
+              "name": "skrub.TargetEncoder",
+              "params": {
+                "cv": {
+                  "int": [
+                    3,
+                    10
+                  ]
+                },
+                "smooth": {
+                  "float": [
+                    0.1,
+                    100.0
+                  ],
+                  "log": true
+                }
+              }
+            }
+          ],
+          "low_cardinality": [
+            "sklearn.preprocessing.OneHotEncoder",
+            "sklearn.preprocessing.OrdinalEncoder",
+            {
+              "name": "skrub.TargetEncoder",
+              "params": {
+                "cv": {
+                  "int": [
+                    3,
+                    10
+                  ]
+                },
+                "smooth": {
+                  "float": [
+                    0.1,
+                    100.0
+                  ],
+                  "log": true
+                }
+              }
+            }
+          ],
+          "numeric": [
+            "sklearn.preprocessing.StandardScaler",
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PowerTransformer",
+              "params": {
+                "standardize": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "method": {
+                  "choice": [
+                    "yeo-johnson",
+                    "box-cox"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "date_expansion",
+          "cols": [
+            "date"
+          ],
+          "options": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour",
+                    "day",
+                    "month"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            },
+            "skrub.DatetimeEncoder"
+          ],
+          "position": "pre_encode",
+          "additive": true
+        },
+        {
+          "name": "cyclical_hour",
+          "cols": [
+            "date"
+          ],
+          "options": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": true
+        }
+      ],
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.RobustScaler",
+            "sklearn.preprocessing.MaxAbsScaler",
+            "sklearn.preprocessing.MinMaxScaler"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PolynomialFeatures",
+              "params": {
+                "degree": {
+                  "int": [
+                    2,
+                    3
+                  ]
+                },
+                "interaction_only": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.decomposition.PCA",
+              "params": {
+                "n_components": {
+                  "choice": [
+                    2,
+                    3,
+                    4,
+                    5,
+                    0.9,
+                    0.95
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+          "prior": 0.85,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                600
+              ]
+            },
+            "max_depth": {
+              "int": [
+                2,
+                16
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMRegressor",
+          "prior": 0.75,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                127
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                16
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBRegressor",
+          "prior": 0.7,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestRegressor",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                30
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.Ridge",
+          "prior": 0.3,
+          "params": {
+            "alpha": {
+              "float": [
+                0.001,
+                1000.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "sklearn.neighbors.KNeighborsRegressor",
+          "prior": 0.2,
+          "params": {
+            "n_neighbors": {
+              "int": [
+                3,
+                50
+              ]
+            },
+            "weights": {
+              "choice": [
+                "uniform",
+                "distance"
+              ]
+            }
+          }
+        },
+        {
+          "name": "catboost.CatBoostRegressor",
+          "prior": 0.82,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                600
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "depth": {
+              "int": [
+                4,
+                12
+              ]
+            },
+            "l2_leaf_reg": {
+              "float": [
+                1.0,
+                20.0
+              ],
+              "log": true
+            },
+            "random_strength": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.ExtraTreesRegressor",
+          "prior": 0.65,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                30
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                1.0,
+                "sqrt",
+                "log2"
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.GradientBoostingRegressor",
+          "prior": 0.55,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.ElasticNet",
+          "prior": 0.4,
+          "params": {
+            "alpha": {
+              "float": [
+                0.001,
+                1000.0
+              ],
+              "log": true
+            },
+            "l1_ratio": {
+              "float": [
+                0.1,
+                0.9
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

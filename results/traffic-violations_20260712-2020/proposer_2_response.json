@@ -1,0 +1,157 @@
+[
+  {
+    "ts": "2026-07-12T18:28:03.836091+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n  \"model\": [\n    \"sklearn.ensemble.HistGradientBoostingClassifier\",\n    \"sklearn.ensemble.RandomForestClassifier\",\n    \"xgboost.XGBClassifier\",\n    \"lightgbm.LGBMClassifier\",\n    {\n      \"path\": \"sklearn.linear_model.LogisticRegression\",\n      \"params\": {\n        \"C\": {\n          \"float\": [\n            0.01,\n            100\n          ],\n          \"log\": true\n        },\n        \"class_weight\": {\n          \"choice\": [\n            \"balanced\",\n            null\n          ]\n        },\n        \"solver\": {\n          \"choice\": [\n            \"lbfgs\",\n            \"saga\"\n          ]\n        },\n        \"max_iter\": {\n          \"int\": [\n            1000,\n            5000\n          ]\n        }\n      },\n      \"prior\": 0.85\n    },\n    {\n      \"path\": \"lightgbm.LGBMClassifier\",\n      \"params\": {\n        \"n_estimators\": {\n          \"int\": [\n            100,\n            500\n          ]\n        },\n        \"num_leaves\": {\n          \"int\": [\n            31,\n            127\n          ]\n        },\n        \"learning_rate\": {\n          \"float\": [\n            0.01,\n            0.3\n          ],\n          \"log\": true\n        },\n        \"is_unbalance\": {\n          \"choice\": [\n            true,\n            false\n          ]\n        },\n        \"scale_pos_weight\": {\n          \"float\": [\n            1,\n            10\n          ],\n          \"log\": true\n        }\n      },\n      \"prior\": 0.95\n    }\n  ],\n  \"cleaner\": {\n    \"params\": {\n      \"impute_missing\": {\n        \"choice\": [\n          true,\n          false\n        ]\n      },\n      \"drop_null_columns\": {\n        \"choice\": [\n          true,\n          false\n        ]\n      }\n    }\n  },\n  \"vectorizer\": {\n    \"params\": {\n      \"cardinality_threshold\": {\n        \"int\": [\n          10,\n          100\n        ]\n      }\n    },\n    \"slots\": {\n      \"high_cardinality\": [\n        \"skrub.MinHashEncoder\",\n        \"skrub.GapEncoder\"\n      ],\n      \"low_cardinality\": [\n        \"sklearn.preprocessing.OneHotEncoder\"\n      ],\n      \"datetime\": [\n        \"skrub.DatetimeEncoder\"\n      ],\n      \"numeric\": [\n        \"sklearn.preprocessing.StandardScaler\"\n      ]\n    }\n  },\n  \"scoped_encodings\": [\n    {\n      \"name\": \"datetime_features\",\n      \"cols\": [\n        \"date_of_stop\",\n        \"time_of_stop\"\n      ],\n      \"options\": [\n        \"skrub.DatetimeEncoder\"\n      ],\n      \"additive\": true\n    },\n    {\n      \"name\": \"high_cardinality_text\",\n      \"cols\": [\n        \"description\",\n        \"location\",\n        \"charge\",\n        \"model\",\n        \"driver_city\",\n        \"geolocation\",\n        \"search_reason_for_stop\"\n      ],\n      \"options\": [\n        \"skrub.MinHashEncoder\",\n        \"skrub.GapEncoder\"\n      ]\n    }\n  ]\n}",
+    "proposal": {
+      "model": [
+        "sklearn.ensemble.HistGradientBoostingClassifier",
+        "sklearn.ensemble.RandomForestClassifier",
+        "xgboost.XGBClassifier",
+        "lightgbm.LGBMClassifier",
+        {
+          "path": "sklearn.linear_model.LogisticRegression",
+          "params": {
+            "C": {
+              "float": [
+                0.01,
+                100
+              ],
+              "log": true
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                null
+              ]
+            },
+            "solver": {
+              "choice": [
+                "lbfgs",
+                "saga"
+              ]
+            },
+            "max_iter": {
+              "int": [
+                1000,
+                5000
+              ]
+            }
+          },
+          "prior": 0.85
+        },
+        {
+          "path": "lightgbm.LGBMClassifier",
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "num_leaves": {
+              "int": [
+                31,
+                127
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "is_unbalance": {
+              "choice": [
+                true,
+                false
+              ]
+            },
+            "scale_pos_weight": {
+              "float": [
+                1,
+                10
+              ],
+              "log": true
+            }
+          },
+          "prior": 0.95
+        }
+      ],
+      "cleaner": {
+        "params": {
+          "impute_missing": {
+            "choice": [
+              true,
+              false
+            ]
+          },
+          "drop_null_columns": {
+            "choice": [
+              true,
+              false
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "params": {
+          "cardinality_threshold": {
+            "int": [
+              10,
+              100
+            ]
+          }
+        },
+        "slots": {
+          "high_cardinality": [
+            "skrub.MinHashEncoder",
+            "skrub.GapEncoder"
+          ],
+          "low_cardinality": [
+            "sklearn.preprocessing.OneHotEncoder"
+          ],
+          "datetime": [
+            "skrub.DatetimeEncoder"
+          ],
+          "numeric": [
+            "sklearn.preprocessing.StandardScaler"
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "datetime_features",
+          "cols": [
+            "date_of_stop",
+            "time_of_stop"
+          ],
+          "options": [
+            "skrub.DatetimeEncoder"
+          ],
+          "additive": true
+        },
+        {
+          "name": "high_cardinality_text",
+          "cols": [
+            "description",
+            "location",
+            "charge",
+            "model",
+            "driver_city",
+            "geolocation",
+            "search_reason_for_stop"
+          ],
+          "options": [
+            "skrub.MinHashEncoder",
+            "skrub.GapEncoder"
+          ]
+        }
+      ]
+    }
+  }
+]

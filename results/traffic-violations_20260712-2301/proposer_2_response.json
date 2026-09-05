@@ -1,0 +1,874 @@
+[
+  {
+    "ts": "2026-07-12T21:16:47.777302+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"drop_if_unique\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"drop_high_missing\": {\n    \"float\": [\n     0.9,\n     0.99\n    ]\n   },\n   \"impute_missing\": {\n    \"choice\": [\n     \"most_frequent\",\n     \"constant\"\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"params\": {\n   \"cardinality_threshold\": {\n    \"int\": [\n     10,\n     50\n    ]\n   }\n  },\n  \"slots\": {\n   \"high_cardinality\": [\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        30,\n        80\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        50\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.75,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        0.0,\n        100.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    }\n   ],\n   \"low_cardinality\": [\n    \"sklearn.preprocessing.OneHotEncoder\",\n    \"sklearn.preprocessing.OrdinalEncoder\",\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.6,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        50.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    }\n   ],\n   \"datetime\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\n        \"hour\",\n        \"day\",\n        \"month\"\n       ]\n      },\n      \"add_weekday\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"numeric\": [\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.RobustScaler\",\n    \"sklearn.preprocessing.MinMaxScaler\",\n    {\n     \"name\": \"sklearn.preprocessing.KBinsDiscretizer\",\n     \"prior\": 0.6,\n     \"params\": {\n      \"n_bins\": {\n       \"int\": [\n        5,\n        50\n       ]\n      },\n      \"encode\": {\n       \"choice\": [\n        \"onehot\",\n        \"ordinal\"\n       ]\n      },\n      \"strategy\": {\n       \"choice\": [\n        \"quantile\",\n        \"uniform\",\n        \"kmeans\"\n       ]\n      }\n     }\n    }\n   ]\n  }\n },\n \"scoped_encodings\": [\n  {\n   \"name\": \"description_text\",\n   \"cols\": [\n    \"description\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        40\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.StringEncoder\"\n    },\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.7,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        50.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        30,\n        60\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  },\n  {\n   \"name\": \"location_encoding\",\n   \"cols\": [\n    \"location\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        30,\n        60\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        40\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.7,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        50.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  },\n  {\n   \"name\": \"datetime_expansion\",\n   \"cols\": [\n    \"date_of_stop\",\n    \"time_of_stop\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.DatetimeEncoder\",\n     \"params\": {\n      \"resolution\": {\n       \"choice\": [\n        \"hour\",\n        \"day\"\n       ]\n      },\n      \"add_weekday\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      },\n      \"add_total_seconds\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": true\n  },\n  {\n   \"name\": \"geolocation_parsing\",\n   \"cols\": [\n    \"geolocation\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        50\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        30,\n        60\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": true\n  },\n  {\n   \"name\": \"search_flags_interaction\",\n   \"cols\": [\n    \"accident\",\n    \"belts\",\n    \"personal_injury\",\n    \"property_damage\",\n    \"fatal\",\n    \"commercial_license\",\n    \"hazmat\",\n    \"commercial_vehicle\",\n    \"alcohol\",\n    \"work_zone\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n     \"params\": {\n      \"degree\": {\n       \"int\": [\n        2,\n        2\n       ]\n      },\n      \"interaction_only\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      },\n      \"include_bias\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"post_encode\",\n   \"additive\": true\n  },\n  {\n   \"name\": \"charge_encoding\",\n   \"cols\": [\n    \"charge\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.8,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        50.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        30,\n        60\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  },\n  {\n   \"name\": \"search_reason_stop_encoding\",\n   \"cols\": [\n    \"search_reason_for_stop\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"skrub.TargetEncoder\",\n     \"prior\": 0.75,\n     \"params\": {\n      \"smooth\": {\n       \"float\": [\n        1.0,\n        50.0\n       ],\n       \"log\": true\n      },\n      \"cv\": {\n       \"int\": [\n        3,\n        5\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        40\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  }\n ],\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.RobustScaler\",\n    \"sklearn.preprocessing.MinMaxScaler\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n     \"params\": {\n      \"degree\": {\n       \"int\": [\n        2,\n        3\n       ]\n      },\n      \"interaction_only\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.decomposition.PCA\",\n     \"prior\": 0.5,\n     \"params\": {\n      \"n_components\": {\n       \"float\": [\n        0.5,\n        0.99\n       ]\n      },\n      \"whiten\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.decomposition.TruncatedSVD\",\n     \"prior\": 0.5,\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        10,\n        100\n       ]\n      }\n     }\n    }\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"lightgbm.LGBMClassifier\",\n   \"prior\": 0.85,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"num_leaves\": {\n     \"int\": [\n      15,\n      127\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    },\n    \"min_child_samples\": {\n     \"int\": [\n      1,\n      100\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"is_unbalance\": {\n     \"choice\": [\n      false,\n      true\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBClassifier\",\n   \"prior\": 0.8,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      10\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"scale_pos_weight\": {\n     \"float\": [\n      1.0,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"min_child_weight\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"gamma\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"colsample_bylevel\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n   \"prior\": 0.7,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    },\n    \"max_bins\": {\n     \"int\": [\n      31,\n      255\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      50\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      400\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      20\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.LogisticRegression\",\n   \"prior\": 0.3,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.001,\n      1000.0\n     ],\n     \"log\": true\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      500\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"catboost.CatBoostClassifier\",\n   \"prior\": 0.9,\n   \"params\": {\n    \"iterations\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"depth\": {\n     \"int\": [\n      4,\n      10\n     ]\n    },\n    \"l2_leaf_reg\": {\n     \"float\": [\n      1.0,\n      30.0\n     ],\n     \"log\": true\n    },\n    \"border_count\": {\n     \"int\": [\n      32,\n      255\n     ]\n    },\n    \"class_weights\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    },\n    \"random_strength\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    },\n    \"bagging_temperature\": {\n     \"float\": [\n      0.0,\n      10.0\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.ExtraTreesClassifier\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      400\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      20\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      \"None\"\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "drop_if_unique": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "drop_high_missing": {
+            "float": [
+              0.9,
+              0.99
+            ]
+          },
+          "impute_missing": {
+            "choice": [
+              "most_frequent",
+              "constant"
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "params": {
+          "cardinality_threshold": {
+            "int": [
+              10,
+              50
+            ]
+          }
+        },
+        "slots": {
+          "high_cardinality": [
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    30,
+                    80
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    50
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.75,
+              "params": {
+                "smooth": {
+                  "float": [
+                    0.0,
+                    100.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            }
+          ],
+          "low_cardinality": [
+            "sklearn.preprocessing.OneHotEncoder",
+            "sklearn.preprocessing.OrdinalEncoder",
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.6,
+              "params": {
+                "smooth": {
+                  "float": [
+                    1.0,
+                    50.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            }
+          ],
+          "datetime": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour",
+                    "day",
+                    "month"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "numeric": [
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.RobustScaler",
+            "sklearn.preprocessing.MinMaxScaler",
+            {
+              "name": "sklearn.preprocessing.KBinsDiscretizer",
+              "prior": 0.6,
+              "params": {
+                "n_bins": {
+                  "int": [
+                    5,
+                    50
+                  ]
+                },
+                "encode": {
+                  "choice": [
+                    "onehot",
+                    "ordinal"
+                  ]
+                },
+                "strategy": {
+                  "choice": [
+                    "quantile",
+                    "uniform",
+                    "kmeans"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "description_text",
+          "cols": [
+            "description"
+          ],
+          "options": [
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    40
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.StringEncoder"
+            },
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.7,
+              "params": {
+                "smooth": {
+                  "float": [
+                    1.0,
+                    50.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    30,
+                    60
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        },
+        {
+          "name": "location_encoding",
+          "cols": [
+            "location"
+          ],
+          "options": [
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    30,
+                    60
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    40
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.7,
+              "params": {
+                "smooth": {
+                  "float": [
+                    1.0,
+                    50.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        },
+        {
+          "name": "datetime_expansion",
+          "cols": [
+            "date_of_stop",
+            "time_of_stop"
+          ],
+          "options": [
+            {
+              "name": "skrub.DatetimeEncoder",
+              "params": {
+                "resolution": {
+                  "choice": [
+                    "hour",
+                    "day"
+                  ]
+                },
+                "add_weekday": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                },
+                "add_total_seconds": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": true
+        },
+        {
+          "name": "geolocation_parsing",
+          "cols": [
+            "geolocation"
+          ],
+          "options": [
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    50
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    30,
+                    60
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": true
+        },
+        {
+          "name": "search_flags_interaction",
+          "cols": [
+            "accident",
+            "belts",
+            "personal_injury",
+            "property_damage",
+            "fatal",
+            "commercial_license",
+            "hazmat",
+            "commercial_vehicle",
+            "alcohol",
+            "work_zone"
+          ],
+          "options": [
+            {
+              "name": "sklearn.preprocessing.PolynomialFeatures",
+              "params": {
+                "degree": {
+                  "int": [
+                    2,
+                    2
+                  ]
+                },
+                "interaction_only": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                },
+                "include_bias": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "post_encode",
+          "additive": true
+        },
+        {
+          "name": "charge_encoding",
+          "cols": [
+            "charge"
+          ],
+          "options": [
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.8,
+              "params": {
+                "smooth": {
+                  "float": [
+                    1.0,
+                    50.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    30,
+                    60
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        },
+        {
+          "name": "search_reason_stop_encoding",
+          "cols": [
+            "search_reason_for_stop"
+          ],
+          "options": [
+            {
+              "name": "skrub.TargetEncoder",
+              "prior": 0.75,
+              "params": {
+                "smooth": {
+                  "float": [
+                    1.0,
+                    50.0
+                  ],
+                  "log": true
+                },
+                "cv": {
+                  "int": [
+                    3,
+                    5
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    40
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        }
+      ],
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.RobustScaler",
+            "sklearn.preprocessing.MinMaxScaler"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PolynomialFeatures",
+              "params": {
+                "degree": {
+                  "int": [
+                    2,
+                    3
+                  ]
+                },
+                "interaction_only": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.decomposition.PCA",
+              "prior": 0.5,
+              "params": {
+                "n_components": {
+                  "float": [
+                    0.5,
+                    0.99
+                  ]
+                },
+                "whiten": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.decomposition.TruncatedSVD",
+              "prior": 0.5,
+              "params": {
+                "n_components": {
+                  "int": [
+                    10,
+                    100
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "lightgbm.LGBMClassifier",
+          "prior": 0.85,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "num_leaves": {
+              "int": [
+                15,
+                127
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            },
+            "min_child_samples": {
+              "int": [
+                1,
+                100
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "is_unbalance": {
+              "choice": [
+                false,
+                true
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBClassifier",
+          "prior": 0.8,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                10
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "scale_pos_weight": {
+              "float": [
+                1.0,
+                100.0
+              ],
+              "log": true
+            },
+            "min_child_weight": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "gamma": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "colsample_bylevel": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+          "prior": 0.7,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            },
+            "max_bins": {
+              "int": [
+                31,
+                255
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                50
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestClassifier",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                400
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                20
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.LogisticRegression",
+          "prior": 0.3,
+          "params": {
+            "C": {
+              "float": [
+                0.001,
+                1000.0
+              ],
+              "log": true
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            },
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            }
+          }
+        },
+        {
+          "name": "catboost.CatBoostClassifier",
+          "prior": 0.9,
+          "params": {
+            "iterations": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "depth": {
+              "int": [
+                4,
+                10
+              ]
+            },
+            "l2_leaf_reg": {
+              "float": [
+                1.0,
+                30.0
+              ],
+              "log": true
+            },
+            "border_count": {
+              "int": [
+                32,
+                255
+              ]
+            },
+            "class_weights": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            },
+            "random_strength": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            },
+            "bagging_temperature": {
+              "float": [
+                0.0,
+                10.0
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.ExtraTreesClassifier",
+          "prior": 0.6,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                400
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                20
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                "None"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

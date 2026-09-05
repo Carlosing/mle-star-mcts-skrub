@@ -1,0 +1,532 @@
+[
+  {
+    "ts": "2026-07-15T10:57:16.259061+00:00",
+    "agent": "proposer",
+    "call": 2,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_constant\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"impute_missing\": {\n    \"choice\": [\n     true,\n     false\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"numeric\": [\n    \"sklearn.preprocessing.Passthrough\",\n    \"sklearn.preprocessing.QuantileTransformer\",\n    \"sklearn.preprocessing.KBinsDiscretizer\"\n   ]\n  }\n },\n \"scoped_encodings\": [\n  {\n   \"name\": \"skewed_count_transform\",\n   \"cols\": [\n    \"total_rooms\",\n    \"total_bedrooms\",\n    \"population\",\n    \"households\",\n    \"median_income\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"sklearn.preprocessing.PowerTransformer\",\n     \"params\": {\n      \"standardize\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  },\n  {\n   \"name\": \"skewed_quantile_transform\",\n   \"cols\": [\n    \"total_rooms\",\n    \"total_bedrooms\",\n    \"population\",\n    \"households\",\n    \"median_income\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"sklearn.preprocessing.QuantileTransformer\",\n     \"params\": {\n      \"n_quantiles\": {\n       \"int\": [\n        10,\n        1000\n       ]\n      },\n      \"output_distribution\": {\n       \"choice\": [\n        \"normal\",\n        \"uniform\"\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  },\n  {\n   \"name\": \"spatial_binning\",\n   \"cols\": [\n    \"longitude\",\n    \"latitude\"\n   ],\n   \"options\": [\n    {\n     \"name\": \"sklearn.preprocessing.KBinsDiscretizer\",\n     \"params\": {\n      \"n_bins\": {\n       \"int\": [\n        5,\n        50\n       ]\n      },\n      \"strategy\": {\n       \"choice\": [\n        \"uniform\",\n        \"quantile\",\n        \"kmeans\"\n       ]\n      },\n      \"encode\": {\n       \"choice\": [\n        \"ordinal\",\n        \"onehot\"\n       ]\n      }\n     }\n    }\n   ],\n   \"position\": \"pre_encode\",\n   \"additive\": false\n  }\n ],\n \"stages\": [\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PolynomialFeatures\",\n     \"params\": {\n      \"degree\": {\n       \"int\": [\n        2,\n        3\n       ]\n      },\n      \"interaction_only\": {\n       \"choice\": [\n        false,\n        true\n       ]\n      },\n      \"include_bias\": {\n       \"choice\": [\n        false\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.decomposition.PCA\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        2,\n        8\n       ]\n      },\n      \"svd_solver\": {\n       \"choice\": [\n        \"auto\",\n        \"full\",\n        \"arpack\"\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"sklearn.preprocessing.KBinsDiscretizer\",\n     \"params\": {\n      \"n_bins\": {\n       \"int\": [\n        5,\n        50\n       ]\n      },\n      \"strategy\": {\n       \"choice\": [\n        \"uniform\",\n        \"quantile\",\n        \"kmeans\"\n       ]\n      },\n      \"encode\": {\n       \"choice\": [\n        \"ordinal\",\n        \"onehot\"\n       ]\n      }\n     }\n    }\n   ]\n  },\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.StandardScaler\",\n    \"sklearn.preprocessing.RobustScaler\"\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingRegressor\",\n   \"prior\": 0.8,\n   \"params\": {\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_iter\": {\n     \"int\": [\n      100,\n      600\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      16\n     ]\n    },\n    \"l2_regularization\": {\n     \"float\": [\n      0.0,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestRegressor\",\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      30\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBRegressor\",\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.linear_model.Ridge\",\n   \"params\": {\n    \"alpha\": {\n     \"float\": [\n      0.001,\n      1000.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"lightgbm.LGBMRegressor\",\n   \"prior\": 0.75,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      12\n     ]\n    },\n    \"num_leaves\": {\n     \"int\": [\n      10,\n      100\n     ]\n    },\n    \"reg_alpha\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"reg_lambda\": {\n     \"float\": [\n      0.0,\n      5.0\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    },\n    \"colsample_bytree\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.GradientBoostingRegressor\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      8\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"subsample\": {\n     \"float\": [\n      0.5,\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"catboost.CatBoostRegressor\",\n   \"prior\": 0.85,\n   \"params\": {\n    \"iterations\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"depth\": {\n     \"int\": [\n      4,\n      10\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.3\n     ],\n     \"log\": true\n    },\n    \"l2_leaf_reg\": {\n     \"float\": [\n      0.1,\n      10.0\n     ],\n     \"log\": true\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.ExtraTreesRegressor\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      30\n     ]\n    },\n    \"min_samples_leaf\": {\n     \"int\": [\n      1,\n      10\n     ]\n    },\n    \"max_features\": {\n     \"choice\": [\n      \"sqrt\",\n      \"log2\",\n      1.0\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.svm.SVR\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"C\": {\n     \"float\": [\n      0.1,\n      100.0\n     ],\n     \"log\": true\n    },\n    \"epsilon\": {\n     \"float\": [\n      0.01,\n      0.5\n     ],\n     \"log\": true\n    },\n    \"kernel\": {\n     \"choice\": [\n      \"rbf\",\n      \"linear\"\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.neighbors.KNeighborsRegressor\",\n   \"prior\": 0.5,\n   \"params\": {\n    \"n_neighbors\": {\n     \"int\": [\n      3,\n      50\n     ]\n    },\n    \"weights\": {\n     \"choice\": [\n      \"uniform\",\n      \"distance\"\n     ]\n    },\n    \"p\": {\n     \"int\": [\n      1,\n      2\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "cleaner": {
+        "params": {
+          "drop_if_constant": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "impute_missing": {
+            "choice": [
+              true,
+              false
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "numeric": [
+            "sklearn.preprocessing.Passthrough",
+            "sklearn.preprocessing.QuantileTransformer",
+            "sklearn.preprocessing.KBinsDiscretizer"
+          ]
+        }
+      },
+      "scoped_encodings": [
+        {
+          "name": "skewed_count_transform",
+          "cols": [
+            "total_rooms",
+            "total_bedrooms",
+            "population",
+            "households",
+            "median_income"
+          ],
+          "options": [
+            {
+              "name": "sklearn.preprocessing.PowerTransformer",
+              "params": {
+                "standardize": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        },
+        {
+          "name": "skewed_quantile_transform",
+          "cols": [
+            "total_rooms",
+            "total_bedrooms",
+            "population",
+            "households",
+            "median_income"
+          ],
+          "options": [
+            {
+              "name": "sklearn.preprocessing.QuantileTransformer",
+              "params": {
+                "n_quantiles": {
+                  "int": [
+                    10,
+                    1000
+                  ]
+                },
+                "output_distribution": {
+                  "choice": [
+                    "normal",
+                    "uniform"
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        },
+        {
+          "name": "spatial_binning",
+          "cols": [
+            "longitude",
+            "latitude"
+          ],
+          "options": [
+            {
+              "name": "sklearn.preprocessing.KBinsDiscretizer",
+              "params": {
+                "n_bins": {
+                  "int": [
+                    5,
+                    50
+                  ]
+                },
+                "strategy": {
+                  "choice": [
+                    "uniform",
+                    "quantile",
+                    "kmeans"
+                  ]
+                },
+                "encode": {
+                  "choice": [
+                    "ordinal",
+                    "onehot"
+                  ]
+                }
+              }
+            }
+          ],
+          "position": "pre_encode",
+          "additive": false
+        }
+      ],
+      "stages": [
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PolynomialFeatures",
+              "params": {
+                "degree": {
+                  "int": [
+                    2,
+                    3
+                  ]
+                },
+                "interaction_only": {
+                  "choice": [
+                    false,
+                    true
+                  ]
+                },
+                "include_bias": {
+                  "choice": [
+                    false
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.decomposition.PCA",
+              "params": {
+                "n_components": {
+                  "int": [
+                    2,
+                    8
+                  ]
+                },
+                "svd_solver": {
+                  "choice": [
+                    "auto",
+                    "full",
+                    "arpack"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "sklearn.preprocessing.KBinsDiscretizer",
+              "params": {
+                "n_bins": {
+                  "int": [
+                    5,
+                    50
+                  ]
+                },
+                "strategy": {
+                  "choice": [
+                    "uniform",
+                    "quantile",
+                    "kmeans"
+                  ]
+                },
+                "encode": {
+                  "choice": [
+                    "ordinal",
+                    "onehot"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.StandardScaler",
+            "sklearn.preprocessing.RobustScaler"
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingRegressor",
+          "prior": 0.8,
+          "params": {
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_iter": {
+              "int": [
+                100,
+                600
+              ]
+            },
+            "max_depth": {
+              "int": [
+                2,
+                16
+              ]
+            },
+            "l2_regularization": {
+              "float": [
+                0.0,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestRegressor",
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                30
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBRegressor",
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.linear_model.Ridge",
+          "params": {
+            "alpha": {
+              "float": [
+                0.001,
+                1000.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "lightgbm.LGBMRegressor",
+          "prior": 0.75,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                12
+              ]
+            },
+            "num_leaves": {
+              "int": [
+                10,
+                100
+              ]
+            },
+            "reg_alpha": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "reg_lambda": {
+              "float": [
+                0.0,
+                5.0
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            },
+            "colsample_bytree": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.GradientBoostingRegressor",
+          "prior": 0.5,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                8
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "subsample": {
+              "float": [
+                0.5,
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "catboost.CatBoostRegressor",
+          "prior": 0.85,
+          "params": {
+            "iterations": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "depth": {
+              "int": [
+                4,
+                10
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.3
+              ],
+              "log": true
+            },
+            "l2_leaf_reg": {
+              "float": [
+                0.1,
+                10.0
+              ],
+              "log": true
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.ExtraTreesRegressor",
+          "prior": 0.6,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "max_depth": {
+              "int": [
+                3,
+                30
+              ]
+            },
+            "min_samples_leaf": {
+              "int": [
+                1,
+                10
+              ]
+            },
+            "max_features": {
+              "choice": [
+                "sqrt",
+                "log2",
+                1.0
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.svm.SVR",
+          "prior": 0.5,
+          "params": {
+            "C": {
+              "float": [
+                0.1,
+                100.0
+              ],
+              "log": true
+            },
+            "epsilon": {
+              "float": [
+                0.01,
+                0.5
+              ],
+              "log": true
+            },
+            "kernel": {
+              "choice": [
+                "rbf",
+                "linear"
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.neighbors.KNeighborsRegressor",
+          "prior": 0.5,
+          "params": {
+            "n_neighbors": {
+              "int": [
+                3,
+                50
+              ]
+            },
+            "weights": {
+              "choice": [
+                "uniform",
+                "distance"
+              ]
+            },
+            "p": {
+              "int": [
+                1,
+                2
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]

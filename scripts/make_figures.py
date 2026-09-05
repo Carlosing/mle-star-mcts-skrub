@@ -13,7 +13,7 @@ via ``scripts/run_mlestar.py``) — all share the fields ``method``, ``task``,
    than a single horizontal strip. All three methods draw automatically from
    whatever `result.json` files are present — an MLE-STAR run appears the moment
    `make bench-mlestar` produces one (see `fig_quality_at_cost`).
-2. **proposal scaling** — the extension's holdout score vs Extended Feature 3 call count
+2. **proposal scaling** — the extension's holdout score vs Optional Feature 3 call count
    (`n_proposes`), one subplot per task, minimal by design (just task/n_proposes/
    score — see `fig_proposal_scaling`). ONLY `scripts/replay_from_run.py`
    replays count (`reused_spec=True`) — a live run only ever produces one
@@ -35,9 +35,13 @@ Run:
     uv run python scripts/make_figures.py --runs results --out figures
 Needs matplotlib (the `bench` extra):  uv sync --extra bench
 
-Reads from ``results/`` (a small, git-shareable mirror of ``runs/`` containing
-only each run's ``result.json`` — see ``scripts/collect_results.py``), not
-``runs/`` itself, which also holds multi-GB AutoGluon model artifacts.
+Reads from ``results/`` (the git-shareable mirror of ``runs/`` — see
+``scripts/collect_results.py``), not ``runs/`` itself, which also holds
+multi-GB AutoGluon model artifacts.
+
+Runs from before the on-disk split (commit ``517f954``) are scored on a bench
+that no longer exists. ``_on_current_bench`` flags each record so the figures
+can keep the two apart instead of averaging across them.
 """
 
 import argparse
@@ -45,6 +49,7 @@ import csv
 import glob
 import json
 import os
+import re
 from collections import defaultdict
 
 # The 10 tasks we're actually comparing methods on for the writeup. Runs for
@@ -64,6 +69,32 @@ _TASK_ALLOWLIST = {
     "flight-delays",
     "bike-sharing",
 }
+
+
+# The on-disk train/holdout split landed 2026-07-14 17:13 (commit 517f954);
+# out-of-fold ensemble selection and its `selection` stamp landed 43 minutes
+# later (dbc0f77). Runs before that are scored on a bench that no longer
+# exists, so they must never be averaged together with later ones.
+_SPLIT_FIX_DAY = "20260715"
+
+
+def _on_current_bench(result: dict, path: str) -> bool:
+    """True if this run was scored on the on-disk split (post-`517f954`).
+
+    Two tests, because neither alone is sufficient: the `oof_3fold` stamp is
+    conclusive, but a run with a single ensemble member has no `ensemble` block
+    to carry it — those are identified by the timestamp in their directory
+    name instead. Pre-fix runs have no `selection` key at all (the stamping
+    code shipped after them), so absence proves nothing on its own.
+
+    Example:
+        _on_current_bench({...}, "results/replay_x_np2_20260715-1325/result.json") -> True
+    """
+    ensemble = result.get("ensemble")
+    if isinstance(ensemble, dict) and ensemble.get("selection") == "oof_3fold":
+        return True
+    stamps = re.findall(r"20\d{6}", os.path.basename(os.path.dirname(path)))
+    return bool(stamps) and stamps[-1] >= _SPLIT_FIX_DAY
 
 
 def load_results(roots: list[str]) -> list[dict]:
@@ -105,6 +136,7 @@ def load_results(roots: list[str]) -> list[dict]:
                     "relational": bool(d.get("relational", False)),
                     "leaderboard": d.get("leaderboard"),
                     "reused_spec": bool(d.get("reused_spec", False)),
+                    "on_current_bench": _on_current_bench(d, path),
                     "tokens_by_agent": d.get("tokens_by_agent") or {},
                     "path": path,
                 }
@@ -138,13 +170,18 @@ def _grid(n: int, ncols: int) -> tuple[int, int]:
 def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
     """One panel per task: holdout score per method, annotated with token cost.
 
-    Multiple runs of the SAME method on the same task (several
-    `make run-live BUDGET=...` extension runs, provider/rt-on-off variants,
-    repeated AutoGluon attempts, ...) are aggregated into ONE bar per method —
-    mean score, error bars = min-max range across those runs — rather than
-    plotting every historical run as its own bar. Bar charts key bars by their
-    x-axis label, so repeated identical method labels used to draw multiple
-    bars on top of each other with overlapping, unreadable annotation text.
+    Bars are keyed by (method, bench), NOT by method alone: a pre-fix run and a
+    current-bench run are scored on different holdouts, so averaging them
+    produces a number measured on no bench at all. The extension therefore gets
+    up to two bars per task ("extension" and "extension (clean)"); the baselines
+    have only pre-fix runs, so they keep one each.
+
+    Within a (method, bench) group, repeated runs — several
+    `make run-live BUDGET=...` attempts, repeated AutoGluon runs — are still
+    aggregated into ONE bar: mean score, error bars = min-max range, `n=` in the
+    annotation. Bar charts key bars by their x label, so repeated identical
+    labels would otherwise stack bars on top of each other with overlapping,
+    unreadable text.
     """
     import matplotlib
 
@@ -168,17 +205,26 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
     )
     flat_axes = [ax for row in axes for ax in row]
     for ax, task in zip(flat_axes, tasks):
-        by_method = defaultdict(list)
+        by_group = defaultdict(list)
         for r in by_task[task]:
-            by_method[r["method"]].append(r)
-        methods = sorted(by_method)
+            by_group[(r["method"], r["on_current_bench"])].append(r)
+        # method order, pre-fix bar before its clean counterpart
+        groups = sorted(by_group, key=lambda g: (g[0], g[1]))
 
-        means, err_lo, err_hi, tok_means, n_runs = [], [], [], [], []
+        labels, means, err_lo, err_hi, tok_means, n_runs = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         scorer_label = None
-        for m in methods:
-            rows = by_method[m]
+        for method, clean in groups:
+            rows = by_group[(method, clean)]
             scores = [r["score"] for r in rows]
             mean = sum(scores) / len(scores)
+            labels.append(f"{method}\n(clean)" if clean else method)
             means.append(mean)
             err_lo.append(mean - min(scores))
             err_hi.append(max(scores) - mean)
@@ -186,9 +232,18 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
             n_runs.append(len(rows))
             scorer_label = scorer_label or rows[0]["scorer"]
 
-        colors = [_METHOD_COLOR.get(m, "#888") for m in methods]
+        # Method colour for every bar; the current-bench bar is hatched so it
+        # reads as the same method on a different bench, not a fourth method.
+        colors = [_METHOD_COLOR.get(m, "#888") for m, _ in groups]
+        hatches = ["//" if clean else "" for _, clean in groups]
         bars = ax.bar(
-            methods, means, color=colors, yerr=[err_lo, err_hi], capsize=3
+            labels,
+            means,
+            color=colors,
+            yerr=[err_lo, err_hi],
+            capsize=3,
+            hatch=hatches,
+            edgecolor="white",
         )
         for bar, mean, tok, n_run, hi in zip(
             bars, means, tok_means, n_runs, err_hi
@@ -220,9 +275,10 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
         ax.set_visible(False)
 
     fig.suptitle(
-        "Quality at cost — shared-holdout score vs token spend\n"
-        "(bars = mean over repeated runs; error bars = min-max range)",
-        fontsize=11,
+        "Quality at cost — holdout score vs token spend\n"
+        "(bars = mean over repeated runs, error bars = min-max range; "
+        "hatched = current bench, plain = pre-fix — not comparable)",
+        fontsize=10,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96), pad=1.6, h_pad=2.4)
     path = os.path.join(out_dir, "quality_at_cost.png")
@@ -232,7 +288,7 @@ def fig_quality_at_cost(records: list[dict], out_dir: str) -> str | None:
 
 
 def _n_proposes(r: dict) -> int:
-    """Recover Extended Feature 3's call count from a record, live run or replay alike.
+    """Recover Optional Feature 3's call count from a record, live run or replay alike.
 
     Not stored directly (see docs/PROJECT_STATE.md's owed item: `llm_calls`
     miscounts offline replay proposers as real calls) — but that's exactly
@@ -246,7 +302,7 @@ def _n_proposes(r: dict) -> int:
 
 
 def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
-    """Extension holdout score vs Extended Feature 3 proposal count, one subplot per task.
+    """Extension holdout score vs Optional Feature 3 proposal count, one subplot per task.
 
     Deliberately minimal per-point: just task, n_proposes (`_n_proposes`), and
     score — no token/wall-clock panel, since the LLM-call axis IS n_proposes
@@ -263,10 +319,18 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
     `replay_from_run`'s own `n_proposes` ceiling — it can only replay up to
     however many real proposals the source run logged).
 
-    Points at the same (task, n_proposes) — e.g. two replays sourced from
-    different live runs that both used n_proposes=1 — are averaged. Tasks
-    with fewer than two distinct n_proposes points are skipped (nothing to
-    draw a curve through).
+    Pre-fix and current-bench runs are drawn as SEPARATE series, never
+    averaged together: they are scored on different holdouts, so a mean across
+    them is a number measured on no bench at all. (Before this split, the
+    country-happiness n=2 marker read -660 — the midpoint of a pre-fix -753.87
+    and a clean -568.70.) Every clean replay so far sits at n=2, so the clean
+    series is currently a lone marker per task rather than a curve; that is the
+    honest picture until the missing n=0/n=1 replays are run.
+
+    Points at the same (task, n_proposes, bench) — e.g. two replays sourced
+    from different live runs that both used n_proposes=1 — are averaged. A
+    series with fewer than two distinct n_proposes points is drawn as a marker
+    with no line; a task with no series at all is skipped.
 
     One subplot per task, own y-axis each — scorers differ in scale AND sign
     across tasks (e.g. negative RMSE vs 0-1 accuracy/roc_auc), so a single
@@ -282,38 +346,80 @@ def fig_proposal_scaling(records: list[dict], out_dir: str) -> str | None:
     for r in records:
         if r["method"] != "extension" or not r["reused_spec"]:
             continue
-        by_task_n[(r["task"], _n_proposes(r))].append(r["score"])
+        key = (r["task"], r["on_current_bench"], _n_proposes(r))
+        by_task_n[key].append(r["score"])
         scorer_of[r["task"]] = r["scorer"]
 
-    by_task = defaultdict(list)
-    for (task, n), scores in by_task_n.items():
-        by_task[task].append((n, sum(scores) / len(scores)))
-    by_task = {
-        task: sorted(pts) for task, pts in by_task.items() if len(pts) >= 2
-    }
+    # task -> {on_current_bench: [(n, mean score), ...]}
+    by_task = defaultdict(lambda: defaultdict(list))
+    for (task, clean, n), scores in by_task_n.items():
+        by_task[task][clean].append((n, sum(scores) / len(scores)))
 
     if not by_task:
         return None
 
     tasks = sorted(by_task)
     n = len(tasks)
+    # One shared set of integer x-ticks for every panel. Left to the default
+    # locator, a panel holding a single point (a task with only a clean n=2
+    # replay) gets a degenerate x-range and renders unreadable fractional
+    # ticks around it.
+    all_ns = sorted({x for _, _, x in by_task_n})
     fig, axes = plt.subplots(
-        1, n, figsize=(max(4, 3.2 * n), 3.6), squeeze=False
+        1, n, figsize=(max(4, 3.2 * n), 3.8), squeeze=False
     )
-    color = _METHOD_COLOR.get("extension", "#2b8cbe")
+    series = [
+        (False, "pre-fix bench", "#9e9e9e", "o", "--"),
+        (
+            True,
+            "current bench",
+            _METHOD_COLOR.get("extension", "#2b8cbe"),
+            "D",
+            "-",
+        ),
+    ]
     for ax, task in zip(axes[0], tasks):
-        pts = by_task[task]
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        ax.plot(xs, ys, marker="o", color=color)
+        for clean, label, color, marker, style in series:
+            pts = sorted(by_task[task].get(clean, []))
+            if not pts:
+                continue
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            ax.plot(
+                xs,
+                ys,
+                marker=marker,
+                color=color,
+                linestyle=style if len(pts) > 1 else "none",
+                label=label,
+                zorder=3 if clean else 2,
+            )
         ax.set_title(task, fontsize=9)
         ax.set_ylabel(scorer_of.get(task, "holdout score"), fontsize=8)
         ax.set_xlabel("n_proposes", fontsize=8)
-        ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    fig.suptitle(
-        "Proposal scaling — quality vs Extended Feature 3 call count", fontsize=11
+        ax.set_xticks(all_ns)
+        ax.set_xlim(min(all_ns) - 0.35, max(all_ns) + 0.35)
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    for ax in axes[0]:
+        h, ls = ax.get_legend_handles_labels()
+        for handle, lab in zip(h, ls):
+            if lab not in labels:
+                handles.append(handle)
+                labels.append(lab)
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        ncol=len(labels),
+        fontsize=8,
+        frameon=False,
     )
-    fig.tight_layout()
+    fig.suptitle(
+        "Proposal scaling — quality vs Optional Feature 3 call count\n"
+        "(benches shown separately — scores across them are not comparable)",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
     path = os.path.join(out_dir, "proposal_scaling.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -354,7 +460,7 @@ def _cumulative_tokens_by_n_proposes(r: dict) -> list[tuple[int, int]]:
 
 
 def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
-    """Real LLM token cost vs Extended Feature 3 proposal count — EVERY task on one axes,
+    """Real LLM token cost vs Optional Feature 3 proposal count — EVERY task on one axes,
     the cost-side companion to `fig_proposal_scaling`'s quality-side curve.
 
     ONLY live runs count (`reused_spec=False`) — the opposite filter from
@@ -405,7 +511,7 @@ def fig_token_cost(records: list[dict], out_dir: str) -> str | None:
     ax.margins(x=0.05, y=0.08)
     ax.legend(fontsize=8, title="task", ncol=2, loc="upper left")
     ax.set_title(
-        "Token cost vs Extended Feature 3 call count (real live runs, all tasks)",
+        "Token cost vs Optional Feature 3 call count (real live runs, all tasks)",
         fontsize=12,
     )
     fig.tight_layout()
@@ -442,7 +548,7 @@ _MECHANISM_ROWS = [
     ),
     (
         "Adaptivity",
-        "Space authored once; search adapts within it (Extended Feature 1/3)",
+        "Space authored once; search adapts within it (Optional Feature 1/3)",
         "Fixed AutoML pipeline",
         "Fully adaptive per step (at unbounded token cost)",
     ),

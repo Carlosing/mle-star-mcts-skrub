@@ -8,9 +8,9 @@
 BUDGET ?= 20
 # task name under tasks/ (empty = config default)
 TASK ?=
-# search phases; >1 enables the tree-mined focus-stage pick (Extended Feature 1, proposer hint)
+# search phases; >1 enables the tree-mined focus-stage pick (Optional Feature 1, proposer hint)
 OUTER_STEPS ?= 1
-# set REFINE=1 to enable LLM per-stage option injection (Extended Feature 3; needs OUTER_STEPS>1)
+# set REFINE=1 to enable LLM per-stage option injection (Optional Feature 3; needs OUTER_STEPS>1)
 REFINE ?=
 # interleave N proposer calls between BUDGET-sized slices (overrides OUTER_STEPS/REFINE)
 N_PROPOSES ?=
@@ -26,7 +26,7 @@ NJOBS ?= 6
 # budget (BUDGET). Set e.g. TIME_BUDGET=3600 for the 1h benchmark protocol.
 TIME_BUDGET ?=
 # --- Claude-driven (offline, zero Gemini quota) --------------------------------
-# proposer calls interleaved between BUDGET-sized slices (0 = Extended Feature 1 + HP-refine only)
+# proposer calls interleaved between BUDGET-sized slices (0 = Optional Feature 1 + HP-refine only)
 CLAUDE_PROPOSES ?= 2
 # top-k ensemble for the Claude driver (1 = off)
 CLAUDE_TOP_K ?= 3
@@ -46,7 +46,7 @@ help:
 	@echo "make run-live   - full pipeline on the REAL API; writes runs/<task>_<ts>/"
 	@echo "                  vars: PROVIDER=$(PROVIDER) (google|school) BUDGET=$(BUDGET) TASK=<name> TOP_K=<k> N_PROPOSES=<n> NJOBS=$(NJOBS) LEGACY_ENSEMBLE=1"
 	@echo "                  full usage guide: docs/USAGE.md"
-	@echo "make run-refine - run-live with Extended Feature 1 + Extended Feature 3 on (OUTER_STEPS=3, REFINE=1)"
+	@echo "make run-refine - run-live with Optional Feature 1 + Optional Feature 3 on (OUTER_STEPS=3, REFINE=1)"
 	@echo ""
 	@echo "-- Claude-driven, offline, ZERO Gemini quota (plans+proposals in scripts/claude_agents.py) --"
 	@echo "make run-claude   - one task through the Claude driver; writes runs/claude_<ts>/<task>/"
@@ -61,7 +61,7 @@ help:
 	@echo "make bench-mlestar   - revived MLE-STAR under hard caps (spends LLM budget); TASK=<name> MAX_CALLS=60 PROVIDER=$(PROVIDER)"
 	@echo "make benchmark-extension|-autogluon|-mlestar - ALL 10 tasks in order, with the"
 	@echo "  archived per-task configs pinned in scripts/run_benchmark.py (see EXPERIMENTS.md)"
-	@echo "make collect-results - copy result.json artifacts from SRC=runs into a small git-shareable DST=results mirror"
+	@echo "make collect-results - mirror run artifacts from SRC=runs into the git-shareable DST=results (AutoGluon's ag_models/ excluded)"
 	@echo "make figures         - render comparison figures from result.json artifacts; RUNS=results OUT=figures"
 	@echo "  (extension side: 'make run-live TIME_BUDGET=3600 ...' to fill the same budget at constant LLM cost)"
 
@@ -90,7 +90,7 @@ run-live:
 run-refine:
 	$(MAKE) run-live OUTER_STEPS=3 REFINE=1 BUDGET=$(BUDGET) TASK=$(TASK)
 
-# Claude stands in for the Gemini agent layer: plans + Extended Feature 3 proposals come
+# Claude stands in for the Gemini agent layer: plans + Optional Feature 3 proposals come
 # from scripts/claude_agents.py, so the search runs with zero network calls.
 run-claude:
 	uv run python scripts/run_claude_pipeline.py \
@@ -150,9 +150,11 @@ benchmark-autogluon:
 benchmark-mlestar:
 	PROVIDER=$(PROVIDER) uv run python scripts/run_benchmark.py --method mlestar
 
-# Copy result.json artifacts (folder structure preserved, AutoGluon's
-# multi-GB ag_models/ left behind) from SRC=runs into a small, git-shareable
-# mirror under DST=results. Distinct var names from RUNS/OUT below on purpose
+# Mirror each run directory (folder structure preserved) from SRC=runs into the
+# git-shareable DST=results: result.json, summary.md, ensemble.pkl and the raw
+# agent I/O, so an archived run stays replayable. AutoGluon's multi-GB
+# ag_models/ is pruned; MAX_FILE_MB caps any single file (0 = no cap).
+# Distinct var names from RUNS/OUT below on purpose
 # — both targets set defaults via `?=`, which is Makefile-global, so reusing
 # RUNS/OUT here would let the figures target's default silently override this
 # target's own (that bug shipped once already: a fresh result.json sat in
@@ -160,8 +162,10 @@ benchmark-mlestar:
 # been pinned to `results`).
 SRC ?= runs
 DST ?= results
+MAX_FILE_MB ?= 25
 collect-results:
-	uv run python scripts/collect_results.py --runs $(SRC) --out $(DST)
+	uv run python scripts/collect_results.py --runs $(SRC) --out $(DST) \
+		--max-file-mb $(MAX_FILE_MB)
 
 # Read every uniform result.json under RUNS (the small results/ mirror by
 # default, not runs/ itself) and render the comparison figures.

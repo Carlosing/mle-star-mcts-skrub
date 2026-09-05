@@ -27,7 +27,7 @@ one call and run in seconds. For the full status + roadmap see
   choices** (import allow-list only, no `eval`).
 - **End-to-end driver** ([pipeline.py](../machine_learning_engineering/pipeline.py))
   — `run_pipeline`: task → data digest → agents → resolve → MCTS search
-  (Extended Feature 1 focus hint, Extended Feature 3 injection, focused refinement) → Caruana
+  (Optional Feature 1 focus hint, Optional Feature 3 injection, focused refinement) → Caruana
   ensemble → report on the shared on-disk holdout.
 - **Benchmark harness** — AutoGluon and a revived, hard-capped MLE-STAR run on
   the *same* task, holdout and time budget, all three emitting one uniform

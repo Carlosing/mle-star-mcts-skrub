@@ -65,7 +65,7 @@ The pure-code search engine and the outer loop that drives it. No skrub, no LLM 
   `canonicalize`, the `prior_fn` hook, and `start_node` incumbent-local descent.
 - `machine_learning_engineering/search_loop.py` — the outer loop: persisted-tree MCTS as
   fixed-budget slices; `tree_action_values` (tree-mined ablation) and `pick_target_node`
-  (**Extended Feature 1** focus-stage hint); `make_llm_proposer` + `_merge_raw_plans` (**Extended Feature 3**
+  (**Optional Feature 1** focus-stage hint); `make_llm_proposer` + `_merge_raw_plans` (**Optional Feature 3**
   whole-plan injection); the post-budget **focused-refinement bonus phase** (`refined_dims`).
 
 **Tests:** `tests/test_mcts.py`, `tests/test_search_loop.py`, `tests/test_priors_and_proposer.py`.

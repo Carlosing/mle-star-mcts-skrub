@@ -1,0 +1,271 @@
+[
+  {
+    "ts": "2026-07-12T16:19:28.845865+00:00",
+    "agent": "proposer",
+    "call": 1,
+    "phase": "response",
+    "search": false,
+    "output": "\n\n{\n \"assemble\": [\n  {\n   \"name\": \"numeric_basic\",\n   \"table\": \"products\",\n   \"main_key\": \"ID\",\n   \"aux_key\": \"basket_ID\",\n   \"operations\": [\n    \"sum\",\n    \"mean\",\n    \"count\"\n   ],\n   \"cols\": [\n    \"cash_price\",\n    \"Nbr_of_prod_purchas\"\n   ]\n  },\n  {\n   \"name\": \"numeric_extended\",\n   \"table\": \"products\",\n   \"main_key\": \"ID\",\n   \"aux_key\": \"basket_ID\",\n   \"operations\": [\n    \"sum\",\n    \"mean\",\n    \"std\",\n    \"count\"\n   ],\n   \"cols\": [\n    \"cash_price\",\n    \"Nbr_of_prod_purchas\"\n   ]\n  },\n  {\n   \"name\": \"categorical_mode\",\n   \"table\": \"products\",\n   \"main_key\": \"ID\",\n   \"aux_key\": \"basket_ID\",\n   \"operations\": [\n    \"mode\",\n    \"count\"\n   ],\n   \"cols\": [\n    \"make\",\n    \"model\",\n    \"goods_code\",\n    \"item\"\n   ]\n  }\n ],\n \"cleaner\": {\n  \"params\": {\n   \"drop_if_unique\": {\n    \"choice\": [\n     false,\n     true\n    ]\n   },\n   \"impute_missing\": {\n    \"choice\": [\n     \"gap\",\n     \"most_frequent\",\n     null\n    ]\n   }\n  }\n },\n \"vectorizer\": {\n  \"slots\": {\n   \"high_cardinality\": [\n    {\n     \"name\": \"skrub.MinHashEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        60\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.GapEncoder\",\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        10,\n        40\n       ]\n      }\n     }\n    },\n    {\n     \"name\": \"skrub.StringEncoder\",\n     \"prior\": 0.5,\n     \"params\": {\n      \"n_components\": {\n       \"int\": [\n        20,\n        60\n       ]\n      }\n     }\n    }\n   ]\n  }\n },\n \"stages\": [\n  {\n   \"name\": \"scale\",\n   \"options\": [\n    \"skip\",\n    \"sklearn.preprocessing.RobustScaler\",\n    \"sklearn.preprocessing.StandardScaler\"\n   ]\n  },\n  {\n   \"name\": \"feature_eng\",\n   \"options\": [\n    \"skip\",\n    {\n     \"name\": \"sklearn.preprocessing.PowerTransformer\",\n     \"params\": {\n      \"standardize\": {\n       \"choice\": [\n        true,\n        false\n       ]\n      }\n     }\n    }\n   ]\n  }\n ],\n \"model\": [\n  {\n   \"name\": \"lightgbm.LGBMClassifier\",\n   \"prior\": 0.8,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.2\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"is_unbalance\": {\n     \"choice\": [\n      true,\n      false\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.HistGradientBoostingClassifier\",\n   \"prior\": 0.6,\n   \"params\": {\n    \"max_iter\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.2\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      2,\n      16\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      null\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"sklearn.ensemble.RandomForestClassifier\",\n   \"prior\": 0.4,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      300\n     ]\n    },\n    \"max_depth\": {\n     \"int\": [\n      5,\n      20\n     ]\n    },\n    \"class_weight\": {\n     \"choice\": [\n      \"balanced\",\n      null\n     ]\n    }\n   }\n  },\n  {\n   \"name\": \"xgboost.XGBClassifier\",\n   \"prior\": 0.75,\n   \"params\": {\n    \"n_estimators\": {\n     \"int\": [\n      100,\n      500\n     ]\n    },\n    \"learning_rate\": {\n     \"float\": [\n      0.01,\n      0.2\n     ],\n     \"log\": true\n    },\n    \"max_depth\": {\n     \"int\": [\n      3,\n      12\n     ]\n    },\n    \"scale_pos_weight\": {\n     \"float\": [\n      10,\n      100\n     ],\n     \"log\": true\n    },\n    \"tree_method\": {\n     \"choice\": [\n      \"hist\",\n      \"exact\"\n     ]\n    }\n   }\n  }\n ]\n}",
+    "proposal": {
+      "assemble": [
+        {
+          "name": "numeric_basic",
+          "table": "products",
+          "main_key": "ID",
+          "aux_key": "basket_ID",
+          "operations": [
+            "sum",
+            "mean",
+            "count"
+          ],
+          "cols": [
+            "cash_price",
+            "Nbr_of_prod_purchas"
+          ]
+        },
+        {
+          "name": "numeric_extended",
+          "table": "products",
+          "main_key": "ID",
+          "aux_key": "basket_ID",
+          "operations": [
+            "sum",
+            "mean",
+            "std",
+            "count"
+          ],
+          "cols": [
+            "cash_price",
+            "Nbr_of_prod_purchas"
+          ]
+        },
+        {
+          "name": "categorical_mode",
+          "table": "products",
+          "main_key": "ID",
+          "aux_key": "basket_ID",
+          "operations": [
+            "mode",
+            "count"
+          ],
+          "cols": [
+            "make",
+            "model",
+            "goods_code",
+            "item"
+          ]
+        }
+      ],
+      "cleaner": {
+        "params": {
+          "drop_if_unique": {
+            "choice": [
+              false,
+              true
+            ]
+          },
+          "impute_missing": {
+            "choice": [
+              "gap",
+              "most_frequent",
+              null
+            ]
+          }
+        }
+      },
+      "vectorizer": {
+        "slots": {
+          "high_cardinality": [
+            {
+              "name": "skrub.MinHashEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    60
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.GapEncoder",
+              "params": {
+                "n_components": {
+                  "int": [
+                    10,
+                    40
+                  ]
+                }
+              }
+            },
+            {
+              "name": "skrub.StringEncoder",
+              "prior": 0.5,
+              "params": {
+                "n_components": {
+                  "int": [
+                    20,
+                    60
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "stages": [
+        {
+          "name": "scale",
+          "options": [
+            "skip",
+            "sklearn.preprocessing.RobustScaler",
+            "sklearn.preprocessing.StandardScaler"
+          ]
+        },
+        {
+          "name": "feature_eng",
+          "options": [
+            "skip",
+            {
+              "name": "sklearn.preprocessing.PowerTransformer",
+              "params": {
+                "standardize": {
+                  "choice": [
+                    true,
+                    false
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "model": [
+        {
+          "name": "lightgbm.LGBMClassifier",
+          "prior": 0.8,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.2
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "is_unbalance": {
+              "choice": [
+                true,
+                false
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.HistGradientBoostingClassifier",
+          "prior": 0.6,
+          "params": {
+            "max_iter": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.2
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                2,
+                16
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                null
+              ]
+            }
+          }
+        },
+        {
+          "name": "sklearn.ensemble.RandomForestClassifier",
+          "prior": 0.4,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                300
+              ]
+            },
+            "max_depth": {
+              "int": [
+                5,
+                20
+              ]
+            },
+            "class_weight": {
+              "choice": [
+                "balanced",
+                null
+              ]
+            }
+          }
+        },
+        {
+          "name": "xgboost.XGBClassifier",
+          "prior": 0.75,
+          "params": {
+            "n_estimators": {
+              "int": [
+                100,
+                500
+              ]
+            },
+            "learning_rate": {
+              "float": [
+                0.01,
+                0.2
+              ],
+              "log": true
+            },
+            "max_depth": {
+              "int": [
+                3,
+                12
+              ]
+            },
+            "scale_pos_weight": {
+              "float": [
+                10,
+                100
+              ],
+              "log": true
+            },
+            "tree_method": {
+              "choice": [
+                "hist",
+                "exact"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+]
